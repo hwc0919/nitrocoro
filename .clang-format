@@ -1,0 +1,60 @@
+BasedOnStyle: LLVM                                              # 基础格式, Visual Studio, LLVM, Google, Chromium, Mozilla, WebKit
+AccessModifierOffset: -4                                        # public, private 修饰符的缩进
+ConstructorInitializerIndentWidth: 4                            # 构造函数初始化列表缩进
+AlignTrailingComments: true                                     # 对齐行尾注释
+#AlignConsecutiveAssignments: AcrossEmptyLinesAndComments
+AlignConsecutiveMacros: AcrossEmptyLinesAndComments
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: InlineOnly
+AlwaysBreakTemplateDeclarations: Yes
+AlwaysBreakBeforeMultilineStrings: false
+
+BreakBeforeBinaryOperators: All
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializersBeforeComma: true
+BinPackParameters: true
+ColumnLimit: 0                                                  # 最大行宽度
+ContinuationIndentWidth: 4
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ExperimentalAutoDetectBinPacking: false
+IndentWidth: 4
+IndentCaseLabels: true
+NamespaceIndentation: None
+MaxEmptyLinesToKeep: 2
+ObjCSpaceBeforeProtocolList: true
+PointerAlignment: Middle
+DerivePointerAlignment: false
+PenaltyBreakBeforeFirstCallParameter: 19
+PenaltyBreakComment: 60
+PenaltyBreakString: 1000
+PenaltyBreakFirstLessLess: 120
+PenaltyExcessCharacter: 1000000
+PenaltyReturnTypeOnItsOwnLine: 60
+SpacesBeforeTrailingComments: 1
+Cpp11BracedListStyle: false
+Standard: c++20
+TabWidth: 4
+UseTab: Never
+SpacesInParentheses: false
+SpacesInAngles: false
+SpaceInEmptyParentheses: false
+SpacesInCStyleCastParentheses: false
+SpaceBeforeAssignmentOperators: true
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterStruct: true
+  AfterClass: true
+  AfterControlStatement: true
+  # AfterControlStatement: MultiLine
+  AfterEnum: true
+  AfterExternBlock: true
+  BeforeCatch: true
+  BeforeElse: true
+  SplitEmptyFunction: true
+  AfterNamespace: true
+  BeforeWhile: false
+  BeforeLambdaBody: false

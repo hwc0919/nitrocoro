@@ -8,6 +8,7 @@
 #include <chrono>
 #include <coroutine>
 #include <exception>
+#include <optional>
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
@@ -29,13 +30,39 @@ struct TaskFinalAwaiter
     void await_resume() noexcept {}
 };
 
+template <typename PromiseType>
+struct TaskAwaiter
+{
+    std::coroutine_handle<PromiseType> handle_;
+
+    bool await_ready() { return false; }
+    std::coroutine_handle<> await_suspend(std::coroutine_handle<> h)
+    {
+        handle_.promise().continuation_ = h;
+        return handle_;
+    }
+
+    auto await_resume()
+    {
+        if constexpr (std::is_void_v<decltype(handle_.promise().result())>)
+        {
+            handle_.promise().result();
+            return;
+        }
+        else
+        {
+            return std::move(handle_.promise().result());
+        }
+    }
+};
+
 template <typename T = void>
 struct [[nodiscard]] Task
 {
     struct promise_type
     {
         std::coroutine_handle<> continuation_;
-        T value_;
+        std::optional<T> value_;
         std::exception_ptr exception_;
 
         Task get_return_object() { return Task{ std::coroutine_handle<promise_type>::from_promise(*this) }; }
@@ -43,6 +70,18 @@ struct [[nodiscard]] Task
         TaskFinalAwaiter<promise_type> final_suspend() noexcept { return {}; }
         void return_value(T value) { value_ = std::move(value); }
         void unhandled_exception() { exception_ = std::current_exception(); }
+        T && result() &&
+        {
+            if (exception_)
+                std::rethrow_exception(exception_);
+            return std::move(value_.value());
+        }
+        T & result() &
+        {
+            if (exception_)
+                std::rethrow_exception(exception_);
+            return value_.value();
+        }
     };
 
     std::coroutine_handle<promise_type> handle_;
@@ -69,25 +108,7 @@ struct [[nodiscard]] Task
             handle_.destroy();
     }
 
-    struct Awaiter
-    {
-        std::coroutine_handle<promise_type> handle_;
-
-        bool await_ready() { return false; }
-        std::coroutine_handle<> await_suspend(std::coroutine_handle<> h)
-        {
-            handle_.promise().continuation_ = h;
-            return handle_;
-        }
-        T await_resume()
-        {
-            if (handle_.promise().exception_)
-                std::rethrow_exception(handle_.promise().exception_);
-            return std::move(handle_.promise().value_);
-        }
-    };
-
-    auto operator co_await() { return Awaiter{ handle_ }; }
+    auto operator co_await() { return TaskAwaiter{ handle_ }; }
 };
 
 template <>
@@ -103,6 +124,11 @@ struct [[nodiscard]] Task<void>
         TaskFinalAwaiter<promise_type> final_suspend() noexcept { return {}; }
         void return_void() {}
         void unhandled_exception() { exception_ = std::current_exception(); }
+        void result() const
+        {
+            if (exception_)
+                std::rethrow_exception(exception_);
+        }
     };
 
     std::coroutine_handle<promise_type> handle_;
@@ -129,24 +155,7 @@ struct [[nodiscard]] Task<void>
             handle_.destroy();
     }
 
-    struct Awaiter
-    {
-        std::coroutine_handle<promise_type> handle_;
-
-        bool await_ready() { return false; }
-        std::coroutine_handle<> await_suspend(std::coroutine_handle<> h)
-        {
-            handle_.promise().continuation_ = h;
-            return handle_;
-        }
-        void await_resume()
-        {
-            if (handle_.promise().exception_)
-                std::rethrow_exception(handle_.promise().exception_);
-        }
-    };
-
-    auto operator co_await() { return Awaiter{ handle_ }; }
+    auto operator co_await() { return TaskAwaiter{ handle_ }; }
 };
 
 } // namespace my_coro

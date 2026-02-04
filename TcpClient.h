@@ -16,8 +16,8 @@ public:
     ~TcpClient();
 
     Task<> connect(const char * host, int port);
-    Task<> read(void * buf, size_t len, ssize_t * result);
-    Task<> write(const void * buf, size_t len, ssize_t * result);
+    Task<ssize_t> read(void * buf, size_t len);
+    Task<ssize_t> write(const void * buf, size_t len);
     void close();
 
     bool is_connected() const { return fd_ >= 0; }

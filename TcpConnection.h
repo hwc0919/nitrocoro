@@ -20,8 +20,8 @@ public:
     TcpConnection(TcpConnection &&) = delete;
     TcpConnection & operator=(TcpConnection &&) = delete;
 
-    Task<> read(void * buf, size_t len, ssize_t * result);
-    Task<> write(const void * buf, size_t len, ssize_t * result);
+    Task<ssize_t> read(void * buf, size_t len);
+    Task<ssize_t> write(const void * buf, size_t len);
     bool is_open() const { return fd_ >= 0; }
 
 private:

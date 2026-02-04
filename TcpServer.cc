@@ -80,7 +80,7 @@ Task<> TcpServer::start()
 
     while (running_)
     {
-        co_await current_scheduler() -> async_read(listen_fd_, &dummy, 1);
+        co_await current_scheduler()->async_read(listen_fd_, &dummy, 1);
 
         sockaddr_in client_addr{};
         socklen_t addr_len = sizeof(client_addr);

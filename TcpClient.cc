@@ -52,7 +52,7 @@ Task<> TcpClient::connect(const char * host, int port)
 
     // Wait for connection to complete (fd becomes writable)
     char dummy;
-    co_await current_scheduler() -> async_write(fd_, &dummy, 0);
+    co_await current_scheduler()->async_write(fd_, &dummy, 0);
 
     // Check if connection succeeded
     int error = 0;
@@ -67,14 +67,14 @@ Task<> TcpClient::connect(const char * host, int port)
     }
 }
 
-Task<> TcpClient::read(void * buf, size_t len, ssize_t * result)
+Task<ssize_t> TcpClient::read(void * buf, size_t len)
 {
-    *result = co_await current_scheduler() -> async_read(fd_, buf, len);
+    co_return co_await current_scheduler()->async_read(fd_, buf, len);
 }
 
-Task<> TcpClient::write(const void * buf, size_t len, ssize_t * result)
+Task<ssize_t> TcpClient::write(const void * buf, size_t len)
 {
-    *result = co_await current_scheduler() -> async_write(fd_, buf, len);
+    co_return co_await current_scheduler()->async_write(fd_, buf, len);
 }
 
 void TcpClient::close()

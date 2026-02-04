@@ -21,8 +21,7 @@ Task<> echo_handler(std::shared_ptr<TcpConnection> conn)
     char buf[BUFFER_SIZE];
     while (true)
     {
-        ssize_t n;
-        co_await conn->read(buf, sizeof(buf) - 1, &n);
+        ssize_t n = co_await conn->read(buf, sizeof(buf) - 1);
         if (n <= 0)
         {
             std::cout << "Connection closed\n";
@@ -31,8 +30,8 @@ Task<> echo_handler(std::shared_ptr<TcpConnection> conn)
 
         buf[n] = '\0';
         std::cout << "Received " << n << " bytes: " << buf << "\n";
-        co_await conn->write(buf, n, &n);
-        co_await current_scheduler() -> sleep_for(1); // Simulate processing delay
+        co_await conn->write(buf, n);
+        co_await current_scheduler()->sleep_for(1); // Simulate processing delay
     }
 }
 
@@ -57,16 +56,15 @@ Task<> tcp_client_main(const char * host, int port)
         if (line.empty())
             continue;
 
-        ssize_t n;
-        co_await client.write(line.c_str(), line.size(), &n);
-        co_await client.write("\n", 1, &n);
+        co_await client.write(line.c_str(), line.size());
+        co_await client.write("\n", 1);
 
         // Read until newline
         std::string response;
         char buf[BUFFER_SIZE];
         while (true)
         {
-            co_await client.read(buf, sizeof(buf) - 1, &n);
+            ssize_t n = co_await client.read(buf, sizeof(buf) - 1);
             if (n <= 0)
                 break;
             buf[n] = '\0';
