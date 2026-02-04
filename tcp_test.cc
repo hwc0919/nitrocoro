@@ -2,21 +2,27 @@
  * @file tcp_test.cc
  * @brief Test program for TcpServer component
  */
-#include "TcpServer.h"
 #include "CoroScheduler.h"
+#include "TcpServer.h"
 #include <arpa/inet.h>
+#include <cstring>
 #include <fcntl.h>
+#include <iostream>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <cstring>
-#include <iostream>
 
 using namespace my_coro;
 
+#define BUFFER_SIZE 8
+
 Task echo_handler(int fd)
 {
-    char buf[1024];
+    int opt = 1;
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+
+    char buf[BUFFER_SIZE];
     while (true)
     {
         auto n = co_await current_scheduler()->async_read(fd, buf, sizeof(buf) - 1);
@@ -28,13 +34,13 @@ Task echo_handler(int fd)
 
         buf[n] = '\0';
         std::cout << "Received from fd(" << fd << ") " << n << " bytes: " << buf << "\n";
-
         co_await current_scheduler()->async_write(fd, buf, n);
+        co_await current_scheduler()->sleep_for(1); // Simulate processing delay
     }
     close(fd);
 }
 
-Task tcp_client(int port, const char* message)
+Task tcp_client(int port, const char * message)
 {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     int flags = fcntl(fd, F_GETFL, 0);
@@ -45,7 +51,7 @@ Task tcp_client(int port, const char* message)
     addr.sin_port = htons(port);
     inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
 
-    connect(fd, (sockaddr*)&addr, sizeof(addr));
+    connect(fd, (sockaddr *)&addr, sizeof(addr));
     co_await current_scheduler()->sleep_for(0.1);
 
     std::cout << "Client sending: " << message << "\n";
@@ -77,30 +83,41 @@ Task tcp_client_main()
     addr.sin_port = htons(8888);
     inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
 
-    connect(fd, (sockaddr*)&addr, sizeof(addr));
+    connect(fd, (sockaddr *)&addr, sizeof(addr));
     co_await current_scheduler()->sleep_for(0.1);
     std::cout << "Connected to server\n";
 
     std::string line;
     while (std::getline(std::cin, line))
     {
-        if (line == "q") break;
-        if (line.empty()) continue;
+        if (line == "q")
+            break;
+        if (line.empty())
+            continue;
 
         co_await current_scheduler()->async_write(fd, line.c_str(), line.size());
 
-        char buf[1024];
-        auto n = co_await current_scheduler()->async_read(fd, buf, sizeof(buf) - 1);
-        if (n <= 0) break;
-        buf[n] = '\0';
-        std::cout << "Received: " << buf << "\n";
+        size_t total = 0;
+        char buf[BUFFER_SIZE];
+        while (total < line.size())
+        {
+            auto n = co_await current_scheduler()->async_read(fd, buf, sizeof(buf) - 1);
+            if (n <= 0)
+                break;
+            buf[n] = '\0';
+            fprintf(stdout, "%s", buf);
+            fflush(stdout);
+            total += n;
+        }
+        fprintf(stdout, "\n");
+        fflush(stdout);
     }
 
     close(fd);
     current_scheduler()->stop();
 }
 
-int main(int argc, char* argv[])
+int main(int argc, char * argv[])
 {
     if (argc < 2)
     {
