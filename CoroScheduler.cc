@@ -8,7 +8,7 @@
 #include <sys/eventfd.h>
 #include <unistd.h>
 
-namespace drogon::coro
+namespace my_coro
 {
 
 thread_local CoroScheduler * g_scheduler = nullptr;
@@ -209,4 +209,4 @@ void CoroScheduler::wakeup()
     write(wakeup_fd_, &val, sizeof(val));
 }
 
-} // namespace drogon::coro
+} // namespace my_coro

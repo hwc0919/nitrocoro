@@ -10,7 +10,7 @@
 #include <queue>
 #include <unordered_map>
 
-namespace drogon::coro
+namespace my_coro
 {
 class CoroScheduler;
 extern thread_local CoroScheduler * g_scheduler;
@@ -146,7 +146,7 @@ struct [[nodiscard]] Task
 
     auto operator co_await() { return Awaiter{ handle_ }; }
 
-    friend class drogon::coro::CoroScheduler;
+    friend class my_coro::CoroScheduler;
 };
 
 enum class IoOp
@@ -266,4 +266,4 @@ private:
     void wakeup();
 };
 
-} // namespace drogon::coro
+} // namespace my_coro
