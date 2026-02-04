@@ -3,6 +3,7 @@
  * @brief Implementation of coroutine-based TCP server
  */
 #include "TcpServer.h"
+#include "TcpConnection.h"
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -95,8 +96,9 @@ Task TcpServer::start()
 
         std::cout << "Accepted connection: fd=" << client_fd << "\n";
 
-        current_scheduler()->spawn([this, client_fd]() -> Task {
-            co_await handler_(client_fd);
+        auto conn = std::make_shared<TcpConnection>(client_fd);
+        current_scheduler()->spawn([this, conn]() -> Task {
+            co_await handler_(conn);
         });
     }
 }

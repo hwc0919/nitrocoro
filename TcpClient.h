@@ -20,7 +20,6 @@ public:
     Task write(const void* buf, size_t len, ssize_t* result);
     void close();
     
-    int fd() const { return fd_; }
     bool is_connected() const { return fd_ >= 0; }
 
 private:

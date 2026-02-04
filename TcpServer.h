@@ -5,7 +5,9 @@
 #pragma once
 
 #include "CoroScheduler.h"
+#include "TcpConnection.h"
 #include <functional>
+#include <memory>
 
 namespace my_coro
 {
@@ -13,7 +15,7 @@ namespace my_coro
 class TcpServer
 {
 public:
-    using ConnectionHandler = std::function<Task(int fd)>;
+    using ConnectionHandler = std::function<Task(std::shared_ptr<TcpConnection>)>;
 
     explicit TcpServer(int port);
     ~TcpServer();

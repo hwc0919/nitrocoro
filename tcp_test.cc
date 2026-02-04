@@ -5,6 +5,7 @@
 #include "CoroScheduler.h"
 #include "TcpClient.h"
 #include "TcpServer.h"
+#include "TcpConnection.h"
 #include <cstring>
 #include <iostream>
 #include <netinet/tcp.h>
@@ -14,24 +15,24 @@ using namespace my_coro;
 
 #define BUFFER_SIZE 8
 
-Task echo_handler(int fd)
+Task echo_handler(std::shared_ptr<TcpConnection> conn)
 {
     char buf[BUFFER_SIZE];
     while (true)
     {
-        auto n = co_await current_scheduler()->async_read(fd, buf, sizeof(buf) - 1);
+        ssize_t n;
+        co_await conn->read(buf, sizeof(buf) - 1, &n);
         if (n <= 0)
         {
-            std::cout << "Connection closed: fd=" << fd << "\n";
+            std::cout << "Connection closed\n";
             break;
         }
 
         buf[n] = '\0';
-        std::cout << "Received from fd(" << fd << ") " << n << " bytes: " << buf << "\n";
-        co_await current_scheduler()->async_write(fd, buf, n);
+        std::cout << "Received " << n << " bytes: " << buf << "\n";
+        co_await conn->write(buf, n, &n);
         co_await current_scheduler()->sleep_for(1); // Simulate processing delay
     }
-    close(fd);
 }
 
 Task tcp_server_main()
