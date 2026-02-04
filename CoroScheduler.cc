@@ -17,7 +17,7 @@ void IoAwaitable::await_suspend(std::coroutine_handle<> h) noexcept
 {
     handle_ = h;
     auto * sched = current_scheduler();
-    sched->register_io(fd_, op_, h, buf_, len_);
+    sched->register_io(fd_, op_, h, buf_, len_, &result_);
 }
 
 void TimerAwaitable::await_suspend(std::coroutine_handle<> h) noexcept
@@ -104,6 +104,7 @@ void CoroScheduler::run()
                                   ? read(fd, waiter.buffer, waiter.size)
                                   : write(fd, waiter.buffer, waiter.size);
 
+                *waiter.result = ret;
                 ready_queue_.push(waiter.coro);
                 io_waiters_.erase(it);
             }
@@ -148,7 +149,7 @@ void CoroScheduler::schedule(std::coroutine_handle<> coro)
 }
 
 void CoroScheduler::register_io(int fd, IoOp op, std::coroutine_handle<> coro,
-                                void * buf, size_t len)
+                                void * buf, size_t len, ssize_t * result)
 {
     epoll_event ev;
     ev.events = (op == IoOp::Read) ? EPOLLIN : EPOLLOUT;
@@ -157,7 +158,7 @@ void CoroScheduler::register_io(int fd, IoOp op, std::coroutine_handle<> coro,
 
     epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev);
 
-    io_waiters_[fd] = IoWaiter{ coro, buf, len };
+    io_waiters_[fd] = IoWaiter{ coro, buf, len, result };
 }
 
 TimerId CoroScheduler::register_timer(TimePoint when, std::coroutine_handle<> coro)

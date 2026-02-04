@@ -219,7 +219,7 @@ public:
         // schedule(r.handle_);
     }
 
-    void register_io(int fd, IoOp op, std::coroutine_handle<> coro, void * buf, size_t len);
+    void register_io(int fd, IoOp op, std::coroutine_handle<> coro, void * buf, size_t len, ssize_t * result);
     TimerId register_timer(TimePoint when, std::coroutine_handle<> coro);
 
 private:
@@ -242,6 +242,7 @@ private:
         std::coroutine_handle<> coro;
         void * buffer;
         size_t size;
+        ssize_t * result;
     };
     std::unordered_map<int, IoWaiter> io_waiters_;
 
