@@ -74,52 +74,10 @@ void CoroScheduler::run()
 {
     running_.store(true, std::memory_order_release);
 
-    epoll_event events[128];
-
     while (running_.load(std::memory_order_acquire))
     {
-        // 1. 先恢复就绪协程
         resume_ready_coros();
-
-        // 2. 计算超时时间
-        int timeout_ms = static_cast<int>(get_next_timeout());
-
-        // 3. 处理 I/O 事件
-        int n = epoll_wait(epoll_fd_, events, 128, timeout_ms);
-
-        for (int i = 0; i < n; ++i)
-        {
-            int fd = events[i].data.fd;
-
-            // 处理 wakeup 事件
-            if (fd == wakeup_fd_)
-            {
-                uint64_t val;
-                read(wakeup_fd_, &val, sizeof(val));
-                continue;
-            }
-
-            auto it = io_waiters_.find(fd);
-            if (it != io_waiters_.end())
-            {
-                auto & waiter = it->second;
-                ssize_t ret = (events[i].events & EPOLLIN)
-                                  ? read(fd, waiter.buffer, waiter.size)
-                                  : write(fd, waiter.buffer, waiter.size);
-
-                *waiter.result = ret;
-                ready_queue_.push(waiter.coro);
-                io_waiters_.erase(it);
-
-                if (ret <= 0 || (ret < 0 && (errno == EBADF || errno == ECONNRESET || errno == EPIPE)))
-                {
-                    epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
-                    epoll_fds_.erase(fd);
-                }
-            }
-        }
-
-        // 4. 处理到期定时器
+        process_io_events();
         process_timers();
     }
 }
@@ -185,6 +143,53 @@ TimerId CoroScheduler::register_timer(TimePoint when, std::coroutine_handle<> co
     return id;
 }
 
+void CoroScheduler::resume_ready_coros()
+{
+    while (auto coro = ready_queue_.pop())
+    {
+        if (!coro.done())
+            coro.resume();
+    }
+}
+
+void CoroScheduler::process_io_events()
+{
+    int timeout_ms = static_cast<int>(get_next_timeout());
+    epoll_event events[128];
+    int n = epoll_wait(epoll_fd_, events, 128, timeout_ms);
+
+    for (int i = 0; i < n; ++i)
+    {
+        int fd = events[i].data.fd;
+
+        if (fd == wakeup_fd_)
+        {
+            uint64_t val;
+            read(wakeup_fd_, &val, sizeof(val));
+            continue;
+        }
+
+        auto it = io_waiters_.find(fd);
+        if (it != io_waiters_.end())
+        {
+            auto & waiter = it->second;
+            ssize_t ret = (events[i].events & EPOLLIN)
+                              ? read(fd, waiter.buffer, waiter.size)
+                              : write(fd, waiter.buffer, waiter.size);
+
+            *waiter.result = ret;
+            ready_queue_.push(waiter.coro);
+            io_waiters_.erase(it);
+
+            if (ret <= 0 || (ret < 0 && (errno == EBADF || errno == ECONNRESET || errno == EPIPE)))
+            {
+                epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
+                epoll_fds_.erase(fd);
+            }
+        }
+    }
+}
+
 void CoroScheduler::process_timers()
 {
     auto now = std::chrono::steady_clock::now();
@@ -210,15 +215,6 @@ int64_t CoroScheduler::get_next_timeout() const
 
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(next - now);
     return ms.count();
-}
-
-void CoroScheduler::resume_ready_coros()
-{
-    while (auto coro = ready_queue_.pop())
-    {
-        if (!coro.done())
-            coro.resume();
-    }
 }
 
 void CoroScheduler::wakeup()

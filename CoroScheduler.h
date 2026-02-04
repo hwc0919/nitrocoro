@@ -14,8 +14,12 @@
 namespace my_coro
 {
 class CoroScheduler;
+
 extern thread_local CoroScheduler * g_scheduler;
-inline CoroScheduler * current_scheduler() { return g_scheduler; }
+inline CoroScheduler * current_scheduler()
+{
+    return g_scheduler;
+}
 
 struct AsyncTask
 {
@@ -95,9 +99,6 @@ struct [[nodiscard]] Task
                 auto & promise = h.promise();
                 if (promise.continuation_)
                     return promise.continuation_;
-
-                // 顶层任务：销毁自己
-                h.destroy();
                 return std::noop_coroutine();
             }
             void await_resume() noexcept {}
@@ -128,7 +129,7 @@ struct [[nodiscard]] Task
 
     ~Task()
     {
-        if (handle_ && !handle_.done())
+        if (handle_)
             handle_.destroy();
     }
 
@@ -262,9 +263,9 @@ private:
     std::priority_queue<Timer, std::vector<Timer>, std::greater<Timer>> timers_;
     std::atomic<TimerId> next_timer_id_{ 1 };
 
+    void resume_ready_coros();
     void process_io_events();
     void process_timers();
-    void resume_ready_coros();
     int64_t get_next_timeout() const;
     void wakeup();
 };
