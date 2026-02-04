@@ -4,12 +4,13 @@
  */
 #include "TcpClient.h"
 #include <arpa/inet.h>
+#include <cerrno>
+#include <cstring>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <stdexcept>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <cstring>
-#include <stdexcept>
 
 namespace my_coro
 {
@@ -23,11 +24,10 @@ TcpClient::~TcpClient()
     close();
 }
 
-Task TcpClient::connect(const char* host, int port)
+Task TcpClient::connect(const char * host, int port)
 {
     fd_ = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd_ < 0)
-    {
+    if (fd_ < 0) {
         throw std::runtime_error("Failed to create socket");
     }
 
@@ -39,24 +39,43 @@ Task TcpClient::connect(const char* host, int port)
     addr.sin_port = htons(port);
     inet_pton(AF_INET, host, &addr.sin_addr);
 
-    ::connect(fd_, (sockaddr*)&addr, sizeof(addr));
-    co_await current_scheduler()->sleep_for(0.1);
+    int ret = ::connect(fd_, (sockaddr *)&addr, sizeof(addr));
+
+    if (ret < 0 && errno != EINPROGRESS) {
+        ::close(fd_);
+        fd_ = -1;
+        throw std::runtime_error("Connect failed");
+    }
+
+    // Wait for connection to complete (fd becomes writable)
+    char dummy;
+    co_await current_scheduler() -> async_write(fd_, &dummy, 0);
+
+    // Check if connection succeeded
+    int error = 0;
+    socklen_t len = sizeof(error);
+    getsockopt(fd_, SOL_SOCKET, SO_ERROR, &error, &len);
+
+    if (error != 0) {
+        ::close(fd_);
+        fd_ = -1;
+        throw std::runtime_error("Connect failed: " + std::string(strerror(error)));
+    }
 }
 
-Task TcpClient::read(void* buf, size_t len, ssize_t* result)
+Task TcpClient::read(void * buf, size_t len, ssize_t * result)
 {
-    *result = co_await current_scheduler()->async_read(fd_, buf, len);
+    *result = co_await current_scheduler() -> async_read(fd_, buf, len);
 }
 
-Task TcpClient::write(const void* buf, size_t len, ssize_t* result)
+Task TcpClient::write(const void * buf, size_t len, ssize_t * result)
 {
-    *result = co_await current_scheduler()->async_write(fd_, buf, len);
+    *result = co_await current_scheduler() -> async_write(fd_, buf, len);
 }
 
 void TcpClient::close()
 {
-    if (fd_ >= 0)
-    {
+    if (fd_ >= 0) {
         ::close(fd_);
         fd_ = -1;
     }
