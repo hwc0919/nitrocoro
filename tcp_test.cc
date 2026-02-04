@@ -6,6 +6,7 @@
 #include "TcpClient.h"
 #include "TcpServer.h"
 #include "TcpConnection.h"
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <netinet/tcp.h>
@@ -35,17 +36,17 @@ Task echo_handler(std::shared_ptr<TcpConnection> conn)
     }
 }
 
-Task tcp_server_main()
+Task tcp_server_main(int port)
 {
-    TcpServer server(8888);
+    TcpServer server(port);
     server.set_handler(echo_handler);
     co_await server.start();
 }
 
-Task tcp_client_main()
+Task tcp_client_main(const char* host, int port)
 {
     TcpClient client;
-    co_await client.connect("127.0.0.1", 8888);
+    co_await client.connect(host, port);
     std::cout << "Connected to server\n";
 
     std::string line;
@@ -83,7 +84,9 @@ int main(int argc, char * argv[])
 {
     if (argc < 2)
     {
-        std::cout << "Usage: " << argv[0] << " <server|client> [message]\n";
+        std::cout << "Usage:\n";
+        std::cout << "  " << argv[0] << " server [port]\n";
+        std::cout << "  " << argv[0] << " client [host] [port]\n";
         return 1;
     }
 
@@ -91,13 +94,17 @@ int main(int argc, char * argv[])
 
     if (strcmp(argv[1], "server") == 0)
     {
-        std::cout << "=== Starting Server ===\n";
-        scheduler.spawn(tcp_server_main);
+        int port = (argc >= 3) ? atoi(argv[2]) : 8888;
+        std::cout << "=== Starting Server on port " << port << " ===\n";
+        scheduler.spawn([port]() -> Task { co_await tcp_server_main(port); });
     }
     else if (strcmp(argv[1], "client") == 0)
     {
-        std::cout << "=== Starting Client (type 'q' to quit) ===\n";
-        scheduler.spawn(tcp_client_main);
+        const char* host = (argc >= 3) ? argv[2] : "127.0.0.1";
+        int port = (argc >= 4) ? atoi(argv[3]) : 8888;
+        std::cout << "=== Starting Client (connecting to " << host << ":" << port << ") ===\n";
+        std::cout << "Type 'q' to quit\n";
+        scheduler.spawn([host, port]() -> Task { co_await tcp_client_main(host, port); });
     }
     else
     {
