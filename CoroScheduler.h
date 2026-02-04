@@ -30,11 +30,11 @@ enum class IoOp
 using TimerId = uint64_t;
 using TimePoint = std::chrono::steady_clock::time_point;
 
-struct IoAwaitable
+struct [[nodiscard]] IoAwaitable
 {
-    int fd_;
-    void * buf_;
-    size_t len_;
+    int fd_{};
+    void * buf_{};
+    size_t len_{};
     IoOp op_;
     std::coroutine_handle<> handle_;
     ssize_t result_{ -1 };
@@ -44,7 +44,7 @@ struct IoAwaitable
     ssize_t await_resume() noexcept { return result_; }
 };
 
-struct TimerAwaitable
+struct [[nodiscard]] TimerAwaitable
 {
     TimePoint when_;
     std::coroutine_handle<> handle_;
@@ -87,29 +87,11 @@ struct AsyncTask
 
     struct promise_type
     {
-        AsyncTask get_return_object() noexcept
-        {
-            return { std::coroutine_handle<promise_type>::from_promise(*this) };
-        }
-
-        std::suspend_never initial_suspend() const noexcept
-        {
-            return {};
-        }
-
-        void unhandled_exception()
-        {
-            std::terminate();
-        }
-
-        void return_void() noexcept
-        {
-        }
-
-        std::suspend_never final_suspend() const noexcept
-        {
-            return {};
-        }
+        AsyncTask get_return_object() noexcept { return { handle_type::from_promise(*this) }; }
+        std::suspend_never initial_suspend() const noexcept { return {}; }
+        void unhandled_exception() { std::terminate(); }
+        void return_void() noexcept {}
+        std::suspend_never final_suspend() const noexcept { return {}; }
     };
 
     handle_type coro_;

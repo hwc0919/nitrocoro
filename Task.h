@@ -59,13 +59,16 @@ struct TaskAwaiter
 template <typename T = void>
 struct [[nodiscard]] Task
 {
+    struct promise_type;
+    using handle_type = std::coroutine_handle<promise_type>;
+
     struct promise_type
     {
         std::coroutine_handle<> continuation_;
         std::optional<T> value_;
         std::exception_ptr exception_;
 
-        Task get_return_object() { return Task{ std::coroutine_handle<promise_type>::from_promise(*this) }; }
+        Task get_return_object() { return Task{ handle_type::from_promise(*this) }; }
         std::suspend_always initial_suspend() { return {}; }
         TaskFinalAwaiter<promise_type> final_suspend() noexcept { return {}; }
         void return_value(T value) { value_ = std::move(value); }
@@ -84,9 +87,9 @@ struct [[nodiscard]] Task
         }
     };
 
-    std::coroutine_handle<promise_type> handle_;
+    handle_type handle_;
 
-    Task(std::coroutine_handle<promise_type> h) : handle_(h) {}
+    Task(handle_type h) : handle_(h) {}
     Task(Task && other) noexcept : handle_(other.handle_) { other.handle_ = nullptr; }
     Task & operator=(Task && other) noexcept
     {
@@ -114,12 +117,15 @@ struct [[nodiscard]] Task
 template <>
 struct [[nodiscard]] Task<void>
 {
+    struct promise_type;
+    using handle_type = std::coroutine_handle<promise_type>;
+
     struct promise_type
     {
         std::coroutine_handle<> continuation_;
         std::exception_ptr exception_;
 
-        Task get_return_object() { return Task{ std::coroutine_handle<promise_type>::from_promise(*this) }; }
+        Task get_return_object() { return Task{ handle_type::from_promise(*this) }; }
         std::suspend_always initial_suspend() { return {}; }
         TaskFinalAwaiter<promise_type> final_suspend() noexcept { return {}; }
         void return_void() {}
@@ -131,9 +137,9 @@ struct [[nodiscard]] Task<void>
         }
     };
 
-    std::coroutine_handle<promise_type> handle_;
+    handle_type handle_;
 
-    Task(std::coroutine_handle<promise_type> h) : handle_(h) {}
+    Task(handle_type h) : handle_(h) {}
     Task(Task && other) noexcept : handle_(other.handle_) { other.handle_ = nullptr; }
     Task & operator=(Task && other) noexcept
     {
