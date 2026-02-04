@@ -156,7 +156,10 @@ void CoroScheduler::register_io(int fd, IoOp op, std::coroutine_handle<> coro,
     ev.events |= EPOLLET | EPOLLONESHOT;
     ev.data.fd = fd;
 
-    epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev);
+    if (epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &ev) < 0)
+    {
+        epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev);
+    }
 
     io_waiters_[fd] = IoWaiter{ coro, buf, len, result };
 }
