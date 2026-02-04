@@ -4,7 +4,7 @@
  */
 #pragma once
 
-#include "CoroScheduler.h"
+#include "Task.h"
 
 namespace my_coro
 {
@@ -15,13 +15,13 @@ public:
     explicit TcpConnection(int fd);
     ~TcpConnection();
 
-    TcpConnection(const TcpConnection&) = delete;
-    TcpConnection& operator=(const TcpConnection&) = delete;
-    TcpConnection(TcpConnection&&) = delete;
-    TcpConnection& operator=(TcpConnection&&) = delete;
+    TcpConnection(const TcpConnection &) = delete;
+    TcpConnection & operator=(const TcpConnection &) = delete;
+    TcpConnection(TcpConnection &&) = delete;
+    TcpConnection & operator=(TcpConnection &&) = delete;
 
-    Task read(void* buf, size_t len, ssize_t* result);
-    Task write(const void* buf, size_t len, ssize_t* result);
+    Task<> read(void * buf, size_t len, ssize_t * result);
+    Task<> write(const void * buf, size_t len, ssize_t * result);
     bool is_open() const { return fd_ >= 0; }
 
 private:

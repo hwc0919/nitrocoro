@@ -3,6 +3,7 @@
  * @brief Implementation of coroutine-based TCP client
  */
 #include "TcpClient.h"
+#include "CoroScheduler.h"
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstring>
@@ -24,10 +25,11 @@ TcpClient::~TcpClient()
     close();
 }
 
-Task TcpClient::connect(const char * host, int port)
+Task<> TcpClient::connect(const char * host, int port)
 {
     fd_ = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd_ < 0) {
+    if (fd_ < 0)
+    {
         throw std::runtime_error("Failed to create socket");
     }
 
@@ -41,7 +43,8 @@ Task TcpClient::connect(const char * host, int port)
 
     int ret = ::connect(fd_, (sockaddr *)&addr, sizeof(addr));
 
-    if (ret < 0 && errno != EINPROGRESS) {
+    if (ret < 0 && errno != EINPROGRESS)
+    {
         ::close(fd_);
         fd_ = -1;
         throw std::runtime_error("Connect failed");
@@ -56,26 +59,28 @@ Task TcpClient::connect(const char * host, int port)
     socklen_t len = sizeof(error);
     getsockopt(fd_, SOL_SOCKET, SO_ERROR, &error, &len);
 
-    if (error != 0) {
+    if (error != 0)
+    {
         ::close(fd_);
         fd_ = -1;
         throw std::runtime_error("Connect failed: " + std::string(strerror(error)));
     }
 }
 
-Task TcpClient::read(void * buf, size_t len, ssize_t * result)
+Task<> TcpClient::read(void * buf, size_t len, ssize_t * result)
 {
     *result = co_await current_scheduler() -> async_read(fd_, buf, len);
 }
 
-Task TcpClient::write(const void * buf, size_t len, ssize_t * result)
+Task<> TcpClient::write(const void * buf, size_t len, ssize_t * result)
 {
     *result = co_await current_scheduler() -> async_write(fd_, buf, len);
 }
 
 void TcpClient::close()
 {
-    if (fd_ >= 0) {
+    if (fd_ >= 0)
+    {
         ::close(fd_);
         fd_ = -1;
     }

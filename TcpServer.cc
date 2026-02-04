@@ -3,15 +3,15 @@
  * @brief Implementation of coroutine-based TCP server
  */
 #include "TcpServer.h"
+#include "CoroScheduler.h"
 #include "TcpConnection.h"
-#include <arpa/inet.h>
+
 #include <fcntl.h>
+#include <iostream>
 #include <netinet/in.h>
+#include <stdexcept>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <cstring>
-#include <iostream>
-#include <stdexcept>
 
 namespace my_coro
 {
@@ -68,7 +68,7 @@ void TcpServer::set_handler(ConnectionHandler handler)
     handler_ = std::move(handler);
 }
 
-Task TcpServer::start()
+Task<> TcpServer::start()
 {
     if (!handler_)
     {
@@ -80,7 +80,7 @@ Task TcpServer::start()
 
     while (running_)
     {
-        co_await current_scheduler()->async_read(listen_fd_, &dummy, 1);
+        co_await current_scheduler() -> async_read(listen_fd_, &dummy, 1);
 
         sockaddr_in client_addr{};
         socklen_t addr_len = sizeof(client_addr);
@@ -97,7 +97,7 @@ Task TcpServer::start()
         std::cout << "Accepted connection: fd=" << client_fd << "\n";
 
         auto conn = std::make_shared<TcpConnection>(client_fd);
-        current_scheduler()->spawn([this, conn]() -> Task {
+        current_scheduler()->spawn([this, conn]() -> Task<> {
             co_await handler_(conn);
         });
     }

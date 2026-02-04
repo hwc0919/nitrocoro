@@ -4,8 +4,6 @@
  */
 #pragma once
 
-#include "Task.h"
-
 #include <atomic>
 #include <chrono>
 #include <coroutine>
@@ -54,6 +52,67 @@ struct TimerAwaitable
     bool await_ready() const noexcept { return false; }
     void await_suspend(std::coroutine_handle<> h) noexcept;
     void await_resume() noexcept {}
+};
+
+struct AsyncTask
+{
+    struct promise_type;
+    using handle_type = std::coroutine_handle<promise_type>;
+
+    AsyncTask() = default;
+
+    AsyncTask(handle_type h) : coro_(h)
+    {
+    }
+
+    AsyncTask(const AsyncTask &) = delete;
+
+    AsyncTask(AsyncTask && other) noexcept
+    {
+        coro_ = other.coro_;
+        other.coro_ = nullptr;
+    }
+
+    AsyncTask & operator=(const AsyncTask &) = delete;
+
+    AsyncTask & operator=(AsyncTask && other) noexcept
+    {
+        if (std::addressof(other) == this)
+            return *this;
+
+        coro_ = other.coro_;
+        other.coro_ = nullptr;
+        return *this;
+    }
+
+    struct promise_type
+    {
+        AsyncTask get_return_object() noexcept
+        {
+            return { std::coroutine_handle<promise_type>::from_promise(*this) };
+        }
+
+        std::suspend_never initial_suspend() const noexcept
+        {
+            return {};
+        }
+
+        void unhandled_exception()
+        {
+            std::terminate();
+        }
+
+        void return_void() noexcept
+        {
+        }
+
+        std::suspend_never final_suspend() const noexcept
+        {
+            return {};
+        }
+    };
+
+    handle_type coro_;
 };
 
 class CoroScheduler

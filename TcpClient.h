@@ -4,7 +4,7 @@
  */
 #pragma once
 
-#include "CoroScheduler.h"
+#include "Task.h"
 
 namespace my_coro
 {
@@ -15,11 +15,11 @@ public:
     TcpClient();
     ~TcpClient();
 
-    Task connect(const char* host, int port);
-    Task read(void* buf, size_t len, ssize_t* result);
-    Task write(const void* buf, size_t len, ssize_t* result);
+    Task<> connect(const char * host, int port);
+    Task<> read(void * buf, size_t len, ssize_t * result);
+    Task<> write(const void * buf, size_t len, ssize_t * result);
     void close();
-    
+
     bool is_connected() const { return fd_ >= 0; }
 
 private:

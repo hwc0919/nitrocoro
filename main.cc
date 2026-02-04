@@ -1,11 +1,12 @@
 #include "CoroScheduler.h"
+#include "Task.h"
 #include <atomic>
 #include <iostream>
 #include <memory>
 
 using namespace my_coro;
 
-Task example_task(int i, int n)
+Task<> example_task(int i, int n)
 {
     auto & scheduler = *current_scheduler();
     std::cout << "Task " << i << " started\n";
@@ -20,10 +21,10 @@ Task example_task(int i, int n)
     }
 }
 
-Task main_coro()
+Task<> main_coro()
 {
     auto cnt = std::make_shared<std::atomic_int>(2);
-    current_scheduler()->spawn([cnt]() -> Task {
+    current_scheduler()->spawn([cnt]() -> Task<> {
         co_await example_task(101, 102);
         if (--*cnt == 0)
         {
