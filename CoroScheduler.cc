@@ -5,6 +5,7 @@
 #include <CoroScheduler.h>
 #include <cstring>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <unistd.h>
 
 namespace drogon::coro
@@ -47,11 +48,21 @@ std::coroutine_handle<> CoroScheduler::ReadyQueue::pop()
 CoroScheduler::CoroScheduler()
 {
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
+    wakeup_fd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+
+    // 将 wakeup_fd 加入 epoll 监听
+    epoll_event ev;
+    ev.events = EPOLLIN | EPOLLET;
+    ev.data.fd = wakeup_fd_;
+    epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, wakeup_fd_, &ev);
+
     g_scheduler = this;
 }
 
 CoroScheduler::~CoroScheduler()
 {
+    if (wakeup_fd_ >= 0)
+        close(wakeup_fd_);
     if (epoll_fd_ >= 0)
         close(epoll_fd_);
 }
@@ -64,15 +75,27 @@ void CoroScheduler::run()
 
     while (running_.load(std::memory_order_acquire))
     {
-        // 1. 计算超时时间
+        // 1. 先恢复就绪协程
+        resume_ready_coros();
+
+        // 2. 计算超时时间
         int timeout_ms = static_cast<int>(get_next_timeout());
 
-        // 2. 处理 I/O 事件
+        // 3. 处理 I/O 事件
         int n = epoll_wait(epoll_fd_, events, 128, timeout_ms);
 
         for (int i = 0; i < n; ++i)
         {
             int fd = events[i].data.fd;
+
+            // 处理 wakeup 事件
+            if (fd == wakeup_fd_)
+            {
+                uint64_t val;
+                read(wakeup_fd_, &val, sizeof(val));
+                continue;
+            }
+
             auto it = io_waiters_.find(fd);
             if (it != io_waiters_.end())
             {
@@ -86,17 +109,15 @@ void CoroScheduler::run()
             }
         }
 
-        // 3. 处理到期定时器
+        // 4. 处理到期定时器
         process_timers();
-
-        // 4. 恢复就绪协程
-        resume_ready_coros();
     }
 }
 
 void CoroScheduler::stop()
 {
     running_.store(false, std::memory_order_release);
+    wakeup();
 }
 
 IoAwaitable CoroScheduler::async_read(int fd, void * buf, size_t len)
@@ -123,6 +144,7 @@ TimerAwaitable CoroScheduler::sleep_until(TimePoint when)
 void CoroScheduler::schedule(std::coroutine_handle<> coro)
 {
     ready_queue_.push(coro);
+    wakeup();
 }
 
 void CoroScheduler::register_io(int fd, IoOp op, std::coroutine_handle<> coro,
@@ -151,7 +173,7 @@ void CoroScheduler::process_timers()
 
     while (!timers_.empty() && timers_.top().when <= now)
     {
-        auto timer = timers_.top();
+        auto timer = std::move(timers_.top());
         timers_.pop();
         ready_queue_.push(timer.coro);
     }
@@ -179,6 +201,12 @@ void CoroScheduler::resume_ready_coros()
         if (!coro.done())
             coro.resume();
     }
+}
+
+void CoroScheduler::wakeup()
+{
+    uint64_t val = 1;
+    write(wakeup_fd_, &val, sizeof(val));
 }
 
 } // namespace drogon::coro
