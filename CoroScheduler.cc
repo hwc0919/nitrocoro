@@ -4,6 +4,7 @@
  */
 #include <CoroScheduler.h>
 #include <cstring>
+#include <signal.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
@@ -47,6 +48,8 @@ std::coroutine_handle<> CoroScheduler::ReadyQueue::pop()
 
 CoroScheduler::CoroScheduler()
 {
+    signal(SIGPIPE, SIG_IGN);
+
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
     wakeup_fd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
 
@@ -107,6 +110,12 @@ void CoroScheduler::run()
                 *waiter.result = ret;
                 ready_queue_.push(waiter.coro);
                 io_waiters_.erase(it);
+
+                if (ret <= 0 || (ret < 0 && (errno == EBADF || errno == ECONNRESET || errno == EPIPE)))
+                {
+                    epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
+                    epoll_fds_.erase(fd);
+                }
             }
         }
 
@@ -156,9 +165,14 @@ void CoroScheduler::register_io(int fd, IoOp op, std::coroutine_handle<> coro,
     ev.events |= EPOLLET | EPOLLONESHOT;
     ev.data.fd = fd;
 
-    if (epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &ev) < 0)
+    if (epoll_fds_.count(fd))
+    {
+        epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &ev);
+    }
+    else
     {
         epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev);
+        epoll_fds_.insert(fd);
     }
 
     io_waiters_[fd] = IoWaiter{ coro, buf, len, result };

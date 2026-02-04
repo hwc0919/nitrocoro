@@ -9,6 +9,7 @@
 #include <coroutine>
 #include <queue>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace my_coro
 {
@@ -245,6 +246,7 @@ private:
         ssize_t * result;
     };
     std::unordered_map<int, IoWaiter> io_waiters_;
+    std::unordered_set<int> epoll_fds_;
 
     struct Timer
     {
