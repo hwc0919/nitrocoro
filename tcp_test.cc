@@ -9,8 +9,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
 
 using namespace my_coro;
 
@@ -31,7 +29,7 @@ Task<> echo_handler(std::shared_ptr<TcpConnection> conn)
         buf[n] = '\0';
         std::cout << "Received " << n << " bytes: " << buf << "\n";
         co_await conn->write(buf, n);
-        co_await current_scheduler()->sleep_for(1); // Simulate processing delay
+        co_await CoroScheduler::current()->sleep_for(1); // Simulate processing delay
     }
 }
 
@@ -77,7 +75,7 @@ Task<> tcp_client_main(const char * host, int port)
     }
 
     client.close();
-    current_scheduler()->stop();
+    CoroScheduler::current()->stop();
 }
 
 int main(int argc, char * argv[])

@@ -8,11 +8,11 @@ using namespace my_coro;
 
 Task<> example_task(int i, int n)
 {
-    auto & scheduler = *current_scheduler();
+    auto * scheduler = CoroScheduler::current();
     std::cout << "Task " << i << " started\n";
-    co_await scheduler.sleep_for(1.0);
+    co_await scheduler->sleep_for(1.0);
     std::cout << "Task " << i << " after 1 second\n";
-    co_await scheduler.sleep_for(0.5);
+    co_await scheduler->sleep_for(0.5);
     std::cout << "Task " << i << " after 1.5 seconds\n";
 
     if (i < n)
@@ -24,12 +24,12 @@ Task<> example_task(int i, int n)
 Task<> main_coro()
 {
     auto cnt = std::make_shared<std::atomic_int>(2);
-    current_scheduler()->spawn([cnt]() -> Task<> {
+    CoroScheduler::current()->spawn([cnt]() -> Task<> {
         co_await example_task(101, 102);
         if (--*cnt == 0)
         {
             std::cout << "stop scheduler\n";
-            current_scheduler()->stop();
+            CoroScheduler::current()->stop();
         }
     });
 
@@ -37,7 +37,7 @@ Task<> main_coro()
     if (--*cnt == 0)
     {
         std::cout << "stop scheduler\n";
-        current_scheduler()->stop();
+        CoroScheduler::current()->stop();
     }
 }
 

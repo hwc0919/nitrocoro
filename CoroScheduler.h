@@ -15,12 +15,6 @@ namespace my_coro
 {
 class CoroScheduler;
 
-extern thread_local CoroScheduler * g_scheduler;
-inline CoroScheduler * current_scheduler()
-{
-    return g_scheduler;
-}
-
 enum class IoOp
 {
     Read,
@@ -88,7 +82,7 @@ struct AsyncTask
     struct promise_type
     {
         AsyncTask get_return_object() noexcept { return { handle_type::from_promise(*this) }; }
-        std::suspend_never initial_suspend() const noexcept { return {}; }
+        std::suspend_always initial_suspend() const noexcept { return {}; }
         void unhandled_exception() { std::terminate(); }
         void return_void() noexcept {}
         std::suspend_never final_suspend() const noexcept { return {}; }
@@ -102,6 +96,11 @@ class CoroScheduler
 public:
     CoroScheduler();
     ~CoroScheduler();
+
+    CoroScheduler(const CoroScheduler &) = delete;
+    CoroScheduler & operator=(const CoroScheduler &) = delete;
+
+    static CoroScheduler * current() noexcept;
 
     void run();
     void stop();
@@ -129,15 +128,17 @@ public:
             co_await frame;
             co_return;
         };
-        functor(std::forward<Coro>(coro));
-        // r.handle_ = nullptr;
-        // schedule(r.handle_);
+        auto task = functor(std::forward<Coro>(coro));
+        if (task.coro_)
+            schedule(task.coro_);
     }
 
     void register_io(int fd, IoOp op, std::coroutine_handle<> coro, void * buf, size_t len, ssize_t * result);
     TimerId register_timer(TimePoint when, std::coroutine_handle<> coro);
 
 private:
+    static thread_local CoroScheduler * current_;
+
     int epoll_fd_;
     int wakeup_fd_; // eventfd 用于唤醒 epoll
     std::atomic<bool> running_{ false };

@@ -3,8 +3,8 @@
  * @brief Native coroutine scheduler implementation
  */
 #include <CoroScheduler.h>
+#include <csignal>
 #include <cstring>
-#include <signal.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
@@ -12,19 +12,19 @@
 namespace my_coro
 {
 
-thread_local CoroScheduler * g_scheduler = nullptr;
+thread_local CoroScheduler * CoroScheduler::current_ = nullptr;
 
 void IoAwaitable::await_suspend(std::coroutine_handle<> h) noexcept
 {
     handle_ = h;
-    auto * sched = current_scheduler();
+    auto * sched = CoroScheduler::current();
     sched->register_io(fd_, op_, h, buf_, len_, &result_);
 }
 
 void TimerAwaitable::await_suspend(std::coroutine_handle<> h) noexcept
 {
     handle_ = h;
-    auto * sched = current_scheduler();
+    auto * sched = CoroScheduler::current();
     sched->register_timer(when_, h);
 }
 
@@ -53,21 +53,27 @@ CoroScheduler::CoroScheduler()
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
     wakeup_fd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
 
-    // 将 wakeup_fd 加入 epoll 监听
     epoll_event ev;
     ev.events = EPOLLIN | EPOLLET;
     ev.data.fd = wakeup_fd_;
     epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, wakeup_fd_, &ev);
 
-    g_scheduler = this;
+    current_ = this;
 }
 
 CoroScheduler::~CoroScheduler()
 {
+    if (current_ == this)
+        current_ = nullptr;
     if (wakeup_fd_ >= 0)
         close(wakeup_fd_);
     if (epoll_fd_ >= 0)
         close(epoll_fd_);
+}
+
+CoroScheduler * CoroScheduler::current() noexcept
+{
+    return current_;
 }
 
 void CoroScheduler::run()
