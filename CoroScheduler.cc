@@ -5,6 +5,7 @@
 #include <CoroScheduler.h>
 #include <csignal>
 #include <cstring>
+#include <stdexcept>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
@@ -48,6 +49,11 @@ std::coroutine_handle<> CoroScheduler::ReadyQueue::pop()
 
 CoroScheduler::CoroScheduler()
 {
+    if (current_ != nullptr)
+    {
+        throw std::logic_error("CoroScheduler already exists in this thread");
+    }
+
     signal(SIGPIPE, SIG_IGN);
 
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
