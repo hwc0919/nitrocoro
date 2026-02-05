@@ -11,12 +11,13 @@
 #include <fcntl.h>
 #include <iostream>
 #include <memory>
+#include <random>
 #include <unistd.h>
 #include <vector>
 
 using namespace my_coro;
 
-#define BUFFER_SIZE 256
+#define BUFFER_SIZE 1024
 
 struct ChatClient
 {
@@ -28,15 +29,24 @@ std::vector<ChatClient> clients;
 
 Task<> broadcast(const std::string & message, std::shared_ptr<TcpConnection> sender)
 {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_real_distribution<> dis(0.0, 1.0);
+
     printf("broadcast %s\n", message.c_str());
     for (auto & client : clients)
     {
         if (client.conn != sender)
         {
             printf("broadcast to %s\n", client.username.c_str());
-            co_await client.conn->write(message.c_str(), message.size());
+            double delay = dis(gen);
+            CoroScheduler::current()->spawn([message, conn = client.conn, delay]() -> Task<> {
+                co_await CoroScheduler::current()->sleep_for(delay);
+                co_await conn->write(message.c_str(), message.size());
+            });
         }
     }
+    co_return;
 }
 
 Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
