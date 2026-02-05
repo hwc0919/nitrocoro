@@ -3,6 +3,7 @@
  * @brief Native coroutine scheduler implementation
  */
 #include <CoroScheduler.h>
+#include <cassert>
 #include <csignal>
 #include <cstring>
 #include <stdexcept>
@@ -130,9 +131,27 @@ void CoroScheduler::schedule(std::coroutine_handle<> coro)
 void CoroScheduler::register_io(int fd, IoOp op, std::coroutine_handle<> coro,
                                 void * buf, size_t len, ssize_t * result)
 {
+    auto & waiters = io_waiters_[fd];
+
+    // 保存 waiter 到对应的读/写槽位，检测并发操作
+    if (op == IoOp::Read)
+    {
+        assert(!waiters.read_waiter && "Concurrent read operations on same fd not supported");
+        waiters.read_waiter = std::make_unique<IoWaiter>(IoWaiter{ coro, buf, len, result });
+    }
+    else
+    {
+        assert(!waiters.write_waiter && "Concurrent write operations on same fd not supported");
+        waiters.write_waiter = std::make_unique<IoWaiter>(IoWaiter{ coro, buf, len, result });
+    }
+
+    // 计算需要监听的事件
     epoll_event ev;
-    ev.events = (op == IoOp::Read) ? EPOLLIN : EPOLLOUT;
-    ev.events |= EPOLLET | EPOLLONESHOT;
+    ev.events = EPOLLET | EPOLLONESHOT;
+    if (waiters.read_waiter)
+        ev.events |= EPOLLIN;
+    if (waiters.write_waiter)
+        ev.events |= EPOLLOUT;
     ev.data.fd = fd;
 
     if (epoll_fds_.count(fd))
@@ -144,8 +163,6 @@ void CoroScheduler::register_io(int fd, IoOp op, std::coroutine_handle<> coro,
         epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev);
         epoll_fds_.insert(fd);
     }
-
-    io_waiters_[fd] = IoWaiter{ coro, buf, len, result };
 }
 
 TimerId CoroScheduler::register_timer(TimePoint when, std::coroutine_handle<> coro)
@@ -184,19 +201,58 @@ void CoroScheduler::process_io_events()
         auto it = io_waiters_.find(fd);
         if (it != io_waiters_.end())
         {
-            auto & waiter = it->second;
-            ssize_t ret = (events[i].events & EPOLLIN)
-                              ? read(fd, waiter.buffer, waiter.size)
-                              : write(fd, waiter.buffer, waiter.size);
+            auto & waiters = it->second;
+            uint32_t ev = events[i].events;
+            bool has_error = (ev & (EPOLLERR | EPOLLHUP));
+            bool should_remove = false;
 
-            *waiter.result = ret;
-            ready_queue_.push(waiter.coro);
-            io_waiters_.erase(it);
-
-            if (ret <= 0 || (ret < 0 && (errno == EBADF || errno == ECONNRESET || errno == EPIPE)))
+            // 处理读事件
+            if (waiters.read_waiter && ((ev & EPOLLIN) || has_error))
             {
-                epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
-                epoll_fds_.erase(fd);
+                ssize_t ret = has_error ? -1 : read(fd, waiters.read_waiter->buffer, waiters.read_waiter->size);
+                *waiters.read_waiter->result = ret;
+                ready_queue_.push(waiters.read_waiter->coro);
+                waiters.read_waiter.reset();
+
+                if (ret <= 0 || has_error)
+                    should_remove = true;
+            }
+
+            // 处理写事件
+            if (waiters.write_waiter && ((ev & EPOLLOUT) || has_error))
+            {
+                ssize_t ret = has_error ? -1 : write(fd, waiters.write_waiter->buffer, waiters.write_waiter->size);
+                *waiters.write_waiter->result = ret;
+                ready_queue_.push(waiters.write_waiter->coro);
+                waiters.write_waiter.reset();
+
+                if (ret <= 0 || has_error)
+                    should_remove = true;
+            }
+
+            // 如果还有未完成的操作，重新注册 epoll
+            if (!should_remove && (waiters.read_waiter || waiters.write_waiter))
+            {
+                epoll_event new_ev;
+                new_ev.events = EPOLLET | EPOLLONESHOT;
+                if (waiters.read_waiter)
+                    new_ev.events |= EPOLLIN;
+                if (waiters.write_waiter)
+                    new_ev.events |= EPOLLOUT;
+                new_ev.data.fd = fd;
+                epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &new_ev);
+            }
+            else
+            {
+                // 清理
+                waiters.read_waiter.reset();
+                waiters.write_waiter.reset();
+                io_waiters_.erase(it);
+                if (should_remove)
+                {
+                    epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
+                    epoll_fds_.erase(fd);
+                }
             }
         }
     }

@@ -8,8 +8,10 @@
 #include "TcpServer.h"
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <iostream>
 #include <memory>
+#include <unistd.h>
 #include <vector>
 
 using namespace my_coro;
@@ -26,10 +28,12 @@ std::vector<ChatClient> clients;
 
 Task<> broadcast(const std::string & message, std::shared_ptr<TcpConnection> sender)
 {
+    printf("broadcast %s\n", message.c_str());
     for (auto & client : clients)
     {
         if (client.conn != sender)
         {
+            printf("broadcast to %s\n", client.username.c_str());
             co_await client.conn->write(message.c_str(), message.size());
         }
     }
@@ -88,6 +92,7 @@ Task<> receive_messages(TcpClient & client)
     char buf[BUFFER_SIZE];
     while (true)
     {
+        printf("receive message loop\n");
         ssize_t n = co_await client.read(buf, sizeof(buf) - 1);
         if (n <= 0)
         {
@@ -101,6 +106,41 @@ Task<> receive_messages(TcpClient & client)
     }
 }
 
+Task<> send_messages(TcpClient & client)
+{
+    char buf[BUFFER_SIZE];
+    std::string line;
+
+    while (true)
+    {
+        ssize_t n = co_await CoroScheduler::current()->async_read(STDIN_FILENO, buf, sizeof(buf) - 1);
+        if (n <= 0)
+            break;
+
+        buf[n] = '\0';
+        line += buf;
+
+        // Process complete lines
+        size_t pos;
+        while ((pos = line.find('\n')) != std::string::npos)
+        {
+            std::string msg = line.substr(0, pos);
+            line.erase(0, pos + 1);
+
+            if (msg == "q")
+            {
+                CoroScheduler::current()->stop();
+                co_return;
+            }
+            if (!msg.empty())
+            {
+                msg += "\n";
+                co_await client.write(msg.c_str(), msg.size());
+            }
+        }
+    }
+}
+
 Task<> tcp_client_main(const char * host, int port, const char * username)
 {
     TcpClient client;
@@ -110,23 +150,19 @@ Task<> tcp_client_main(const char * host, int port, const char * username)
     std::string user = std::string(username) + "\n";
     co_await client.write(user.c_str(), user.size());
 
-    // Spawn receiver task
+    // Set stdin to non-blocking
+    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+
+    // Spawn receiver and sender tasks
     CoroScheduler::current()->spawn([&client]() -> Task<> { co_await receive_messages(client); });
+    CoroScheduler::current()->spawn([&client]() -> Task<> { co_await send_messages(client); });
 
-    // Send messages
-    std::string line;
-    while (std::getline(std::cin, line))
+    // Keep running until stopped
+    while (true)
     {
-        if (line == "q")
-            break;
-        if (line.empty())
-            continue;
-        line += "\n";
-        co_await client.write(line.c_str(), line.size());
+        co_await CoroScheduler::current()->sleep_for(1.0);
     }
-
-    client.close();
-    CoroScheduler::current()->stop();
 }
 
 int main(int argc, char * argv[])

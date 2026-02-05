@@ -5,8 +5,10 @@
 #pragma once
 
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <coroutine>
+#include <memory>
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
@@ -160,7 +162,13 @@ private:
         size_t size;
         ssize_t * result;
     };
-    std::unordered_map<int, IoWaiter> io_waiters_;
+
+    struct FdWaiters
+    {
+        std::unique_ptr<IoWaiter> read_waiter;
+        std::unique_ptr<IoWaiter> write_waiter;
+    };
+    std::unordered_map<int, FdWaiters> io_waiters_;
     std::unordered_set<int> epoll_fds_;
 
     struct Timer
