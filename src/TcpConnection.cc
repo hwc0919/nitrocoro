@@ -25,12 +25,12 @@ TcpConnection::~TcpConnection()
 
 Task<ssize_t> TcpConnection::read(void * buf, size_t len)
 {
-    co_return co_await current_scheduler()->async_read(fd_, buf, len);
+    co_return co_await CoroScheduler::current()->async_read(fd_, buf, len);
 }
 
 Task<ssize_t> TcpConnection::write(const void * buf, size_t len)
 {
-    co_return co_await current_scheduler()->async_write(fd_, buf, len);
+    co_return co_await CoroScheduler::current()->async_write(fd_, buf, len);
 }
 
 } // namespace my_coro

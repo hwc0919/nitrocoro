@@ -5,19 +5,17 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "-ggdb")
 
-add_executable(coro
-    main.cc
-    CoroScheduler.cc
+# Build library
+add_library(coro_lib STATIC
+    src/CoroScheduler.cc
+    src/TcpServer.cc
+    src/TcpClient.cc
+    src/TcpConnection.cc
 )
 
-target_include_directories(coro PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
-add_executable(tcp_test
-    tcp_test.cc
-    CoroScheduler.cc
-    TcpServer.cc
-    TcpClient.cc
-    TcpConnection.cc
+target_include_directories(coro_lib PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_include_directories(tcp_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+# Build tests
+add_subdirectory(tests)

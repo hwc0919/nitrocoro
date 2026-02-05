@@ -80,7 +80,7 @@ Task<> TcpServer::start()
 
     while (running_)
     {
-        co_await current_scheduler()->async_read(listen_fd_, &dummy, 1);
+        co_await CoroScheduler::current()->async_read(listen_fd_, &dummy, 1);
 
         sockaddr_in client_addr{};
         socklen_t addr_len = sizeof(client_addr);
@@ -97,7 +97,7 @@ Task<> TcpServer::start()
         std::cout << "Accepted connection: fd=" << client_fd << "\n";
 
         auto conn = std::make_shared<TcpConnection>(client_fd);
-        current_scheduler()->spawn([this, conn]() -> Task<> {
+        CoroScheduler::current()->spawn([this, conn]() -> Task<> {
             co_await handler_(conn);
         });
     }
