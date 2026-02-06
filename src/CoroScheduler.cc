@@ -3,6 +3,7 @@
  * @brief Native coroutine scheduler implementation
  */
 #include <CoroScheduler.h>
+#include <IoChannel.h>
 #include <cassert>
 #include <csignal>
 #include <cstring>
@@ -289,6 +290,40 @@ void CoroScheduler::wakeup()
 {
     uint64_t val = 1;
     write(wakeup_fd_, &val, sizeof(val));
+}
+
+void CoroScheduler::registerIoChannel(IoChannel * channel)
+{
+    int fd = channel->fd_;
+    epoll_event ev{};
+    ev.events = EPOLLIN | EPOLLPRI | EPOLLOUT | EPOLLET;
+    ev.data.ptr = channel;
+
+    assert(!ioChannels_.contains(fd));
+    ioChannels_[fd] = channel;
+
+    if (::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, channel->fd_, &ev) < 0)
+    {
+        throw std::runtime_error("Failed to call EPOLL_CTL_ADD on epoll");
+    }
+}
+
+void CoroScheduler::unregisterIoChannel(IoChannel * channel)
+{
+    int fd = channel->fd_;
+    assert(ioChannels_.contains(fd));
+    assert(ioChannels_.at(fd) == channel);
+    size_t n = ioChannels_.erase(fd);
+    (void)n;
+    assert(n == 1);
+
+    epoll_event ev{};
+    ev.events = 0;
+    ev.data.ptr = channel;
+    if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, channel->fd_, &ev) < 0)
+    {
+        throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
+    }
 }
 
 } // namespace my_coro

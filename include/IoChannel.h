@@ -25,12 +25,113 @@ public:
     IoChannel(IoChannel &&) = delete;
     IoChannel & operator=(IoChannel &&) = delete;
 
+    struct [[nodiscard]] ReadAwaiter
+    {
+        bool await_ready() noexcept
+        {
+            if (!channel_->readable_)
+            {
+                return false; // suspend
+            }
+            // try read first
+            result_ = ::read(channel_->fd_, buf_, len_);
+            lastErrno_ = errno;
+            hasRead_ = true;
+            if (result_ < 0)
+            {
+                if (lastErrno_ == EAGAIN
+#if EWOULDBLOCK != EAGAIN
+                    || lastErrno_ == EWOULDBLOCK
+#endif
+                )
+                {
+                    channel_->readable_ = false;
+                    return false; // suspend
+                }
+                else if (lastErrno_ == EINTR)
+                {
+                    return true;
+                }
+            }
+            return true;
+        }
+        bool await_suspend(std::coroutine_handle<> h) noexcept
+        {
+            if (channel_->readable_)
+            {
+                return false;
+            }
+            else
+            {
+                channel_->pendingRead_ = h;
+                return true;
+            }
+        }
+        ssize_t await_resume() noexcept(false)
+        {
+            if (!hasRead_)
+            {
+                result_ = ::read(channel_->fd_, buf_, len_);
+                lastErrno_ = errno;
+            }
+            if (result_ > 0)
+            {
+                return result_;
+            }
+            else if (result_ == 0)
+            {
+                // peer closed
+                // TODO: close(fd)
+                throw std::runtime_error("peer closed");
+            }
+            else
+            {
+                switch (lastErrno_)
+                {
+#if EAGAIN != EWOULDBLOCK
+                    case EAGAIN:
+#endif
+                    case EWOULDBLOCK: // should not happen again!
+                        channel_->readable_ = false;
+                        return 0;
+
+                    case EINTR: // interrupted by signal
+                        return 0;
+
+                    case ECONNRESET: // reset by peer
+                    case EPIPE:      // bad connection
+                    default:
+                        // 其他错误，关闭连接
+                        // close(fd)
+                        throw std::runtime_error("read error");
+                }
+            }
+        }
+
+        IoChannel * channel_;
+        void * buf_;
+        size_t len_;
+
+        bool hasRead_{ false };
+        ssize_t result_{ -1 };
+        int lastErrno_{ 0 };
+    };
+
     Task<ssize_t> read(void * buf, size_t len);
     Task<ssize_t> write(const void * buf, size_t len);
 
 private:
+    friend class CoroScheduler;
+
+    void handleReadable();
+    void handleWritable();
+
     int fd_{ -1 };
     CoroScheduler * scheduler_{ nullptr };
+    bool readable_{ false };
+    bool writable_{ false };
+
+    std::coroutine_handle<> pendingRead_;
 };
 
 } // namespace my_coro

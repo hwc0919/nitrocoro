@@ -16,6 +16,7 @@
 namespace my_coro
 {
 class CoroScheduler;
+class IoChannel;
 
 enum class IoOp
 {
@@ -111,6 +112,9 @@ public:
     IoAwaitable async_read(int fd, void * buf, size_t len);
     IoAwaitable async_write(int fd, const void * buf, size_t len);
 
+    void registerIoChannel(IoChannel *);
+    void unregisterIoChannel(IoChannel *);
+
     // 协程感知的定时器
     TimerAwaitable sleep_for(double seconds);
     TimerAwaitable sleep_until(TimePoint when);
@@ -190,6 +194,8 @@ private:
     void process_timers();
     int64_t get_next_timeout() const;
     void wakeup();
+
+    std::unordered_map<int, IoChannel *> ioChannels_;
 };
 
 } // namespace my_coro
