@@ -104,7 +104,7 @@ public:
                     default:
                         // 其他错误，关闭连接
                         // close(fd)
-                        throw std::runtime_error("read error");
+                        throw std::runtime_error("read error " + std::to_string(lastErrno_) + " " + std::to_string(result_));
                 }
             }
         }

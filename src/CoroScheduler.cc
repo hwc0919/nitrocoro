@@ -50,15 +50,7 @@ CoroScheduler::CoroScheduler()
     }
 
     signal(SIGPIPE, SIG_IGN);
-
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
-    wakeup_fd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-
-    epoll_event ev;
-    ev.events = EPOLLIN | EPOLLET;
-    ev.data.fd = wakeup_fd_;
-    epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, wakeup_fd_, &ev);
-
     current_ = this;
 }
 
@@ -80,6 +72,7 @@ CoroScheduler * CoroScheduler::current() noexcept
 void CoroScheduler::run()
 {
     // 创建 wakeup_channel_
+    wakeup_fd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     wakeupChannel_ = std::make_unique<IoChannel>(wakeup_fd_, this);
 
     running_.store(true, std::memory_order_release);
@@ -115,43 +108,6 @@ void CoroScheduler::schedule(std::coroutine_handle<> coro)
     wakeup();
 }
 
-void CoroScheduler::register_io(int fd, IoOp op, std::coroutine_handle<> coro,
-                                void * buf, size_t len, ssize_t * result)
-{
-    auto & waiters = io_waiters_[fd];
-
-    // 保存 waiter 到对应的读/写槽位，检测并发操作
-    if (op == IoOp::Read)
-    {
-        assert(!waiters.read_waiter && "Concurrent read operations on same fd not supported");
-        waiters.read_waiter = std::make_unique<IoWaiter>(IoWaiter{ coro, buf, len, result });
-    }
-    else
-    {
-        assert(!waiters.write_waiter && "Concurrent write operations on same fd not supported");
-        waiters.write_waiter = std::make_unique<IoWaiter>(IoWaiter{ coro, buf, len, result });
-    }
-
-    // 计算需要监听的事件
-    epoll_event ev;
-    ev.events = EPOLLET | EPOLLONESHOT;
-    if (waiters.read_waiter)
-        ev.events |= EPOLLIN;
-    if (waiters.write_waiter)
-        ev.events |= EPOLLOUT;
-    ev.data.fd = fd;
-
-    if (epoll_fds_.count(fd))
-    {
-        epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &ev);
-    }
-    else
-    {
-        epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev);
-        epoll_fds_.insert(fd);
-    }
-}
-
 TimerId CoroScheduler::register_timer(TimePoint when, std::coroutine_handle<> coro)
 {
     TimerId id = next_timer_id_.fetch_add(1, std::memory_order_relaxed);
@@ -176,71 +132,39 @@ void CoroScheduler::process_io_events()
 
     for (int i = 0; i < n; ++i)
     {
-        int fd = events[i].data.fd;
-
-        if (fd == wakeup_fd_)
+        IoChannel * channel = static_cast<IoChannel *>(events[i].data.ptr);
+        uint32_t ev = events[i].events;
+        if (channel == wakeupChannel_.get())
         {
-            uint64_t val;
-            read(wakeup_fd_, &val, sizeof(val));
+            char buf[8];
+            while (::read(wakeup_fd_, buf, sizeof(buf)) > 0)
+            {
+                //
+            }
             continue;
         }
 
-        auto it = io_waiters_.find(fd);
-        if (it != io_waiters_.end())
+        if (!ioChannels_.contains(channel->fd_) || ioChannels_.at(channel->fd_) != channel)
         {
-            auto & waiters = it->second;
-            uint32_t ev = events[i].events;
-            bool has_error = (ev & (EPOLLERR | EPOLLHUP));
-            bool should_remove = false;
+            printf("channel with fd %d not found!!!\n", channel->fd_);
+            continue;
+        }
 
-            // 处理读事件
-            if (waiters.read_waiter && ((ev & EPOLLIN) || has_error))
-            {
-                ssize_t ret = has_error ? -1 : read(fd, waiters.read_waiter->buffer, waiters.read_waiter->size);
-                *waiters.read_waiter->result = ret;
-                ready_queue_.push(waiters.read_waiter->coro);
-                waiters.read_waiter.reset();
+        if (ev & (EPOLLERR | EPOLLHUP))
+        {
+            // channel->handleError();
+            printf("Unhandled channel error for fd %d\n", channel->fd_);
+            continue;
+        }
 
-                if (ret <= 0 || has_error)
-                    should_remove = true;
-            }
-
-            // 处理写事件
-            if (waiters.write_waiter && ((ev & EPOLLOUT) || has_error))
-            {
-                ssize_t ret = has_error ? -1 : write(fd, waiters.write_waiter->buffer, waiters.write_waiter->size);
-                *waiters.write_waiter->result = ret;
-                ready_queue_.push(waiters.write_waiter->coro);
-                waiters.write_waiter.reset();
-
-                if (ret <= 0 || has_error)
-                    should_remove = true;
-            }
-
-            // 如果还有未完成的操作，重新注册 epoll
-            if (!should_remove && (waiters.read_waiter || waiters.write_waiter))
-            {
-                epoll_event new_ev;
-                new_ev.events = EPOLLET | EPOLLONESHOT;
-                if (waiters.read_waiter)
-                    new_ev.events |= EPOLLIN;
-                if (waiters.write_waiter)
-                    new_ev.events |= EPOLLOUT;
-                new_ev.data.fd = fd;
-                epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &new_ev);
-            }
-            else
-            {
-                // 清理
-                waiters.read_waiter.reset();
-                waiters.write_waiter.reset();
-                io_waiters_.erase(it);
-                if (should_remove)
-                {
-                    epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
-                    epoll_fds_.erase(fd);
-                }
-            }
+        if (ev & EPOLLIN)
+        {
+            channel->handleReadable();
+        }
+        // 处理写事件
+        if (ev & EPOLLOUT)
+        {
+            channel->handleWritable();
         }
     }
 }
@@ -282,7 +206,7 @@ void CoroScheduler::registerIoChannel(IoChannel * channel)
 {
     int fd = channel->fd_;
     epoll_event ev{};
-    ev.events = EPOLLIN | EPOLLPRI | EPOLLOUT | EPOLLET;
+    ev.events = EPOLLIN | EPOLLOUT | EPOLLET; // PRI?
     ev.data.ptr = channel;
 
     assert(!ioChannels_.contains(fd));
@@ -306,9 +230,10 @@ void CoroScheduler::unregisterIoChannel(IoChannel * channel)
     epoll_event ev{};
     ev.events = 0;
     ev.data.ptr = channel;
-    if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, channel->fd_, &ev) < 0)
+    if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, &ev) < 0)
     {
-        throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
+        printf("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epoll_fd_, fd, errno);
+        // throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
     }
 }
 

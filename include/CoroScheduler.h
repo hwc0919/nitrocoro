@@ -121,14 +121,13 @@ public:
             schedule(task.coro_);
     }
 
-    void register_io(int fd, IoOp op, std::coroutine_handle<> coro, void * buf, size_t len, ssize_t * result);
     TimerId register_timer(TimePoint when, std::coroutine_handle<> coro);
 
 private:
     static thread_local CoroScheduler * current_;
 
-    int epoll_fd_;
-    int wakeup_fd_; // eventfd 用于唤醒 epoll
+    int epoll_fd_{ -1 };
+    int wakeup_fd_{ -1 }; // eventfd 用于唤醒 epoll
     std::atomic<bool> running_{ false };
 
     struct ReadyQueue
@@ -140,22 +139,6 @@ private:
         void push(std::coroutine_handle<> h);
         std::coroutine_handle<> pop();
     } ready_queue_;
-
-    struct IoWaiter
-    {
-        std::coroutine_handle<> coro;
-        void * buffer;
-        size_t size;
-        ssize_t * result;
-    };
-
-    struct FdWaiters
-    {
-        std::unique_ptr<IoWaiter> read_waiter;
-        std::unique_ptr<IoWaiter> write_waiter;
-    };
-    std::unordered_map<int, FdWaiters> io_waiters_;
-    std::unordered_set<int> epoll_fds_;
 
     struct Timer
     {
