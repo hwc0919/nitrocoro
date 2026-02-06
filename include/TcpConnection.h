@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include "IoChannel.h"
 #include "Task.h"
 
 namespace my_coro
@@ -26,6 +27,7 @@ public:
 
 private:
     int fd_;
+    std::unique_ptr<IoChannel> ioChannelPtr_;
 };
 
 } // namespace my_coro

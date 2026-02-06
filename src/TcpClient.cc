@@ -65,16 +65,18 @@ Task<> TcpClient::connect(const char * host, int port)
         fd_ = -1;
         throw std::runtime_error("Connect failed: " + std::string(strerror(error)));
     }
+
+    ioChannelPtr_ = std::make_unique<IoChannel>(fd_, CoroScheduler::current());
 }
 
 Task<ssize_t> TcpClient::read(void * buf, size_t len)
 {
-    co_return co_await CoroScheduler::current()->async_read(fd_, buf, len);
+    return ioChannelPtr_->read(buf, len);
 }
 
 Task<ssize_t> TcpClient::write(const void * buf, size_t len)
 {
-    co_return co_await CoroScheduler::current()->async_write(fd_, buf, len);
+    return ioChannelPtr_->write(buf, len);
 }
 
 void TcpClient::close()

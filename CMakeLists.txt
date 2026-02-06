@@ -11,6 +11,7 @@ add_library(coro_lib STATIC
     src/TcpServer.cc
     src/TcpClient.cc
     src/TcpConnection.cc
+    src/IoChannel.cc
 )
 
 target_include_directories(coro_lib PUBLIC

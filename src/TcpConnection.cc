@@ -10,7 +10,9 @@
 namespace my_coro
 {
 
-TcpConnection::TcpConnection(int fd) : fd_(fd)
+TcpConnection::TcpConnection(int fd)
+    : fd_(fd)
+    , ioChannelPtr_(new IoChannel(fd, CoroScheduler::current()))
 {
 }
 
@@ -25,12 +27,12 @@ TcpConnection::~TcpConnection()
 
 Task<ssize_t> TcpConnection::read(void * buf, size_t len)
 {
-    co_return co_await CoroScheduler::current()->async_read(fd_, buf, len);
+    return ioChannelPtr_->read(buf, len);
 }
 
 Task<ssize_t> TcpConnection::write(const void * buf, size_t len)
 {
-    co_return co_await CoroScheduler::current()->async_write(fd_, buf, len);
+    return ioChannelPtr_->write(buf, len);
 }
 
 } // namespace my_coro
