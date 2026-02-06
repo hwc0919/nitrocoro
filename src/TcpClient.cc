@@ -49,10 +49,10 @@ Task<> TcpClient::connect(const char * host, int port)
         fd_ = -1;
         throw std::runtime_error("Connect failed");
     }
-
+    ioChannelPtr_ = std::make_unique<IoChannel>(fd_, CoroScheduler::current());
     // Wait for connection to complete (fd becomes writable)
     char dummy;
-    co_await CoroScheduler::current()->async_write(fd_, &dummy, 0);
+    co_await ioChannelPtr_->write(&dummy, 0);
 
     // Check if connection succeeded
     int error = 0;
@@ -61,12 +61,8 @@ Task<> TcpClient::connect(const char * host, int port)
 
     if (error != 0)
     {
-        ::close(fd_);
-        fd_ = -1;
         throw std::runtime_error("Connect failed: " + std::string(strerror(error)));
     }
-
-    ioChannelPtr_ = std::make_unique<IoChannel>(fd_, CoroScheduler::current());
 }
 
 Task<ssize_t> TcpClient::read(void * buf, size_t len)

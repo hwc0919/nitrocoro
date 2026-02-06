@@ -17,13 +17,6 @@ namespace my_coro
 
 thread_local CoroScheduler * CoroScheduler::current_ = nullptr;
 
-void IoAwaitable::await_suspend(std::coroutine_handle<> h) noexcept
-{
-    handle_ = h;
-    auto * sched = CoroScheduler::current();
-    sched->register_io(fd_, op_, h, buf_, len_, &result_);
-}
-
 void TimerAwaitable::await_suspend(std::coroutine_handle<> h) noexcept
 {
     handle_ = h;
@@ -86,6 +79,9 @@ CoroScheduler * CoroScheduler::current() noexcept
 
 void CoroScheduler::run()
 {
+    // 创建 wakeup_channel_
+    wakeupChannel_ = std::make_unique<IoChannel>(wakeup_fd_, this);
+
     running_.store(true, std::memory_order_release);
 
     while (running_.load(std::memory_order_acquire))
@@ -100,16 +96,6 @@ void CoroScheduler::stop()
 {
     running_.store(false, std::memory_order_release);
     wakeup();
-}
-
-IoAwaitable CoroScheduler::async_read(int fd, void * buf, size_t len)
-{
-    return IoAwaitable{ fd, buf, len, IoOp::Read };
-}
-
-IoAwaitable CoroScheduler::async_write(int fd, const void * buf, size_t len)
-{
-    return IoAwaitable{ fd, const_cast<void *>(buf), len, IoOp::Write };
 }
 
 TimerAwaitable CoroScheduler::sleep_for(double seconds)

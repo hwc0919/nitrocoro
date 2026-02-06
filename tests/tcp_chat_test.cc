@@ -116,14 +116,14 @@ Task<> receive_messages(TcpClient & client)
     }
 }
 
-Task<> send_messages(TcpClient & client)
+Task<> send_messages(TcpClient & client, IoChannel * stdinChannel)
 {
     char buf[BUFFER_SIZE];
     std::string line;
 
     while (true)
     {
-        ssize_t n = co_await CoroScheduler::current()->async_read(STDIN_FILENO, buf, sizeof(buf) - 1);
+        ssize_t n = co_await stdinChannel->read(buf, sizeof(buf) - 1);
         if (n <= 0)
             break;
 
@@ -163,10 +163,11 @@ Task<> tcp_client_main(const char * host, int port, const char * username)
     // Set stdin to non-blocking
     int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+    std::unique_ptr<IoChannel> stdinChannel = std::make_unique<IoChannel>(STDIN_FILENO, CoroScheduler::current());
 
     // Spawn receiver and sender tasks
     CoroScheduler::current()->spawn([&client]() -> Task<> { co_await receive_messages(client); });
-    CoroScheduler::current()->spawn([&client]() -> Task<> { co_await send_messages(client); });
+    CoroScheduler::current()->spawn([&client, stdinPtr = stdinChannel.get()]() -> Task<> { co_await send_messages(client, stdinPtr); });
 
     // Keep running until stopped
     while (true)

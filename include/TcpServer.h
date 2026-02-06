@@ -30,6 +30,8 @@ private:
     bool running_;
     ConnectionHandler handler_;
 
+    std::unique_ptr<IoChannel> listenChannel_;
+
     void setup_socket();
 };
 

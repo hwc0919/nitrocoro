@@ -19,6 +19,8 @@ namespace my_coro
 TcpServer::TcpServer(int port) : listen_fd_(-1), port_(port), running_(false)
 {
     setup_socket();
+
+    listenChannel_ = std::make_unique<IoChannel>(listen_fd_, CoroScheduler::current());
 }
 
 TcpServer::~TcpServer()
@@ -80,8 +82,7 @@ Task<> TcpServer::start()
 
     while (running_)
     {
-        co_await CoroScheduler::current()->async_read(listen_fd_, &dummy, 1);
-
+        co_await listenChannel_->read(&dummy, 1);
         sockaddr_in client_addr{};
         socklen_t addr_len = sizeof(client_addr);
         int client_fd = accept(listen_fd_, (sockaddr *)&client_addr, &addr_len);

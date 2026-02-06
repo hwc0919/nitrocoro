@@ -27,20 +27,6 @@ enum class IoOp
 using TimerId = uint64_t;
 using TimePoint = std::chrono::steady_clock::time_point;
 
-struct [[nodiscard]] IoAwaitable
-{
-    int fd_{};
-    void * buf_{};
-    size_t len_{};
-    IoOp op_;
-    std::coroutine_handle<> handle_;
-    ssize_t result_{ -1 };
-
-    bool await_ready() const noexcept { return false; }
-    void await_suspend(std::coroutine_handle<> h) noexcept;
-    ssize_t await_resume() noexcept { return result_; }
-};
-
 struct [[nodiscard]] TimerAwaitable
 {
     TimePoint when_;
@@ -107,10 +93,6 @@ public:
 
     void run();
     void stop();
-
-    // 协程感知的 I/O
-    IoAwaitable async_read(int fd, void * buf, size_t len);
-    IoAwaitable async_write(int fd, const void * buf, size_t len);
 
     void registerIoChannel(IoChannel *);
     void unregisterIoChannel(IoChannel *);
@@ -196,6 +178,8 @@ private:
     void wakeup();
 
     std::unordered_map<int, IoChannel *> ioChannels_;
+
+    std::unique_ptr<IoChannel> wakeupChannel_;
 };
 
 } // namespace my_coro
