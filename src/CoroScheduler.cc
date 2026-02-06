@@ -150,6 +150,14 @@ void CoroScheduler::process_io_events()
             continue;
         }
 
+        printf("fd %d event %d: IN: %d, OUT: %d, ERR: %d\n",
+               channel->fd_,
+               ev,
+               ev & EPOLLIN,
+               ev & EPOLLOUT,
+               ev & (EPOLLERR | EPOLLHUP));
+        fflush(stdout);
+
         if (ev & (EPOLLERR | EPOLLHUP))
         {
             // channel->handleError();
@@ -164,6 +172,7 @@ void CoroScheduler::process_io_events()
         // 处理写事件
         if (ev & EPOLLOUT)
         {
+            printf("handleWritable OUT: %d\n", ev & EPOLLOUT);
             channel->handleWritable();
         }
     }

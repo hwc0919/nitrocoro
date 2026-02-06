@@ -82,7 +82,7 @@ Task<> TcpServer::start()
 
     while (running_)
     {
-        co_await listenChannel_->read(&dummy, 1);
+        co_await listenChannel_->read(&dummy, 0);
         sockaddr_in client_addr{};
         socklen_t addr_len = sizeof(client_addr);
         int client_fd = accept(listen_fd_, (sockaddr *)&client_addr, &addr_len);

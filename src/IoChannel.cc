@@ -56,7 +56,8 @@ void IoChannel::handleReadable()
 
 void IoChannel::handleWritable()
 {
-    assert(writable_ == false);
+    printf("Handle write fd %d writable = %d\n", fd_, writable_);
+//    assert(writable_ == false);
     writable_ = true;
     if (pendingWrite_)
     {

@@ -33,6 +33,10 @@ public:
             {
                 return false; // suspend
             }
+            if (len_ == 0)
+            {
+                return true;
+            }
             // try read first
             result_ = ::read(channel_->fd_, buf_, len_);
             lastErrno_ = errno;
@@ -69,6 +73,10 @@ public:
         }
         ssize_t await_resume() noexcept(false)
         {
+            if (len_ == 0)
+            {
+                return 0;
+            }
             if (!hasRead_)
             {
                 result_ = ::read(channel_->fd_, buf_, len_);
@@ -126,6 +134,10 @@ public:
             {
                 return false; // suspend
             }
+            if (len_ == 0)
+            {
+                return true;
+            }
             // try to write first
             result_ = ::write(channel_->fd_, buf_, len_);
             lastErrno_ = errno;
@@ -164,6 +176,10 @@ public:
 
         ssize_t await_resume() noexcept(false)
         {
+            if (len_ == 0)
+            {
+                return 0;
+            }
             if (!hasWritten_)
             {
                 result_ = ::write(channel_->fd_, buf_, len_);
