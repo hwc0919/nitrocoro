@@ -33,7 +33,13 @@ Task<ssize_t> IoChannel::read(void * buf, size_t len)
 
 Task<ssize_t> IoChannel::write(const void * buf, size_t len)
 {
-    co_return co_await scheduler_->async_write(fd_, buf, len);
+    ssize_t result = co_await WriteAwaiter{
+        .channel_ = this,
+        .buf_ = buf,
+        .len_ = len
+    };
+
+    co_return result;
 }
 
 void IoChannel::handleReadable()
@@ -52,7 +58,12 @@ void IoChannel::handleWritable()
 {
     assert(writable_ == false);
     writable_ = true;
-    // TODO: resume pending writes
+    if (pendingWrite_)
+    {
+        auto h = pendingWrite_;
+        pendingWrite_ = nullptr;
+        scheduler_->schedule(h);
+    }
 }
 
 } // namespace my_coro

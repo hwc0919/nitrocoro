@@ -82,6 +82,7 @@ public:
             {
                 // peer closed
                 // TODO: close(fd)
+                // TODO: EINTR?
                 throw std::runtime_error("peer closed");
             }
             else
@@ -117,6 +118,99 @@ public:
         int lastErrno_{ 0 };
     };
 
+    struct [[nodiscard]] WriteAwaiter
+    {
+        bool await_ready() noexcept
+        {
+            if (!channel_->writable_)
+            {
+                return false; // suspend
+            }
+            // try to write first
+            result_ = ::write(channel_->fd_, buf_, len_);
+            lastErrno_ = errno;
+            hasWritten_ = true;
+            if (result_ < 0)
+            {
+                if (lastErrno_ == EAGAIN
+#if EWOULDBLOCK != EAGAIN
+                    || lastErrno_ == EWOULDBLOCK
+#endif
+                )
+                {
+                    channel_->writable_ = false;
+                    return false; // suspend
+                }
+                else if (lastErrno_ == EINTR)
+                {
+                    return true;
+                }
+            }
+            return true;
+        }
+
+        bool await_suspend(std::coroutine_handle<> h) noexcept
+        {
+            if (channel_->writable_)
+            {
+                return false;
+            }
+            else
+            {
+                channel_->pendingWrite_ = h;
+                return true;
+            }
+        }
+
+        ssize_t await_resume() noexcept(false)
+        {
+            if (!hasWritten_)
+            {
+                result_ = ::write(channel_->fd_, buf_, len_);
+                lastErrno_ = errno;
+            }
+            if (result_ > 0)
+            {
+                return result_;
+            }
+            else if (result_ == 0)
+            {
+                // write 返回 0 通常不应该发生
+                // TODO: EINTR?
+                throw std::runtime_error("write returned 0");
+            }
+            else
+            {
+                switch (lastErrno_)
+                {
+#if EAGAIN != EWOULDBLOCK
+                    case EAGAIN:
+#endif
+                    case EWOULDBLOCK: // should not happen again!
+                        channel_->writable_ = false;
+                        return 0;
+
+                    case EINTR: // interrupted by signal
+                        return 0;
+
+                    case ECONNRESET: // reset by peer
+                    case EPIPE:      // broken pipe
+                    case ECONNABORTED:
+                    default:
+                        throw std::runtime_error("write error");
+                }
+            }
+        }
+
+        IoChannel * channel_;
+        const void * buf_;
+        size_t len_;
+
+        bool hasWritten_{ false };
+        ssize_t result_{ -1 };
+        int lastErrno_{ 0 };
+    };
+
     Task<ssize_t> read(void * buf, size_t len);
     Task<ssize_t> write(const void * buf, size_t len);
 
@@ -132,6 +226,7 @@ private:
     bool writable_{ false };
 
     std::coroutine_handle<> pendingRead_;
+    std::coroutine_handle<> pendingWrite_;
 };
 
 } // namespace my_coro
