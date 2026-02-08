@@ -14,10 +14,16 @@ namespace my_coro
 
 class CoroScheduler;
 
+enum class TriggerMode
+{
+    EdgeTriggered,
+    LevelTriggered
+};
+
 class IoChannel
 {
 public:
-    IoChannel(int fd, CoroScheduler * scheduler);
+    IoChannel(int fd, CoroScheduler * scheduler, TriggerMode mode = TriggerMode::EdgeTriggered);
     ~IoChannel();
 
     IoChannel(const IoChannel &) = delete;
@@ -35,12 +41,16 @@ public:
             }
             if (len_ == 0)
             {
+                // LT mode: clear readable flag before returning
+                if (channel_->triggerMode_ == TriggerMode::LevelTriggered)
+                {
+                    channel_->readable_ = false;
+                }
                 return true;
             }
             // try read first
             result_ = ::read(channel_->fd_, buf_, len_);
             lastErrno_ = errno;
-            hasRead_ = true;
             if (result_ < 0)
             {
                 if (lastErrno_ == EAGAIN
@@ -57,6 +67,12 @@ public:
                     return true;
                 }
             }
+            // LT mode: clear readable flag after read
+            if (channel_->triggerMode_ == TriggerMode::LevelTriggered)
+            {
+                channel_->readable_ = false;
+            }
+            needRead_ = false;
             return true;
         }
         bool await_suspend(std::coroutine_handle<> h) noexcept
@@ -77,7 +93,7 @@ public:
             {
                 return 0;
             }
-            if (!hasRead_)
+            if (needRead_)
             {
                 result_ = ::read(channel_->fd_, buf_, len_);
                 lastErrno_ = errno;
@@ -100,7 +116,7 @@ public:
 #if EAGAIN != EWOULDBLOCK
                     case EAGAIN:
 #endif
-                    case EWOULDBLOCK: // should not happen again!
+                    case EWOULDBLOCK:
                         channel_->readable_ = false;
                         return 0;
 
@@ -121,7 +137,7 @@ public:
         void * buf_;
         size_t len_;
 
-        bool hasRead_{ false };
+        bool needRead_{ true };
         ssize_t result_{ -1 };
         int lastErrno_{ 0 };
     };
@@ -161,19 +177,7 @@ public:
             return true;
         }
 
-        bool await_suspend(std::coroutine_handle<> h) noexcept
-        {
-            if (channel_->writable_)
-            {
-                return false;
-            }
-            else
-            {
-                channel_->pendingWrite_ = h;
-                return true;
-            }
-        }
-
+        bool await_suspend(std::coroutine_handle<> h) noexcept;
         ssize_t await_resume() noexcept(false)
         {
             if (len_ == 0)
@@ -238,8 +242,11 @@ private:
 
     int fd_{ -1 };
     CoroScheduler * scheduler_{ nullptr };
+    TriggerMode triggerMode_{ TriggerMode::EdgeTriggered };
+
+    uint32_t events_{ 0 };
     bool readable_{ false };
-    bool writable_{ false };
+    bool writable_{ true };
 
     std::coroutine_handle<> pendingRead_;
     std::coroutine_handle<> pendingWrite_;

@@ -215,7 +215,7 @@ void CoroScheduler::registerIoChannel(IoChannel * channel)
 {
     int fd = channel->fd_;
     epoll_event ev{};
-    ev.events = EPOLLIN | EPOLLOUT | EPOLLET; // PRI?
+    ev.events = channel->events_ | EPOLLET;
     ev.data.ptr = channel;
 
     assert(!ioChannels_.contains(fd));
@@ -244,6 +244,14 @@ void CoroScheduler::unregisterIoChannel(IoChannel * channel)
         printf("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epoll_fd_, fd, errno);
         // throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
     }
+}
+
+void CoroScheduler::updateChannel(IoChannel * channel)
+{
+    epoll_event ev{};
+    ev.events = channel->events_ | EPOLLET;
+    ev.data.ptr = channel;
+    ::epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, channel->fd_, &ev);
 }
 
 } // namespace my_coro

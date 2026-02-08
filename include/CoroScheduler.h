@@ -96,6 +96,7 @@ public:
 
     void registerIoChannel(IoChannel *);
     void unregisterIoChannel(IoChannel *);
+    void updateChannel(IoChannel *);
 
     // 协程感知的定时器
     TimerAwaitable sleep_for(double seconds);

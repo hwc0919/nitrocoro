@@ -20,7 +20,7 @@ TcpServer::TcpServer(int port) : listen_fd_(-1), port_(port), running_(false)
 {
     setup_socket();
 
-    listenChannel_ = std::make_unique<IoChannel>(listen_fd_, CoroScheduler::current());
+    listenChannel_ = std::make_unique<IoChannel>(listen_fd_, CoroScheduler::current(), TriggerMode::LevelTriggered);
 }
 
 TcpServer::~TcpServer()

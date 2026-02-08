@@ -4,12 +4,13 @@
  */
 #include "IoChannel.h"
 #include "CoroScheduler.h"
+#include <sys/epoll.h>
 
 namespace my_coro
 {
 
-IoChannel::IoChannel(int fd, CoroScheduler * scheduler)
-    : fd_(fd), scheduler_(scheduler)
+IoChannel::IoChannel(int fd, CoroScheduler * scheduler, TriggerMode mode)
+    : fd_(fd), scheduler_(scheduler), triggerMode_(mode), events_(mode == TriggerMode::EdgeTriggered ? (EPOLLIN | EPOLLET) : EPOLLIN)
 {
     scheduler_->registerIoChannel(this);
 }
@@ -44,26 +45,48 @@ Task<ssize_t> IoChannel::write(const void * buf, size_t len)
 
 void IoChannel::handleReadable()
 {
-    assert(readable_ == false);
+    //    assert(readable_ == false);
     readable_ = true;
     if (pendingRead_)
     {
         auto h = pendingRead_;
         pendingRead_ = nullptr;
-        scheduler_->schedule(h);
+        if (h)
+        {
+            scheduler_->schedule(h);
+        }
     }
 }
 
 void IoChannel::handleWritable()
 {
     printf("Handle write fd %d writable = %d\n", fd_, writable_);
-//    assert(writable_ == false);
     writable_ = true;
     if (pendingWrite_)
     {
         auto h = pendingWrite_;
         pendingWrite_ = nullptr;
-        scheduler_->schedule(h);
+        events_ &= ~EPOLLOUT;
+        scheduler_->updateChannel(this);
+        if (h)
+        {
+            scheduler_->schedule(h);
+        }
+    }
+}
+
+bool IoChannel::WriteAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
+{
+    if (channel_->writable_)
+    {
+        return false;
+    }
+    else
+    {
+        channel_->pendingWrite_ = h;
+        channel_->events_ |= EPOLLOUT;
+        channel_->scheduler_->updateChannel(channel_);
+        return true;
     }
 }
 
