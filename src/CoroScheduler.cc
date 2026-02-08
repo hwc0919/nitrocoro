@@ -215,7 +215,7 @@ void CoroScheduler::registerIoChannel(IoChannel * channel)
 {
     int fd = channel->fd_;
     epoll_event ev{};
-    ev.events = channel->events_ | EPOLLET;
+    ev.events = channel->events_ | (channel->triggerMode_ == TriggerMode::EdgeTriggered ? EPOLLET : 0);
     ev.data.ptr = channel;
 
     assert(!ioChannels_.contains(fd));
@@ -249,7 +249,7 @@ void CoroScheduler::unregisterIoChannel(IoChannel * channel)
 void CoroScheduler::updateChannel(IoChannel * channel)
 {
     epoll_event ev{};
-    ev.events = channel->events_ | EPOLLET;
+    ev.events = channel->events_ | (channel->triggerMode_ == TriggerMode::EdgeTriggered ? EPOLLET : 0);
     ev.data.ptr = channel;
     ::epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, channel->fd_, &ev);
 }

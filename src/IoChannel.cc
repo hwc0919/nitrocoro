@@ -10,7 +10,7 @@ namespace my_coro
 {
 
 IoChannel::IoChannel(int fd, CoroScheduler * scheduler, TriggerMode mode)
-    : fd_(fd), scheduler_(scheduler), triggerMode_(mode), events_(mode == TriggerMode::EdgeTriggered ? (EPOLLIN | EPOLLET) : EPOLLIN)
+    : fd_(fd), scheduler_(scheduler), triggerMode_(mode), events_(EPOLLIN)
 {
     scheduler_->registerIoChannel(this);
 }
