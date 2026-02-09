@@ -69,9 +69,15 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
     // Broadcast messages
     while (true)
     {
-        n = co_await conn->read(buf, sizeof(buf) - 1);
-        if (n <= 0)
+        try
+        {
+            n = co_await conn->read(buf, sizeof(buf) - 1);
+        }
+        catch (const std::exception & e)
+        {
+            printf("Read error: %s\n", e.what());
             break;
+        }
         buf[n] = '\0';
         std::string msg = username + ": " + buf;
         std::cout << msg << std::endl;
@@ -103,10 +109,14 @@ Task<> receive_messages(TcpClient & client)
     while (true)
     {
         printf("receive message loop\n");
-        ssize_t n = co_await client.read(buf, sizeof(buf) - 1);
-        if (n <= 0)
+        ssize_t n;
+        try
         {
-            std::cout << "\nDisconnected from server\n";
+            n = co_await client.read(buf, sizeof(buf) - 1);
+        }
+        catch (const std::exception & e)
+        {
+            printf("Read error: %s\n", e.what());
             CoroScheduler::current()->stop();
             break;
         }
