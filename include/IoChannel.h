@@ -31,49 +31,13 @@ public:
     IoChannel(IoChannel &&) = delete;
     IoChannel & operator=(IoChannel &&) = delete;
 
-    struct [[nodiscard]] ReadAwaiter
+    struct [[nodiscard]] ReadableAwaiter
     {
+        IoChannel * channel_;
+
         bool await_ready() noexcept
         {
-            if (!channel_->readable_)
-            {
-                return false; // suspend
-            }
-            if (len_ == 0)
-            {
-                // LT mode: clear readable flag before returning
-                if (channel_->triggerMode_ == TriggerMode::LevelTriggered)
-                {
-                    channel_->readable_ = false;
-                }
-                return true;
-            }
-            // try read first
-            result_ = ::read(channel_->fd_, buf_, len_);
-            lastErrno_ = errno;
-            if (result_ < 0)
-            {
-                if (lastErrno_ == EAGAIN
-#if EWOULDBLOCK != EAGAIN
-                    || lastErrno_ == EWOULDBLOCK
-#endif
-                )
-                {
-                    channel_->readable_ = false;
-                    return false; // suspend
-                }
-                else if (lastErrno_ == EINTR)
-                {
-                    return true;
-                }
-            }
-            // LT mode: clear readable flag after read
-            if (channel_->triggerMode_ == TriggerMode::LevelTriggered)
-            {
-                channel_->readable_ = false;
-            }
-            needRead_ = false;
-            return true;
+            return channel_->readable_;
         }
         bool await_suspend(std::coroutine_handle<> h) noexcept
         {
@@ -87,59 +51,7 @@ public:
                 return true;
             }
         }
-        ssize_t await_resume() noexcept(false)
-        {
-            if (len_ == 0)
-            {
-                return 0;
-            }
-            if (needRead_)
-            {
-                result_ = ::read(channel_->fd_, buf_, len_);
-                lastErrno_ = errno;
-            }
-            if (result_ > 0)
-            {
-                return result_;
-            }
-            else if (result_ == 0)
-            {
-                // peer closed
-                // TODO: close(fd)
-                // TODO: EINTR?
-                throw std::runtime_error("peer closed");
-            }
-            else
-            {
-                switch (lastErrno_)
-                {
-#if EAGAIN != EWOULDBLOCK
-                    case EAGAIN:
-#endif
-                    case EWOULDBLOCK:
-                        channel_->readable_ = false;
-                        return 0;
-
-                    case EINTR: // interrupted by signal
-                        return 0;
-
-                    case ECONNRESET: // reset by peer
-                    case EPIPE:      // bad connection
-                    default:
-                        // 其他错误，关闭连接
-                        // close(fd)
-                        throw std::runtime_error("read error " + std::to_string(lastErrno_) + " " + std::to_string(result_));
-                }
-            }
-        }
-
-        IoChannel * channel_;
-        void * buf_;
-        size_t len_;
-
-        bool needRead_{ true };
-        ssize_t result_{ -1 };
-        int lastErrno_{ 0 };
+        void await_resume() noexcept {}
     };
 
     struct [[nodiscard]] WriteAwaiter
@@ -231,6 +143,8 @@ public:
         int lastErrno_{ 0 };
     };
 
+    ReadableAwaiter readable();
+    Task<int> accept();
     Task<ssize_t> read(void * buf, size_t len);
     Task<ssize_t> write(const void * buf, size_t len);
 

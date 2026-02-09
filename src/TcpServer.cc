@@ -6,6 +6,7 @@
 #include "CoroScheduler.h"
 #include "TcpConnection.h"
 
+#include <cstring>
 #include <fcntl.h>
 #include <iostream>
 #include <netinet/in.h>
@@ -78,15 +79,9 @@ Task<> TcpServer::start()
     }
 
     running_ = true;
-    char dummy;
-
     while (running_)
     {
-        co_await listenChannel_->read(&dummy, 0);
-        sockaddr_in client_addr{};
-        socklen_t addr_len = sizeof(client_addr);
-        int client_fd = accept(listen_fd_, (sockaddr *)&client_addr, &addr_len);
-
+        int client_fd = co_await listenChannel_->accept();
         if (client_fd < 0)
         {
             continue;

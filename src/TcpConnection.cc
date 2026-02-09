@@ -16,14 +16,7 @@ TcpConnection::TcpConnection(int fd)
 {
 }
 
-TcpConnection::~TcpConnection()
-{
-    if (fd_ >= 0)
-    {
-        std::cout << "Closing connection: fd=" << fd_ << "\n";
-        close(fd_);
-    }
-}
+TcpConnection::~TcpConnection() = default;
 
 Task<ssize_t> TcpConnection::read(void * buf, size_t len)
 {
