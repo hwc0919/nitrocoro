@@ -70,7 +70,7 @@ Task<ssize_t> TcpClient::read(void * buf, size_t len)
     return ioChannelPtr_->read(buf, len);
 }
 
-Task<ssize_t> TcpClient::write(const void * buf, size_t len)
+Task<> TcpClient::write(const void * buf, size_t len)
 {
     return ioChannelPtr_->write(buf, len);
 }

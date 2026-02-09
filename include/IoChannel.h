@@ -47,112 +47,38 @@ public:
             }
             else
             {
-                channel_->pendingRead_ = h;
+                channel_->readableWaiter_ = h;
                 return true;
             }
         }
         void await_resume() noexcept {}
     };
 
-    struct [[nodiscard]] WriteAwaiter
+    struct [[nodiscard]] WritableAwaiter
     {
+        IoChannel * channel_;
+
         bool await_ready() noexcept
         {
-            if (!channel_->writable_)
-            {
-                return false; // suspend
-            }
-            if (len_ == 0)
-            {
-                return true;
-            }
-            // try to write first
-            result_ = ::write(channel_->fd_, buf_, len_);
-            lastErrno_ = errno;
-            hasWritten_ = true;
-            if (result_ < 0)
-            {
-                if (lastErrno_ == EAGAIN
-#if EWOULDBLOCK != EAGAIN
-                    || lastErrno_ == EWOULDBLOCK
-#endif
-                )
-                {
-                    channel_->writable_ = false;
-                    return false; // suspend
-                }
-                else if (lastErrno_ == EINTR)
-                {
-                    return true;
-                }
-            }
-            return true;
+            return channel_->writable_;
         }
-
         bool await_suspend(std::coroutine_handle<> h) noexcept;
-        ssize_t await_resume() noexcept(false)
-        {
-            if (len_ == 0)
-            {
-                return 0;
-            }
-            if (!hasWritten_)
-            {
-                result_ = ::write(channel_->fd_, buf_, len_);
-                lastErrno_ = errno;
-            }
-            if (result_ > 0)
-            {
-                return result_;
-            }
-            else if (result_ == 0)
-            {
-                // write 返回 0 通常不应该发生
-                // TODO: EINTR?
-                throw std::runtime_error("write returned 0");
-            }
-            else
-            {
-                switch (lastErrno_)
-                {
-#if EAGAIN != EWOULDBLOCK
-                    case EAGAIN:
-#endif
-                    case EWOULDBLOCK: // should not happen again!
-                        channel_->writable_ = false;
-                        return 0;
-
-                    case EINTR: // interrupted by signal
-                        return 0;
-
-                    case ECONNRESET: // reset by peer
-                    case EPIPE:      // broken pipe
-                    case ECONNABORTED:
-                    default:
-                        throw std::runtime_error("write error");
-                }
-            }
-        }
-
-        IoChannel * channel_;
-        const void * buf_;
-        size_t len_;
-
-        bool hasWritten_{ false };
-        ssize_t result_{ -1 };
-        int lastErrno_{ 0 };
+        void await_resume() noexcept;
     };
 
     ReadableAwaiter readable();
+    WritableAwaiter writable();
     Task<int> accept();
     Task<ssize_t> read(void * buf, size_t len);
-    Task<ssize_t> write(const void * buf, size_t len);
+    Task<> write(const void * buf, size_t len);
 
 private:
     friend class CoroScheduler;
 
     void handleReadable();
     void handleWritable();
+
+    Task<void> writeTaskLoop();
 
     int fd_{ -1 };
     CoroScheduler * scheduler_{ nullptr };
@@ -162,8 +88,23 @@ private:
     bool readable_{ false };
     bool writable_{ true };
 
-    std::coroutine_handle<> pendingRead_;
-    std::coroutine_handle<> pendingWrite_;
+    std::coroutine_handle<> readableWaiter_;
+    std::coroutine_handle<> writableWaiter_;
+
+    struct WriteOp
+    {
+        const void * buf_;
+        size_t len_;
+        std::coroutine_handle<> handle_;
+        size_t written_{ 0 };
+        int error_{ 0 };
+    };
+    bool writeTaskRunning_{ true };
+    Task<> writeTask_{ writeTaskLoop() };
+    bool writeTaskSuspended_{ true };
+    std::queue<WriteOp *> pendingWrites_;
+
+    void wakeupWriteTask();
 };
 
 } // namespace my_coro

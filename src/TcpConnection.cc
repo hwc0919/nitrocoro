@@ -23,7 +23,7 @@ Task<ssize_t> TcpConnection::read(void * buf, size_t len)
     return ioChannelPtr_->read(buf, len);
 }
 
-Task<ssize_t> TcpConnection::write(const void * buf, size_t len)
+Task<> TcpConnection::write(const void * buf, size_t len)
 {
     return ioChannelPtr_->write(buf, len);
 }

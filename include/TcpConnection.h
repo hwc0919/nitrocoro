@@ -22,7 +22,7 @@ public:
     TcpConnection & operator=(TcpConnection &&) = delete;
 
     Task<ssize_t> read(void * buf, size_t len);
-    Task<ssize_t> write(const void * buf, size_t len);
+    Task<> write(const void * buf, size_t len);
     bool is_open() const { return fd_ >= 0; }
 
 private:
