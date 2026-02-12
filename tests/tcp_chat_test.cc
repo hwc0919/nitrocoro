@@ -29,18 +29,17 @@ std::vector<ChatClient> clients;
 
 Task<> broadcast(const std::string & message, std::shared_ptr<TcpConnection> sender)
 {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    static std::uniform_real_distribution<> dis(0.0, 1.0);
-
     printf("broadcast %s\n", message.c_str());
     for (auto & client : clients)
     {
         if (client.conn != sender)
         {
             printf("broadcast to %s\n", client.username.c_str());
-            double delay = dis(gen);
-            Scheduler::current()->spawn([message, conn = client.conn, delay]() -> Task<> {
+            Scheduler::current()->spawn([message, conn = client.conn]() -> Task<> {
+                static thread_local std::mt19937 gen(std::random_device{}());
+                static std::uniform_real_distribution<> dis(0.0, 1.0);
+                double delay = dis(gen);
+
                 co_await Scheduler::current()->sleep_for(delay);
                 co_await conn->write(message.c_str(), message.size());
             });
