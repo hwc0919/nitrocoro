@@ -22,39 +22,6 @@ IoChannel::~IoChannel()
     scheduler_->unregisterIoChannel(this);
 }
 
-Task<> IoChannel::write(const void * buf, size_t len)
-{
-    printf("Write %p %zu\n", buf, len);
-    WriteOp op{ buf, len };
-
-    struct Awaiter
-    {
-        WriteOp * op;
-        IoChannel * ch;
-
-        bool await_ready() { return false; }
-        void await_suspend(std::coroutine_handle<> h)
-        {
-            op->handle_ = h;
-            ch->pendingWrites_.push(op);
-            ch->wakeupWriteTask();
-        }
-        void await_resume()
-        {
-            if (op->error_ != 0)
-            {
-                if (op->error_ == ECONNREFUSED)
-                {
-                    throw std::runtime_error("Connection refused");
-                }
-                throw std::runtime_error("write error " + std::to_string(op->error_));
-            }
-        }
-    };
-
-    co_await Awaiter{ &op, this };
-}
-
 void IoChannel::handleReadable()
 {
     //    assert(readable_ == false);
@@ -82,83 +49,6 @@ void IoChannel::handleWritable()
         {
             scheduler_->schedule(h);
         }
-    }
-}
-
-IoChannel::ReadableAwaiter IoChannel::readable()
-{
-    return ReadableAwaiter{ this };
-}
-
-IoChannel::WritableAwaiter IoChannel::writable()
-{
-    return WritableAwaiter{ this };
-}
-
-void IoChannel::wakeupWriteTask()
-{
-    if (writeTaskSuspended_) // 必须检查！
-    {
-        writeTaskSuspended_ = false; // 先清除标志
-        scheduler_->schedule(writeTask_.handle_);
-    }
-}
-
-Task<void> IoChannel::writeTaskLoop()
-{
-    while (writeTaskRunning_) // TODO: stop when close write
-    {
-        while (pendingWrites_.empty() && writeTaskRunning_)
-        {
-            writeTaskSuspended_ = true;
-            co_await std::suspend_always{};
-        }
-        if (!writeTaskRunning_)
-            break;
-
-        WriteOp * op = pendingWrites_.front();
-        pendingWrites_.pop();
-
-        size_t totalWrite{ 0 };
-        do
-        {
-            if (!writable_)
-            {
-                co_await WritableAwaiter{ this };
-            }
-
-            const char * ptr = static_cast<const char *>(op->buf_) + totalWrite;
-            size_t remaining = op->len_ - totalWrite;
-            ssize_t n = ::write(fd_, ptr, remaining);
-            int lastErrno = errno;
-            if (n > 0)
-            {
-                totalWrite += n;
-            }
-            else if (lastErrno == 0 || lastErrno == EINTR)
-            {
-                continue;
-            }
-            else if (
-                lastErrno == EINPROGRESS
-                || lastErrno == EALREADY || lastErrno == EAGAIN
-#if EWOULDBLOCK != EAGAIN
-                || lastErrno == EWOULDBLOCK
-#endif
-            )
-            {
-                writable_ = false;
-                continue;
-            }
-            else
-            {
-                op->error_ = lastErrno;
-                break;
-            }
-        } while (totalWrite < op->len_);
-
-        op->written_ = totalWrite;
-        scheduler_->schedule(op->handle_);
     }
 }
 

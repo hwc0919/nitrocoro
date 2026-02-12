@@ -66,16 +66,12 @@ public:
         void await_resume() noexcept;
     };
 
-    ReadableAwaiter readable();
-    WritableAwaiter writable();
-    Task<> write(const void * buf, size_t len);
-
     enum class IoResult
     {
         Success,    // 操作成功
         WouldBlock, // EAGAIN，需要等待
         Retry,      // EINTR，立即重试
-        Disconnect, // 短线
+        Disconnect, // 连接中断
         Error       // 错误
     };
 
@@ -181,8 +177,6 @@ private:
     void handleReadable();
     void handleWritable();
 
-    Task<void> writeTaskLoop();
-
     int fd_{ -1 };
     Scheduler * scheduler_{ nullptr };
     TriggerMode triggerMode_{ TriggerMode::EdgeTriggered };
@@ -193,21 +187,6 @@ private:
 
     std::coroutine_handle<> readableWaiter_;
     std::coroutine_handle<> writableWaiter_;
-
-    struct WriteOp
-    {
-        const void * buf_;
-        size_t len_;
-        std::coroutine_handle<> handle_;
-        size_t written_{ 0 };
-        int error_{ 0 };
-    };
-    bool writeTaskRunning_{ true };
-    Task<> writeTask_{ writeTaskLoop() };
-    bool writeTaskSuspended_{ true };
-    std::queue<WriteOp *> pendingWrites_;
-
-    void wakeupWriteTask();
 };
 
 struct BufferReader : public IoChannel::IoReader
