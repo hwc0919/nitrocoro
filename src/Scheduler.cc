@@ -24,24 +24,6 @@ void TimerAwaitable::await_suspend(std::coroutine_handle<> h) noexcept
     sched->register_timer(when_, h);
 }
 
-void Scheduler::ReadyQueue::push(std::coroutine_handle<> h)
-{
-    size_t t = tail_.load(std::memory_order_relaxed);
-    coros[t % 1024] = h;
-    tail_.store(t + 1, std::memory_order_release);
-}
-
-std::coroutine_handle<> Scheduler::ReadyQueue::pop()
-{
-    size_t h = head_.load(std::memory_order_relaxed);
-    size_t t = tail_.load(std::memory_order_acquire);
-    if (h >= t)
-        return nullptr;
-    auto coro = coros[h % 1024];
-    head_.store(h + 1, std::memory_order_release);
-    return coro;
-}
-
 Scheduler::Scheduler()
 {
     if (current_ != nullptr)
@@ -119,8 +101,8 @@ void Scheduler::resume_ready_coros()
 {
     while (auto coro = ready_queue_.pop())
     {
-        if (!coro.done())
-            coro.resume();
+        if (!coro->done())
+            coro->resume();
     }
 }
 

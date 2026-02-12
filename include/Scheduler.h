@@ -13,6 +13,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "MpscQueue.h"
+
 namespace my_coro
 {
 class Scheduler;
@@ -131,15 +133,7 @@ private:
     int wakeup_fd_{ -1 }; // eventfd 用于唤醒 epoll
     std::atomic<bool> running_{ false };
 
-    struct ReadyQueue
-    {
-        std::coroutine_handle<> coros[1024];
-        std::atomic<size_t> head_{ 0 };
-        std::atomic<size_t> tail_{ 0 };
-
-        void push(std::coroutine_handle<> h);
-        std::coroutine_handle<> pop();
-    } ready_queue_;
+    MpscQueue<std::coroutine_handle<>> ready_queue_;
 
     struct Timer
     {
