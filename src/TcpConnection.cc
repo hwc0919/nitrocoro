@@ -20,7 +20,9 @@ TcpConnection::~TcpConnection() = default;
 
 Task<ssize_t> TcpConnection::read(void * buf, size_t len)
 {
-    return ioChannelPtr_->read(buf, len);
+    BufferReader reader(buf, len);
+    co_await ioChannelPtr_->performRead(&reader);
+    co_return reader.readLen();
 }
 
 Task<> TcpConnection::write(const void * buf, size_t len)

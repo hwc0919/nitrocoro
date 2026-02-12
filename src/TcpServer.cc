@@ -71,6 +71,41 @@ void TcpServer::set_handler(ConnectionHandler handler)
     handler_ = std::move(handler);
 }
 
+
+struct Acceptor : public IoChannel::IoReader
+{
+    IoChannel::IoResult read(int fd) override
+    {
+        socklen_t len = sizeof(clientAddr_);
+        fd_ = ::accept4(fd, reinterpret_cast<struct sockaddr *>(&clientAddr_), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
+        if (fd_ >= 0)
+        {
+            return IoChannel::IoResult::Success;
+        }
+        else
+        {
+            switch (errno)
+            {
+                case EAGAIN:
+#if EAGAIN != EWOULDBLOCK
+                case EWOULDBLOCK:
+#endif
+                    return IoChannel::IoResult::WouldBlock;
+                case EINTR:
+                    return IoChannel::IoResult::Retry;
+                default:
+                    return IoChannel::IoResult::Error;
+            }
+        }
+    }
+    int clientFd() const { return fd_; }
+    const struct sockaddr_in & clientAddr() const { return clientAddr_; }
+
+private:
+    struct sockaddr_in clientAddr_{};
+    int fd_{ -1 };
+};
+
 Task<> TcpServer::start()
 {
     if (!handler_)
@@ -81,18 +116,12 @@ Task<> TcpServer::start()
     running_ = true;
     while (running_)
     {
-        int client_fd = co_await listenChannel_->accept();
-        if (client_fd < 0)
-        {
-            continue;
-        }
+        Acceptor acceptor;
+        co_await listenChannel_->performRead(&acceptor);
 
-        int flags = fcntl(client_fd, F_GETFL, 0);
-        fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
+        std::cout << "Accepted connection: fd=" << acceptor.clientFd() << "\n";
 
-        std::cout << "Accepted connection: fd=" << client_fd << "\n";
-
-        auto conn = std::make_shared<TcpConnection>(client_fd);
+        auto conn = std::make_shared<TcpConnection>(acceptor.clientFd());
         Scheduler::current()->spawn([this, conn]() -> Task<> {
             co_await handler_(conn);
         });

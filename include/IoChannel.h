@@ -68,8 +68,6 @@ public:
 
     ReadableAwaiter readable();
     WritableAwaiter writable();
-    Task<int> accept();
-    Task<ssize_t> read(void * buf, size_t len);
     Task<> write(const void * buf, size_t len);
 
     enum class IoResult
@@ -77,6 +75,7 @@ public:
         Success,    // 操作成功
         WouldBlock, // EAGAIN，需要等待
         Retry,      // EINTR，立即重试
+        Disconnect, // 短线
         Error       // 错误
     };
 
@@ -131,7 +130,11 @@ public:
                 case IoResult::Retry:
                     break;
 
+                case IoResult::Disconnect:
+                    throw std::runtime_error("I/O disconnect");
+
                 case IoResult::Error:
+                default:
                     throw std::runtime_error("I/O read error");
             }
         }
@@ -162,7 +165,11 @@ public:
                 case IoResult::Retry:
                     break;
 
+                case IoResult::Disconnect:
+                    throw std::runtime_error("I/O disconnect");
+
                 case IoResult::Error:
+                default:
                     throw std::runtime_error("I/O write error");
             }
         }
@@ -201,6 +208,46 @@ private:
     std::queue<WriteOp *> pendingWrites_;
 
     void wakeupWriteTask();
+};
+
+struct BufferReader : public IoChannel::IoReader
+{
+    IoChannel::IoResult read(int fd) override
+    {
+        ssize_t ret = ::read(fd, buf_, len_);
+        if (ret > 0)
+        {
+            readLen_ = ret;
+            return IoChannel::IoResult::Success;
+        }
+        else if (ret == 0)
+        {
+            return IoChannel::IoResult::Disconnect;
+        }
+        else
+        {
+            switch (errno)
+            {
+                case EAGAIN:
+#if EAGAIN != EWOULDBLOCK
+                case EWOULDBLOCK:
+#endif
+                    return IoChannel::IoResult::WouldBlock;
+                case EINTR:
+                    return IoChannel::IoResult::Retry;
+                default:
+                    return IoChannel::IoResult::Error;
+            }
+        }
+    }
+
+    BufferReader(void * buf, size_t len) : buf_(buf), len_(len) {}
+    ssize_t readLen() const { return readLen_; }
+
+private:
+    void * buf_;
+    size_t len_;
+    ssize_t readLen_{ 0 };
 };
 
 } // namespace my_coro

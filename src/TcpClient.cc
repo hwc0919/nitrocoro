@@ -67,7 +67,9 @@ Task<> TcpClient::connect(const char * host, int port)
 
 Task<ssize_t> TcpClient::read(void * buf, size_t len)
 {
-    return ioChannelPtr_->read(buf, len);
+    BufferReader reader(buf, len);
+    co_await ioChannelPtr_->performRead(&reader);
+    co_return reader.readLen();
 }
 
 Task<> TcpClient::write(const void * buf, size_t len)
