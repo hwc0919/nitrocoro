@@ -93,12 +93,12 @@ public:
 
     Task<> performRead(IoReader * reader)
     {
-        co_return co_await performRead([reader](int fd) { return reader->read(fd); });
+        co_await performRead([reader](int fd) { return reader->read(fd); });
     }
 
     Task<> performWrite(IoWriter * writer)
     {
-        co_return co_await performWrite([writer](int fd) { return writer->write(fd); });
+        co_await performWrite([writer](int fd) { return writer->write(fd); });
     }
 
     template <typename Func>
@@ -212,8 +212,16 @@ private:
 
 struct BufferReader : public IoChannel::IoReader
 {
+    BufferReader(void * buf, size_t len) : buf_(buf), len_(len) {}
+    ssize_t readLen() const { return readLen_; }
+
     IoChannel::IoResult read(int fd) override
     {
+        if (!buf_ || len_ == 0)
+        {
+            return IoChannel::IoResult::Success;
+        }
+
         ssize_t ret = ::read(fd, buf_, len_);
         if (ret > 0)
         {
@@ -241,13 +249,62 @@ struct BufferReader : public IoChannel::IoReader
         }
     }
 
-    BufferReader(void * buf, size_t len) : buf_(buf), len_(len) {}
-    ssize_t readLen() const { return readLen_; }
-
 private:
     void * buf_;
     size_t len_;
     ssize_t readLen_{ 0 };
+};
+
+struct BufferWriter : public IoChannel::IoWriter
+{
+    BufferWriter(const void * buf, size_t len) : buf_(buf), len_(len)
+    {
+    }
+
+    IoChannel::IoResult write(int fd) override
+    {
+        if (!buf_ || len_ == 0)
+        {
+            return IoChannel::IoResult::Success;
+        }
+
+        ssize_t ret = ::write(fd, static_cast<const char *>(buf_) + wroteLen_, len_ - wroteLen_);
+        if (ret > 0)
+        {
+            wroteLen_ += ret;
+            if (wroteLen_ >= static_cast<ssize_t>(len_))
+            {
+                return IoChannel::IoResult::Success;
+            }
+            else
+            {
+                return IoChannel::IoResult::Retry;
+            }
+        }
+        else // ret <= 0
+        {
+            switch (errno)
+            {
+                case EAGAIN:
+#if EAGAIN != EWOULDBLOCK
+                case EWOULDBLOCK:
+#endif
+                    return IoChannel::IoResult::WouldBlock;
+                case EINTR:
+                    return IoChannel::IoResult::Retry;
+                case EPIPE:
+                case ECONNRESET:
+                    return IoChannel::IoResult::Disconnect;
+                default:
+                    return IoChannel::IoResult::Error;
+            }
+        }
+    }
+
+private:
+    const void * buf_;
+    size_t len_;
+    ssize_t wroteLen_{ 0 };
 };
 
 } // namespace my_coro
