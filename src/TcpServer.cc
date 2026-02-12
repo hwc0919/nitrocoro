@@ -54,13 +54,13 @@ void TcpServer::setup_socket()
     if (bind(listen_fd_, (sockaddr *)&addr, sizeof(addr)) < 0)
     {
         close(listen_fd_);
-        throw std::runtime_error("Failed to bind socket");
+        throw std::runtime_error(std::string("Failed to bind socket: ") + strerror(errno));
     }
 
     if (listen(listen_fd_, 128) < 0)
     {
         close(listen_fd_);
-        throw std::runtime_error("Failed to listen on socket");
+        throw std::runtime_error(std::string("Failed to listen on socket: ") + strerror(errno));
     }
 
     std::cout << "TcpServer listening on port " << port_ << "\n";

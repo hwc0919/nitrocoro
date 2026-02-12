@@ -133,11 +133,9 @@ Task<> send_messages(TcpClient & client, IoChannel * stdinChannel)
 
     while (true)
     {
-        ssize_t n = co_await stdinChannel->read(buf, sizeof(buf) - 1);
-        if (n <= 0)
-            break;
-
-        buf[n] = '\0';
+        BufferReader reader(buf, sizeof(buf) - 1);
+        co_await stdinChannel->performRead(&reader);
+        buf[reader.readLen()] = '\0';
         line += buf;
 
         // Process complete lines
