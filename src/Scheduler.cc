@@ -21,7 +21,6 @@ thread_local Scheduler * Scheduler::current_ = nullptr;
 
 void TimerAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
 {
-    handle_ = h;
     sched_->register_timer(when_, h);
 }
 

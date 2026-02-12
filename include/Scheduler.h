@@ -31,56 +31,16 @@ using TimePoint = std::chrono::steady_clock::time_point;
 
 struct [[nodiscard]] TimerAwaiter
 {
-    Scheduler * sched_;
-    TimePoint when_;
-    std::coroutine_handle<> handle_;
+    TimerAwaiter(Scheduler * sched, TimePoint when) : sched_{ sched }, when_{ when } {};
 
     bool await_ready() const noexcept { return false; }
     void await_suspend(std::coroutine_handle<> h) noexcept;
+
     void await_resume() noexcept {}
-};
 
-struct AsyncTask
-{
-    struct promise_type;
-    using handle_type = std::coroutine_handle<promise_type>;
-
-    AsyncTask() = default;
-
-    AsyncTask(handle_type h) : coro_(h)
-    {
-    }
-
-    AsyncTask(const AsyncTask &) = delete;
-
-    AsyncTask(AsyncTask && other) noexcept
-    {
-        coro_ = other.coro_;
-        other.coro_ = nullptr;
-    }
-
-    AsyncTask & operator=(const AsyncTask &) = delete;
-
-    AsyncTask & operator=(AsyncTask && other) noexcept
-    {
-        if (std::addressof(other) == this)
-            return *this;
-
-        coro_ = other.coro_;
-        other.coro_ = nullptr;
-        return *this;
-    }
-
-    struct promise_type
-    {
-        AsyncTask get_return_object() noexcept { return { handle_type::from_promise(*this) }; }
-        std::suspend_always initial_suspend() const noexcept { return {}; }
-        void unhandled_exception() { std::terminate(); }
-        void return_void() noexcept {}
-        std::suspend_never final_suspend() const noexcept { return {}; }
-    };
-
-    handle_type coro_;
+private:
+    Scheduler * sched_;
+    TimePoint when_;
 };
 
 class Scheduler
@@ -109,19 +69,40 @@ public:
     template <typename Coro>
     void spawn(Coro && coro)
     {
-        auto taskFunc = [](std::decay_t<Coro> coro) -> AsyncTask {
+        struct [[nodiscard]] FireAndForget
+        {
+            struct promise_type;
+            using handle_type = std::coroutine_handle<promise_type>;
+
+            handle_type handle_;
+
+            FireAndForget(handle_type handle) : handle_{ handle } {}
+            FireAndForget(const FireAndForget &) = delete;
+            FireAndForget(FireAndForget &&) = delete;
+            FireAndForget & operator=(const FireAndForget &) = delete;
+            FireAndForget & operator=(FireAndForget &&) = delete;
+
+            struct promise_type
+            {
+                FireAndForget get_return_object() noexcept { return handle_type::from_promise(*this); }
+                std::suspend_always initial_suspend() noexcept { return {}; }
+                void unhandled_exception() { std::terminate(); }
+                void return_void() noexcept {}
+                std::suspend_never final_suspend() const noexcept { return {}; }
+            };
+        };
+
+        auto task = [](std::decay_t<Coro> coro) -> FireAndForget {
             static_assert(is_awaitable_v<std::decay_t<decltype(coro())>>);
             co_await coro();
             co_return;
-        };
-        auto task = taskFunc(std::forward<Coro>(coro));
-        if (task.coro_)
-            schedule(task.coro_);
+        }(std::forward<Coro>(coro));
+        schedule(task.handle_);
     }
 
-    void register_timer(TimePoint when, std::coroutine_handle<> coro);
-
 private:
+    friend class TimerAwaiter;
+
     static thread_local Scheduler * current_;
 
     int epoll_fd_{ -1 };
@@ -142,6 +123,8 @@ private:
     };
     std::priority_queue<Timer, std::vector<Timer>, std::greater<Timer>> timers_;
     MpscQueue<Timer> pending_timers_;
+
+    void register_timer(TimePoint when, std::coroutine_handle<> coro);
 
     void resume_ready_coros();
     void process_io_events(int timeout_ms);
