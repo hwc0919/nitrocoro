@@ -12,7 +12,7 @@
 namespace my_coro
 {
 
-class CoroScheduler;
+class Scheduler;
 
 enum class TriggerMode
 {
@@ -23,7 +23,7 @@ enum class TriggerMode
 class IoChannel
 {
 public:
-    IoChannel(int fd, CoroScheduler * scheduler, TriggerMode mode = TriggerMode::EdgeTriggered);
+    IoChannel(int fd, Scheduler * scheduler, TriggerMode mode = TriggerMode::EdgeTriggered);
     ~IoChannel();
 
     IoChannel(const IoChannel &) = delete;
@@ -73,7 +73,7 @@ public:
     Task<> write(const void * buf, size_t len);
 
 private:
-    friend class CoroScheduler;
+    friend class Scheduler;
 
     void handleReadable();
     void handleWritable();
@@ -81,7 +81,7 @@ private:
     Task<void> writeTaskLoop();
 
     int fd_{ -1 };
-    CoroScheduler * scheduler_{ nullptr };
+    Scheduler * scheduler_{ nullptr };
     TriggerMode triggerMode_{ TriggerMode::EdgeTriggered };
 
     uint32_t events_{ 0 };

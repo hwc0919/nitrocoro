@@ -3,7 +3,7 @@
  * @brief Implementation of coroutine-based TCP server
  */
 #include "TcpServer.h"
-#include "CoroScheduler.h"
+#include "Scheduler.h"
 #include "TcpConnection.h"
 
 #include <cstring>
@@ -21,7 +21,7 @@ TcpServer::TcpServer(int port) : listen_fd_(-1), port_(port), running_(false)
 {
     setup_socket();
 
-    listenChannel_ = std::make_unique<IoChannel>(listen_fd_, CoroScheduler::current(), TriggerMode::LevelTriggered);
+    listenChannel_ = std::make_unique<IoChannel>(listen_fd_, Scheduler::current(), TriggerMode::LevelTriggered);
 }
 
 TcpServer::~TcpServer()
@@ -93,7 +93,7 @@ Task<> TcpServer::start()
         std::cout << "Accepted connection: fd=" << client_fd << "\n";
 
         auto conn = std::make_shared<TcpConnection>(client_fd);
-        CoroScheduler::current()->spawn([this, conn]() -> Task<> {
+        Scheduler::current()->spawn([this, conn]() -> Task<> {
             co_await handler_(conn);
         });
     }

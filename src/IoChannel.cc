@@ -3,14 +3,14 @@
  * @brief Implementation of IoChannel
  */
 #include "IoChannel.h"
-#include "CoroScheduler.h"
+#include "Scheduler.h"
 #include <arpa/inet.h>
 #include <sys/epoll.h>
 
 namespace my_coro
 {
 
-IoChannel::IoChannel(int fd, CoroScheduler * scheduler, TriggerMode mode)
+IoChannel::IoChannel(int fd, Scheduler * scheduler, TriggerMode mode)
     : fd_(fd), scheduler_(scheduler), triggerMode_(mode), events_(EPOLLIN)
 {
     scheduler_->registerIoChannel(this);

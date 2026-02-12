@@ -3,7 +3,7 @@
  * @brief Implementation of coroutine-based TCP client
  */
 #include "TcpClient.h"
-#include "CoroScheduler.h"
+#include "Scheduler.h"
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstring>
@@ -49,7 +49,7 @@ Task<> TcpClient::connect(const char * host, int port)
         fd_ = -1;
         throw std::runtime_error("Connect failed");
     }
-    ioChannelPtr_ = std::make_unique<IoChannel>(fd_, CoroScheduler::current());
+    ioChannelPtr_ = std::make_unique<IoChannel>(fd_, Scheduler::current());
     // Wait for connection to complete (fd becomes writable)
     char dummy;
     co_await ioChannelPtr_->write(&dummy, 0);

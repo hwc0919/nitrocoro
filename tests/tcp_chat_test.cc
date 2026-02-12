@@ -2,7 +2,7 @@
  * @file tcp_chat_test.cc
  * @brief Test program for TCP chat room
  */
-#include "CoroScheduler.h"
+#include "Scheduler.h"
 #include "TcpClient.h"
 #include "TcpConnection.h"
 #include "TcpServer.h"
@@ -40,8 +40,8 @@ Task<> broadcast(const std::string & message, std::shared_ptr<TcpConnection> sen
         {
             printf("broadcast to %s\n", client.username.c_str());
             double delay = dis(gen);
-            CoroScheduler::current()->spawn([message, conn = client.conn, delay]() -> Task<> {
-                co_await CoroScheduler::current()->sleep_for(delay);
+            Scheduler::current()->spawn([message, conn = client.conn, delay]() -> Task<> {
+                co_await Scheduler::current()->sleep_for(delay);
                 co_await conn->write(message.c_str(), message.size());
             });
         }
@@ -117,7 +117,7 @@ Task<> receive_messages(TcpClient & client)
         catch (const std::exception & e)
         {
             printf("Read error: %s\n", e.what());
-            CoroScheduler::current()->stop();
+            Scheduler::current()->stop();
             break;
         }
         buf[n] = '\0';
@@ -149,7 +149,7 @@ Task<> send_messages(TcpClient & client, IoChannel * stdinChannel)
 
             if (msg == "q")
             {
-                CoroScheduler::current()->stop();
+                Scheduler::current()->stop();
                 co_return;
             }
             if (!msg.empty())
@@ -173,16 +173,16 @@ Task<> tcp_client_main(const char * host, int port, const char * username)
     // Set stdin to non-blocking
     int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-    std::unique_ptr<IoChannel> stdinChannel = std::make_unique<IoChannel>(STDIN_FILENO, CoroScheduler::current());
+    std::unique_ptr<IoChannel> stdinChannel = std::make_unique<IoChannel>(STDIN_FILENO, Scheduler::current());
 
     // Spawn receiver and sender tasks
-    CoroScheduler::current()->spawn([&client]() -> Task<> { co_await receive_messages(client); });
-    CoroScheduler::current()->spawn([&client, stdinPtr = stdinChannel.get()]() -> Task<> { co_await send_messages(client, stdinPtr); });
+    Scheduler::current()->spawn([&client]() -> Task<> { co_await receive_messages(client); });
+    Scheduler::current()->spawn([&client, stdinPtr = stdinChannel.get()]() -> Task<> { co_await send_messages(client, stdinPtr); });
 
     // Keep running until stopped
     while (true)
     {
-        co_await CoroScheduler::current()->sleep_for(1.0);
+        co_await Scheduler::current()->sleep_for(1.0);
     }
 }
 
@@ -196,7 +196,7 @@ int main(int argc, char * argv[])
         return 1;
     }
 
-    CoroScheduler scheduler;
+    Scheduler scheduler;
 
     if (strcmp(argv[1], "server") == 0)
     {

@@ -2,8 +2,8 @@
  * @file CoroScheduler.cc
  * @brief Native coroutine scheduler implementation
  */
-#include <CoroScheduler.h>
 #include <IoChannel.h>
+#include <Scheduler.h>
 #include <cassert>
 #include <csignal>
 #include <cstring>
@@ -15,23 +15,23 @@
 namespace my_coro
 {
 
-thread_local CoroScheduler * CoroScheduler::current_ = nullptr;
+thread_local Scheduler * Scheduler::current_ = nullptr;
 
 void TimerAwaitable::await_suspend(std::coroutine_handle<> h) noexcept
 {
     handle_ = h;
-    auto * sched = CoroScheduler::current();
+    auto * sched = Scheduler::current();
     sched->register_timer(when_, h);
 }
 
-void CoroScheduler::ReadyQueue::push(std::coroutine_handle<> h)
+void Scheduler::ReadyQueue::push(std::coroutine_handle<> h)
 {
     size_t t = tail_.load(std::memory_order_relaxed);
     coros[t % 1024] = h;
     tail_.store(t + 1, std::memory_order_release);
 }
 
-std::coroutine_handle<> CoroScheduler::ReadyQueue::pop()
+std::coroutine_handle<> Scheduler::ReadyQueue::pop()
 {
     size_t h = head_.load(std::memory_order_relaxed);
     size_t t = tail_.load(std::memory_order_acquire);
@@ -42,7 +42,7 @@ std::coroutine_handle<> CoroScheduler::ReadyQueue::pop()
     return coro;
 }
 
-CoroScheduler::CoroScheduler()
+Scheduler::Scheduler()
 {
     if (current_ != nullptr)
     {
@@ -54,7 +54,7 @@ CoroScheduler::CoroScheduler()
     current_ = this;
 }
 
-CoroScheduler::~CoroScheduler()
+Scheduler::~Scheduler()
 {
     if (current_ == this)
         current_ = nullptr;
@@ -64,12 +64,12 @@ CoroScheduler::~CoroScheduler()
         close(epoll_fd_);
 }
 
-CoroScheduler * CoroScheduler::current() noexcept
+Scheduler * Scheduler::current() noexcept
 {
     return current_;
 }
 
-void CoroScheduler::run()
+void Scheduler::run()
 {
     // 创建 wakeup_channel_
     wakeup_fd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
@@ -85,37 +85,37 @@ void CoroScheduler::run()
     }
 }
 
-void CoroScheduler::stop()
+void Scheduler::stop()
 {
     running_.store(false, std::memory_order_release);
     wakeup();
 }
 
-TimerAwaitable CoroScheduler::sleep_for(double seconds)
+TimerAwaitable Scheduler::sleep_for(double seconds)
 {
     auto when = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(seconds));
     return TimerAwaitable{ when };
 }
 
-TimerAwaitable CoroScheduler::sleep_until(TimePoint when)
+TimerAwaitable Scheduler::sleep_until(TimePoint when)
 {
     return TimerAwaitable{ when };
 }
 
-void CoroScheduler::schedule(std::coroutine_handle<> coro)
+void Scheduler::schedule(std::coroutine_handle<> coro)
 {
     ready_queue_.push(coro);
     wakeup();
 }
 
-TimerId CoroScheduler::register_timer(TimePoint when, std::coroutine_handle<> coro)
+TimerId Scheduler::register_timer(TimePoint when, std::coroutine_handle<> coro)
 {
     TimerId id = next_timer_id_.fetch_add(1, std::memory_order_relaxed);
     timers_.push(Timer{ id, when, coro });
     return id;
 }
 
-void CoroScheduler::resume_ready_coros()
+void Scheduler::resume_ready_coros()
 {
     while (auto coro = ready_queue_.pop())
     {
@@ -124,7 +124,7 @@ void CoroScheduler::resume_ready_coros()
     }
 }
 
-void CoroScheduler::process_io_events()
+void Scheduler::process_io_events()
 {
     int timeout_ms = static_cast<int>(get_next_timeout());
     epoll_event events[128];
@@ -178,7 +178,7 @@ void CoroScheduler::process_io_events()
     }
 }
 
-void CoroScheduler::process_timers()
+void Scheduler::process_timers()
 {
     auto now = std::chrono::steady_clock::now();
 
@@ -190,7 +190,7 @@ void CoroScheduler::process_timers()
     }
 }
 
-int64_t CoroScheduler::get_next_timeout() const
+int64_t Scheduler::get_next_timeout() const
 {
     if (timers_.empty())
         return 10000; // 10秒默认超时
@@ -205,13 +205,13 @@ int64_t CoroScheduler::get_next_timeout() const
     return ms.count();
 }
 
-void CoroScheduler::wakeup()
+void Scheduler::wakeup()
 {
     uint64_t val = 1;
     write(wakeup_fd_, &val, sizeof(val));
 }
 
-void CoroScheduler::registerIoChannel(IoChannel * channel)
+void Scheduler::registerIoChannel(IoChannel * channel)
 {
     int fd = channel->fd_;
     epoll_event ev{};
@@ -227,7 +227,7 @@ void CoroScheduler::registerIoChannel(IoChannel * channel)
     }
 }
 
-void CoroScheduler::unregisterIoChannel(IoChannel * channel)
+void Scheduler::unregisterIoChannel(IoChannel * channel)
 {
     int fd = channel->fd_;
     assert(ioChannels_.contains(fd));
@@ -246,7 +246,7 @@ void CoroScheduler::unregisterIoChannel(IoChannel * channel)
     }
 }
 
-void CoroScheduler::updateChannel(IoChannel * channel)
+void Scheduler::updateChannel(IoChannel * channel)
 {
     epoll_event ev{};
     ev.events = channel->events_ | (channel->triggerMode_ == TriggerMode::EdgeTriggered ? EPOLLET : 0);

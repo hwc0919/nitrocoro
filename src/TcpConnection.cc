@@ -3,7 +3,7 @@
  * @brief Implementation of TcpConnection
  */
 #include "TcpConnection.h"
-#include "CoroScheduler.h"
+#include "Scheduler.h"
 #include <iostream>
 #include <unistd.h>
 
@@ -12,7 +12,7 @@ namespace my_coro
 
 TcpConnection::TcpConnection(int fd)
     : fd_(fd)
-    , ioChannelPtr_(new IoChannel(fd, CoroScheduler::current()))
+    , ioChannelPtr_(new IoChannel(fd, Scheduler::current()))
 {
 }
 

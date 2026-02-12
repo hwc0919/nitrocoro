@@ -2,7 +2,7 @@
  * @file tcp_test.cc
  * @brief Test program for TcpServer component
  */
-#include "CoroScheduler.h"
+#include "Scheduler.h"
 #include "TcpClient.h"
 #include "TcpConnection.h"
 #include "TcpServer.h"
@@ -29,7 +29,7 @@ Task<> echo_handler(std::shared_ptr<TcpConnection> conn)
         buf[n] = '\0';
         std::cout << "Received " << n << " bytes: " << buf << "\n";
         co_await conn->write(buf, n);
-        co_await CoroScheduler::current()->sleep_for(1); // Simulate processing delay
+        co_await Scheduler::current()->sleep_for(1); // Simulate processing delay
     }
 }
 
@@ -75,7 +75,7 @@ Task<> tcp_client_main(const char * host, int port)
     }
 
     client.close();
-    CoroScheduler::current()->stop();
+    Scheduler::current()->stop();
 }
 
 int main(int argc, char * argv[])
@@ -88,7 +88,7 @@ int main(int argc, char * argv[])
         return 1;
     }
 
-    CoroScheduler scheduler;
+    Scheduler scheduler;
 
     if (strcmp(argv[1], "server") == 0)
     {

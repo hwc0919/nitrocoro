@@ -1,4 +1,4 @@
-#include "CoroScheduler.h"
+#include "Scheduler.h"
 #include "Task.h"
 #include <atomic>
 #include <iostream>
@@ -8,7 +8,7 @@ using namespace my_coro;
 
 Task<> example_task(int i, int n)
 {
-    auto * scheduler = CoroScheduler::current();
+    auto * scheduler = Scheduler::current();
     std::cout << "Task " << i << " started\n";
     co_await scheduler->sleep_for(1.0);
     std::cout << "Task " << i << " after 1 second\n";
@@ -24,12 +24,12 @@ Task<> example_task(int i, int n)
 Task<> main_coro()
 {
     auto cnt = std::make_shared<std::atomic_int>(2);
-    CoroScheduler::current()->spawn([cnt]() -> Task<> {
+    Scheduler::current()->spawn([cnt]() -> Task<> {
         co_await example_task(101, 102);
         if (--*cnt == 0)
         {
             std::cout << "stop scheduler\n";
-            CoroScheduler::current()->stop();
+            Scheduler::current()->stop();
         }
     });
 
@@ -37,14 +37,14 @@ Task<> main_coro()
     if (--*cnt == 0)
     {
         std::cout << "stop scheduler\n";
-        CoroScheduler::current()->stop();
+        Scheduler::current()->stop();
     }
 }
 
 int main()
 {
     std::cout << "Hello, World!\n";
-    CoroScheduler scheduler;
+    Scheduler scheduler;
     scheduler.spawn(main_coro);
     scheduler.run();
     std::cout << "Goodbye, World!\n";

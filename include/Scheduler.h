@@ -15,7 +15,7 @@
 
 namespace my_coro
 {
-class CoroScheduler;
+class Scheduler;
 class IoChannel;
 
 enum class IoOp
@@ -80,16 +80,16 @@ struct AsyncTask
     handle_type coro_;
 };
 
-class CoroScheduler
+class Scheduler
 {
 public:
-    CoroScheduler();
-    ~CoroScheduler();
+    Scheduler();
+    ~Scheduler();
 
-    CoroScheduler(const CoroScheduler &) = delete;
-    CoroScheduler & operator=(const CoroScheduler &) = delete;
+    Scheduler(const Scheduler &) = delete;
+    Scheduler & operator=(const Scheduler &) = delete;
 
-    static CoroScheduler * current() noexcept;
+    static Scheduler * current() noexcept;
 
     void run();
     void stop();
@@ -125,7 +125,7 @@ public:
     TimerId register_timer(TimePoint when, std::coroutine_handle<> coro);
 
 private:
-    static thread_local CoroScheduler * current_;
+    static thread_local Scheduler * current_;
 
     int epoll_fd_{ -1 };
     int wakeup_fd_{ -1 }; // eventfd 用于唤醒 epoll
