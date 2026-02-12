@@ -2,6 +2,7 @@
  * @file tcp_chat_test.cc
  * @brief Test program for TCP chat room
  */
+#include "Mutex.h"
 #include "Scheduler.h"
 #include "TcpClient.h"
 #include "TcpConnection.h"
@@ -25,11 +26,14 @@ struct ChatClient
     std::string username;
 };
 
+Mutex clientsMutex;
 std::vector<ChatClient> clients;
 
 Task<> broadcast(const std::string & message, std::shared_ptr<TcpConnection> sender)
 {
     printf("broadcast %s\n", message.c_str());
+
+    auto lock = co_await clientsMutex.scoped_lock();
     for (auto & client : clients)
     {
         if (client.conn != sender)
@@ -41,7 +45,13 @@ Task<> broadcast(const std::string & message, std::shared_ptr<TcpConnection> sen
                 double delay = dis(gen);
 
                 co_await Scheduler::current()->sleep_for(delay);
-                co_await conn->write(message.c_str(), message.size());
+                try
+                {
+                    co_await conn->write(message.c_str(), message.size());
+                }
+                catch (...)
+                {
+                }
             });
         }
     }
@@ -62,7 +72,10 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
     if (!username.empty() && username.back() == '\n')
         username.pop_back();
 
-    clients.push_back({ conn, username });
+    {
+        auto lock = co_await clientsMutex.scoped_lock();
+        clients.push_back({ conn, username });
+    }
     std::cout << username << " joined\n";
 
     // Broadcast messages
@@ -86,13 +99,16 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
     }
 
     // Remove client
-    for (auto it = clients.begin(); it != clients.end(); ++it)
     {
-        if (it->conn == conn)
+        auto lock = co_await clientsMutex.scoped_lock();
+        for (auto it = clients.begin(); it != clients.end(); ++it)
         {
-            std::cout << username << " left\n";
-            clients.erase(it);
-            break;
+            if (it->conn == conn)
+            {
+                std::cout << username << " left\n";
+                clients.erase(it);
+                break;
+            }
         }
     }
 }

@@ -5,9 +5,8 @@
 #pragma once
 
 #include "IoChannel.h"
-#include "MpscQueue.h"
+#include "Mutex.h"
 #include "Task.h"
-#include <atomic>
 
 namespace my_coro
 {
@@ -32,9 +31,7 @@ public:
 private:
     int fd_;
     std::unique_ptr<IoChannel> ioChannelPtr_;
-
-    MpscQueue<std::coroutine_handle<>> writeWaiters_;
-    std::atomic<bool> writing_{ false };
+    Mutex writeMutex_;
 };
 
 using TcpConnectionPtr = std::shared_ptr<TcpConnection>;
