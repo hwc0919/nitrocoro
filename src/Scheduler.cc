@@ -17,11 +17,10 @@ namespace my_coro
 
 thread_local Scheduler * Scheduler::current_ = nullptr;
 
-void TimerAwaitable::await_suspend(std::coroutine_handle<> h) noexcept
+void TimerAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
 {
     handle_ = h;
-    auto * sched = Scheduler::current();
-    sched->register_timer(when_, h);
+    sched_->register_timer(when_, h);
 }
 
 Scheduler::Scheduler()
@@ -73,15 +72,15 @@ void Scheduler::stop()
     wakeup();
 }
 
-TimerAwaitable Scheduler::sleep_for(double seconds)
+TimerAwaiter Scheduler::sleep_for(double seconds)
 {
     auto when = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(seconds));
-    return TimerAwaitable{ when };
+    return TimerAwaiter{ this, when };
 }
 
-TimerAwaitable Scheduler::sleep_until(TimePoint when)
+TimerAwaiter Scheduler::sleep_until(TimePoint when)
 {
-    return TimerAwaitable{ when };
+    return TimerAwaiter{ this, when };
 }
 
 void Scheduler::schedule(std::coroutine_handle<> coro)

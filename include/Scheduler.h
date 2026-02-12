@@ -29,8 +29,9 @@ enum class IoOp
 using TimerId = uint64_t;
 using TimePoint = std::chrono::steady_clock::time_point;
 
-struct [[nodiscard]] TimerAwaitable
+struct [[nodiscard]] TimerAwaiter
 {
+    Scheduler * sched_;
     TimePoint when_;
     std::coroutine_handle<> handle_;
 
@@ -100,9 +101,8 @@ public:
     void unregisterIoChannel(IoChannel *);
     void updateChannel(IoChannel *);
 
-    // 协程感知的定时器
-    TimerAwaitable sleep_for(double seconds);
-    TimerAwaitable sleep_until(TimePoint when);
+    TimerAwaiter sleep_for(double seconds);
+    TimerAwaiter sleep_until(TimePoint when);
 
     void schedule(std::coroutine_handle<> coro);
 
