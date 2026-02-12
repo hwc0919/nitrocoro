@@ -77,6 +77,8 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
             printf("Read error: %s\n", e.what());
             break;
         }
+        if (n <= 0)
+            break;
         buf[n] = '\0';
         std::string msg = username + ": " + buf;
         std::cout << msg << std::endl;
@@ -125,8 +127,13 @@ Task<> receive_messages(const TcpConnectionPtr & connPtr)
     }
 }
 
-Task<> send_messages(const TcpConnectionPtr & connPtr, IoChannel * stdinChannel)
+Task<> send_messages(const TcpConnectionPtr & connPtr)
 {
+    // Set stdin to non-blocking
+    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+    std::unique_ptr<IoChannel> stdinChannel = std::make_unique<IoChannel>(STDIN_FILENO, Scheduler::current());
+
     char buf[BUFFER_SIZE];
     std::string line;
 
@@ -167,14 +174,9 @@ Task<> tcp_client_main(const char * host, int port, const char * username)
     std::string user = std::string(username) + "\n";
     co_await connPtr->write(user.c_str(), user.size());
 
-    // Set stdin to non-blocking
-    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-    fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-    std::unique_ptr<IoChannel> stdinChannel = std::make_unique<IoChannel>(STDIN_FILENO, Scheduler::current());
-
     // Spawn receiver and sender tasks
     Scheduler::current()->spawn([connPtr]() -> Task<> { co_await receive_messages(connPtr); });
-    Scheduler::current()->spawn([connPtr, stdinPtr = stdinChannel.get()]() -> Task<> { co_await send_messages(connPtr, stdinPtr); });
+    Scheduler::current()->spawn([connPtr]() -> Task<> { co_await send_messages(connPtr); });
 
     // Keep running until stopped
     while (true)
