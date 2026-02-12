@@ -15,6 +15,8 @@
 namespace my_coro
 {
 
+static constexpr int64_t kDefaultTimeoutMs = 10000; // 10秒默认超时
+
 thread_local Scheduler * Scheduler::current_ = nullptr;
 
 void TimerAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
@@ -32,6 +34,16 @@ Scheduler::Scheduler()
 
     signal(SIGPIPE, SIG_IGN);
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
+    if (epoll_fd_ < 0)
+    {
+        throw std::runtime_error("Failed to create epoll");
+    }
+    wakeup_fd_ = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    if (wakeup_fd_ < 0)
+    {
+        close(epoll_fd_);
+        throw std::runtime_error("Failed to create wakeup fd");
+    }
     current_ = this;
 }
 
@@ -52,17 +64,16 @@ Scheduler * Scheduler::current() noexcept
 
 void Scheduler::run()
 {
-    // 创建 wakeup_channel_
-    wakeup_fd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     wakeupChannel_ = std::make_unique<IoChannel>(wakeup_fd_, this);
 
     running_.store(true, std::memory_order_release);
 
     while (running_.load(std::memory_order_acquire))
     {
-        resume_ready_coros();
-        process_io_events();
+        int timeout_ms = static_cast<int>(get_next_timeout());
+        process_io_events(timeout_ms);
         process_timers();
+        resume_ready_coros();
     }
 }
 
@@ -89,11 +100,10 @@ void Scheduler::schedule(std::coroutine_handle<> coro)
     wakeup();
 }
 
-TimerId Scheduler::register_timer(TimePoint when, std::coroutine_handle<> coro)
+void Scheduler::register_timer(TimePoint when, std::coroutine_handle<> coro)
 {
-    TimerId id = next_timer_id_.fetch_add(1, std::memory_order_relaxed);
-    timers_.push(Timer{ id, when, coro });
-    return id;
+    pending_timers_.push(Timer{ when, coro });
+    wakeup();
 }
 
 void Scheduler::resume_ready_coros()
@@ -105,23 +115,21 @@ void Scheduler::resume_ready_coros()
     }
 }
 
-void Scheduler::process_io_events()
+void Scheduler::process_io_events(int timeout_ms)
 {
-    int timeout_ms = static_cast<int>(get_next_timeout());
     epoll_event events[128];
     int n = epoll_wait(epoll_fd_, events, 128, timeout_ms);
 
     for (int i = 0; i < n; ++i)
     {
-        IoChannel * channel = static_cast<IoChannel *>(events[i].data.ptr);
+        auto * channel = static_cast<IoChannel *>(events[i].data.ptr);
         uint32_t ev = events[i].events;
         if (channel == wakeupChannel_.get())
         {
-            char buf[8];
-            while (::read(wakeup_fd_, buf, sizeof(buf)) > 0)
-            {
-                //
-            }
+            uint64_t dummy;
+            ssize_t ret = read(wakeup_fd_, &dummy, sizeof(dummy));
+            if (ret < 0)
+                fprintf(stderr, "wakeup read error: %s\n", strerror(errno));
             continue;
         }
 
@@ -159,22 +167,16 @@ void Scheduler::process_io_events()
     }
 }
 
-void Scheduler::process_timers()
+int64_t Scheduler::get_next_timeout()
 {
-    auto now = std::chrono::steady_clock::now();
-
-    while (!timers_.empty() && timers_.top().when <= now)
+    // 先处理待注册的定时器
+    while (auto timer = pending_timers_.pop())
     {
-        auto timer = std::move(timers_.top());
-        timers_.pop();
-        ready_queue_.push(timer.coro);
+        timers_.push(std::move(*timer));
     }
-}
 
-int64_t Scheduler::get_next_timeout() const
-{
     if (timers_.empty())
-        return 10000; // 10秒默认超时
+        return kDefaultTimeoutMs;
 
     auto now = std::chrono::steady_clock::now();
     auto next = timers_.top().when;
@@ -184,6 +186,21 @@ int64_t Scheduler::get_next_timeout() const
 
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(next - now);
     return ms.count();
+}
+
+void Scheduler::process_timers()
+{
+    if (timers_.empty())
+        return;
+
+    auto now = std::chrono::steady_clock::now();
+
+    while (!timers_.empty() && timers_.top().when <= now)
+    {
+        auto timer = std::move(timers_.top());
+        timers_.pop();
+        ready_queue_.push(timer.coro);
+    }
 }
 
 void Scheduler::wakeup()

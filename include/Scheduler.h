@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "CoroTraits.h"
 #include "MpscQueue.h"
 
 namespace my_coro
@@ -26,7 +27,6 @@ enum class IoOp
     Write
 };
 
-using TimerId = uint64_t;
 using TimePoint = std::chrono::steady_clock::time_point;
 
 struct [[nodiscard]] TimerAwaiter
@@ -109,22 +109,17 @@ public:
     template <typename Coro>
     void spawn(Coro && coro)
     {
-        using CoroValueType = std::decay_t<Coro>;
-        auto functor = [](CoroValueType coro) -> AsyncTask {
-            auto frame = coro();
-
-            using FrameType = std::decay_t<decltype(frame)>;
-            // static_assert(is_awaitable_v<FrameType>);
-
-            co_await frame;
+        auto taskFunc = [](std::decay_t<Coro> coro) -> AsyncTask {
+            static_assert(is_awaitable_v<std::decay_t<decltype(coro())>>);
+            co_await coro();
             co_return;
         };
-        auto task = functor(std::forward<Coro>(coro));
+        auto task = taskFunc(std::forward<Coro>(coro));
         if (task.coro_)
             schedule(task.coro_);
     }
 
-    TimerId register_timer(TimePoint when, std::coroutine_handle<> coro);
+    void register_timer(TimePoint when, std::coroutine_handle<> coro);
 
 private:
     static thread_local Scheduler * current_;
@@ -137,7 +132,6 @@ private:
 
     struct Timer
     {
-        TimerId id;
         TimePoint when;
         std::coroutine_handle<> coro;
 
@@ -147,12 +141,12 @@ private:
         }
     };
     std::priority_queue<Timer, std::vector<Timer>, std::greater<Timer>> timers_;
-    std::atomic<TimerId> next_timer_id_{ 1 };
+    MpscQueue<Timer> pending_timers_;
 
     void resume_ready_coros();
-    void process_io_events();
+    void process_io_events(int timeout_ms);
     void process_timers();
-    int64_t get_next_timeout() const;
+    int64_t get_next_timeout();
     void wakeup();
 
     std::unordered_map<int, IoChannel *> ioChannels_;
