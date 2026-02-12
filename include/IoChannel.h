@@ -72,6 +72,102 @@ public:
     Task<ssize_t> read(void * buf, size_t len);
     Task<> write(const void * buf, size_t len);
 
+    enum class IoResult
+    {
+        Success,    // 操作成功
+        WouldBlock, // EAGAIN，需要等待
+        Retry,      // EINTR，立即重试
+        Error       // 错误
+    };
+
+    struct IoReader
+    {
+        virtual ~IoReader() = default;
+        virtual IoResult read(int fd) = 0;
+    };
+
+    struct IoWriter
+    {
+        virtual ~IoWriter() = default;
+        virtual IoResult write(int fd) = 0;
+    };
+
+    Task<> performRead(IoReader * reader)
+    {
+        co_return co_await performRead([reader](int fd) { return reader->read(fd); });
+    }
+
+    Task<> performWrite(IoWriter * writer)
+    {
+        co_return co_await performWrite([writer](int fd) { return writer->write(fd); });
+    }
+
+    template <typename Func>
+        requires std::invocable<Func, int> && std::same_as<std::invoke_result_t<Func, int>, IoResult>
+    Task<> performRead(Func && func)
+    {
+        while (true)
+        {
+            if (!readable_)
+            {
+                co_await ReadableAwaiter{ this };
+            }
+
+            IoResult result = func(fd_);
+
+            switch (result)
+            {
+                case IoResult::Success:
+                    if (triggerMode_ == TriggerMode::LevelTriggered)
+                    {
+                        readable_ = false;
+                    }
+                    co_return;
+
+                case IoResult::WouldBlock:
+                    readable_ = false;
+                    break;
+
+                case IoResult::Retry:
+                    break;
+
+                case IoResult::Error:
+                    throw std::runtime_error("I/O read error");
+            }
+        }
+    }
+
+    template <typename Func>
+        requires std::invocable<Func, int> && std::same_as<std::invoke_result_t<Func, int>, IoResult>
+    Task<> performWrite(Func && func)
+    {
+        while (true)
+        {
+            if (!writable_)
+            {
+                co_await WritableAwaiter{ this };
+            }
+
+            IoResult result = func(fd_);
+
+            switch (result)
+            {
+                case IoResult::Success:
+                    co_return;
+
+                case IoResult::WouldBlock:
+                    writable_ = false;
+                    break;
+
+                case IoResult::Retry:
+                    break;
+
+                case IoResult::Error:
+                    throw std::runtime_error("I/O write error");
+            }
+        }
+    }
+
 private:
     friend class Scheduler;
 
