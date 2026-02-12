@@ -15,7 +15,7 @@ namespace my_coro
 class TcpConnection
 {
 public:
-    explicit TcpConnection(int fd);
+    explicit TcpConnection(std::unique_ptr<IoChannel>);
     ~TcpConnection();
 
     TcpConnection(const TcpConnection &) = delete;
@@ -25,14 +25,18 @@ public:
 
     Task<ssize_t> read(void * buf, size_t len);
     Task<> write(const void * buf, size_t len);
+
+    Task<> close();
     bool is_open() const { return fd_ >= 0; }
 
 private:
     int fd_;
     std::unique_ptr<IoChannel> ioChannelPtr_;
-    
+
     MpscQueue<std::coroutine_handle<>> writeWaiters_;
     std::atomic<bool> writing_{ false };
 };
+
+using TcpConnectionPtr = std::shared_ptr<TcpConnection>;
 
 } // namespace my_coro

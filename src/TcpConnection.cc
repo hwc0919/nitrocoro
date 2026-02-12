@@ -10,9 +10,9 @@
 namespace my_coro
 {
 
-TcpConnection::TcpConnection(int fd)
-    : fd_(fd)
-    , ioChannelPtr_(new IoChannel(fd, Scheduler::current()))
+TcpConnection::TcpConnection(std::unique_ptr<IoChannel> channelPtr)
+    : fd_(channelPtr->fd())
+    , ioChannelPtr_(std::move(channelPtr))
 {
 }
 
@@ -76,6 +76,12 @@ Task<> TcpConnection::write(const void * buf, size_t len)
     {
         writing_.store(false, std::memory_order_release);
     }
+}
+
+Task<> TcpConnection::close()
+{
+    // TODO
+    co_return;
 }
 
 } // namespace my_coro

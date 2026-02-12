@@ -120,10 +120,10 @@ Task<> TcpServer::start()
         co_await listenChannel_->performRead(&acceptor);
 
         std::cout << "Accepted connection: fd=" << acceptor.clientFd() << "\n";
-
-        auto conn = std::make_shared<TcpConnection>(acceptor.clientFd());
-        Scheduler::current()->spawn([this, conn]() -> Task<> {
-            co_await handler_(conn);
+        auto ioChannelPtr = std::make_unique<IoChannel>(acceptor.clientFd(), Scheduler::current(), TriggerMode::EdgeTriggered);
+        auto connPtr = std::make_shared<TcpConnection>(std::move(ioChannelPtr));
+        Scheduler::current()->spawn([this, connPtr = std::move(connPtr)]() mutable -> Task<> {
+            co_await handler_(std::move(connPtr));
         });
     }
 }

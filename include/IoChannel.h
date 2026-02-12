@@ -31,6 +31,8 @@ public:
     IoChannel(IoChannel &&) = delete;
     IoChannel & operator=(IoChannel &&) = delete;
 
+    int fd() const { return fd_; }
+
     struct [[nodiscard]] ReadableAwaiter
     {
         IoChannel * channel_;

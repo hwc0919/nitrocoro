@@ -43,7 +43,7 @@ Task<> tcp_server_main(int port)
 Task<> tcp_client_main(const char * host, int port)
 {
     TcpClient client;
-    co_await client.connect(host, port);
+    auto connPtr = co_await client.connect(host, port);
     std::cout << "Connected to server\n";
 
     std::string line;
@@ -54,15 +54,15 @@ Task<> tcp_client_main(const char * host, int port)
         if (line.empty())
             continue;
 
-        co_await client.write(line.c_str(), line.size());
-        co_await client.write("\n", 1);
+        co_await connPtr->write(line.c_str(), line.size());
+        co_await connPtr->write("\n", 1);
 
         // Read until newline
         std::string response;
         char buf[BUFFER_SIZE];
         while (true)
         {
-            ssize_t n = co_await client.read(buf, sizeof(buf) - 1);
+            ssize_t n = co_await connPtr->read(buf, sizeof(buf) - 1);
             if (n <= 0)
                 break;
             buf[n] = '\0';
@@ -74,7 +74,7 @@ Task<> tcp_client_main(const char * host, int port)
         std::cout.flush();
     }
 
-    client.close();
+    co_await connPtr->close();
     Scheduler::current()->stop();
 }
 

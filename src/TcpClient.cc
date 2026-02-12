@@ -4,6 +4,7 @@
  */
 #include "TcpClient.h"
 #include "Scheduler.h"
+#include "TcpConnection.h"
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstring>
@@ -16,13 +17,12 @@
 namespace my_coro
 {
 
-TcpClient::TcpClient() : fd_(-1)
+TcpClient::TcpClient()
 {
 }
 
 TcpClient::~TcpClient()
 {
-    close();
 }
 
 struct Connector : public IoChannel::IoWriter
@@ -71,7 +71,7 @@ struct Connector : public IoChannel::IoWriter
                 connecting_ = true;
                 return IoChannel::IoResult::WouldBlock;
             case EINTR:
-                return IoChannel::IoResult::Retry;  // 立即重试
+                return IoChannel::IoResult::Retry; // 立即重试
 
             default:
                 return IoChannel::IoResult::Error;
@@ -85,16 +85,16 @@ private:
     bool connecting_{ false };
 };
 
-Task<> TcpClient::connect(const char * host, int port)
+Task<TcpConnectionPtr> TcpClient::connect(const char * host, int port)
 {
-    fd_ = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd_ < 0)
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0)
     {
         throw std::runtime_error("Failed to create socket");
     }
 
-    int flags = fcntl(fd_, F_GETFL, 0);
-    fcntl(fd_, F_SETFL, flags | O_NONBLOCK);
+    int flags = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
@@ -102,29 +102,10 @@ Task<> TcpClient::connect(const char * host, int port)
     inet_pton(AF_INET, host, &addr.sin_addr);
     Connector connector((sockaddr *)&addr, sizeof(addr));
 
-    ioChannelPtr_ = std::make_unique<IoChannel>(fd_, Scheduler::current());
-    co_await ioChannelPtr_->performWrite(&connector);
-}
+    auto channelPtr = std::make_unique<IoChannel>(fd, Scheduler::current());
+    co_await channelPtr->performWrite(&connector);
 
-Task<ssize_t> TcpClient::read(void * buf, size_t len)
-{
-    BufferReader reader(buf, len);
-    co_await ioChannelPtr_->performRead(&reader);
-    co_return reader.readLen();
-}
-
-Task<> TcpClient::write(const void * buf, size_t len)
-{
-    BufferWriter writer(buf, len);
-    co_await ioChannelPtr_->performWrite(&writer);
-}
-
-void TcpClient::close()
-{
-    if (fd_ >= 0)
-    {
-        fd_ = -1;
-    }
+    co_return std::make_shared<TcpConnection>(std::move(channelPtr));
 }
 
 } // namespace my_coro

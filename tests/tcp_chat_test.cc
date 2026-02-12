@@ -103,7 +103,7 @@ Task<> tcp_server_main(int port)
     co_await server.start();
 }
 
-Task<> receive_messages(TcpClient & client)
+Task<> receive_messages(const TcpConnectionPtr & connPtr)
 {
     char buf[BUFFER_SIZE];
     while (true)
@@ -112,7 +112,7 @@ Task<> receive_messages(TcpClient & client)
         ssize_t n;
         try
         {
-            n = co_await client.read(buf, sizeof(buf) - 1);
+            n = co_await connPtr->read(buf, sizeof(buf) - 1);
         }
         catch (const std::exception & e)
         {
@@ -126,7 +126,7 @@ Task<> receive_messages(TcpClient & client)
     }
 }
 
-Task<> send_messages(TcpClient & client, IoChannel * stdinChannel)
+Task<> send_messages(const TcpConnectionPtr & connPtr, IoChannel * stdinChannel)
 {
     char buf[BUFFER_SIZE];
     std::string line;
@@ -153,7 +153,7 @@ Task<> send_messages(TcpClient & client, IoChannel * stdinChannel)
             if (!msg.empty())
             {
                 msg += "\n";
-                co_await client.write(msg.c_str(), msg.size());
+                co_await connPtr->write(msg.c_str(), msg.size());
             }
         }
     }
@@ -162,11 +162,11 @@ Task<> send_messages(TcpClient & client, IoChannel * stdinChannel)
 Task<> tcp_client_main(const char * host, int port, const char * username)
 {
     TcpClient client;
-    co_await client.connect(host, port);
+    auto connPtr = co_await client.connect(host, port);
 
     // Send username
     std::string user = std::string(username) + "\n";
-    co_await client.write(user.c_str(), user.size());
+    co_await connPtr->write(user.c_str(), user.size());
 
     // Set stdin to non-blocking
     int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
@@ -174,8 +174,8 @@ Task<> tcp_client_main(const char * host, int port, const char * username)
     std::unique_ptr<IoChannel> stdinChannel = std::make_unique<IoChannel>(STDIN_FILENO, Scheduler::current());
 
     // Spawn receiver and sender tasks
-    Scheduler::current()->spawn([&client]() -> Task<> { co_await receive_messages(client); });
-    Scheduler::current()->spawn([&client, stdinPtr = stdinChannel.get()]() -> Task<> { co_await send_messages(client, stdinPtr); });
+    Scheduler::current()->spawn([connPtr]() -> Task<> { co_await receive_messages(connPtr); });
+    Scheduler::current()->spawn([connPtr, stdinPtr = stdinChannel.get()]() -> Task<> { co_await send_messages(connPtr, stdinPtr); });
 
     // Keep running until stopped
     while (true)
