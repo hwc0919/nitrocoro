@@ -33,7 +33,7 @@ Task<> broadcast(const std::string & message, std::shared_ptr<TcpConnection> sen
 {
     printf("broadcast %s\n", message.c_str());
 
-    auto lock = co_await clientsMutex.scoped_lock();
+    [[maybe_unused]] auto lock = co_await clientsMutex.scoped_lock();
     for (auto & client : clients)
     {
         if (client.conn != sender)
@@ -73,7 +73,7 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
         username.pop_back();
 
     {
-        auto lock = co_await clientsMutex.scoped_lock();
+        [[maybe_unused]] auto lock = co_await clientsMutex.scoped_lock();
         clients.push_back({ conn, username });
     }
     std::cout << username << " joined\n";
@@ -100,7 +100,7 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
 
     // Remove client
     {
-        auto lock = co_await clientsMutex.scoped_lock();
+        [[maybe_unused]] auto lock = co_await clientsMutex.scoped_lock();
         for (auto it = clients.begin(); it != clients.end(); ++it)
         {
             if (it->conn == conn)

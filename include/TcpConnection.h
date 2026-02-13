@@ -26,6 +26,7 @@ public:
     Task<> write(const void * buf, size_t len);
 
     Task<> close();
+    Task<> finishWriteAndClose();
     bool is_open() const { return fd_ >= 0; }
 
 private:
