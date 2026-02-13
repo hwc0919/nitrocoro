@@ -91,7 +91,7 @@ public:
 
 private:
     // Called by Scheduler::process_io_events() when epoll reports events
-    void handleIoEvents(int fd, uint32_t ev);
+    void handleIoEvents(uint32_t ev);
 
     struct [[nodiscard]] ReadableAwaiter
     {

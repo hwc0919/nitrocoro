@@ -15,7 +15,8 @@ IoChannel::IoChannel(int fd, Scheduler * scheduler, TriggerMode mode)
     : fd_(fd), scheduler_(scheduler), triggerMode_(mode), events_(EPOLLIN)
 {
     scheduler_->registerIoChannel(this, [this](int fd, uint32_t ev) {
-        handleIoEvents(fd, ev);
+        assert(fd == fd_);
+        handleIoEvents(ev);
     });
 }
 
@@ -24,16 +25,16 @@ IoChannel::~IoChannel()
     scheduler_->unregisterIoChannel(this);
 }
 
-void IoChannel::handleIoEvents(int fd, uint32_t ev)
+void IoChannel::handleIoEvents(uint32_t ev)
 {
+    // TODO: handle ERR, HUP correctly
     if (ev & (EPOLLERR | EPOLLHUP))
     {
-        // channel->handleError();
         printf("Unhandled channel error for fd %d\n", fd_);
 
         int error = 0;
         socklen_t len = sizeof(error);
-        if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
+        if (getsockopt(fd_, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
         {
             printf("getsockopt failed: %s\n", strerror(errno));
         }
