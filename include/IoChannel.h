@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include "Scheduler.h"
 #include "Task.h"
 #include <coroutine>
 #include <memory>
@@ -34,24 +35,6 @@ public:
     int fd() const { return fd_; }
     Scheduler * scheduler() const { return scheduler_; }
     TriggerMode triggerMode() const { return triggerMode_; }
-
-    struct [[nodiscard]] ReadableAwaiter
-    {
-        IoChannel * channel_;
-
-        bool await_ready() noexcept;
-        bool await_suspend(std::coroutine_handle<> h) noexcept;
-        void await_resume() noexcept;
-    };
-
-    struct [[nodiscard]] WritableAwaiter
-    {
-        IoChannel * channel_;
-
-        bool await_ready() noexcept;
-        bool await_suspend(std::coroutine_handle<> h) noexcept;
-        void await_resume() noexcept;
-    };
 
     enum class IoResult
     {
@@ -97,9 +80,28 @@ public:
 private:
     friend class Scheduler;
 
+    struct [[nodiscard]] ReadableAwaiter
+    {
+        IoChannel * channel_;
+
+        bool await_ready() noexcept;
+        bool await_suspend(std::coroutine_handle<> h) noexcept;
+        void await_resume() noexcept;
+    };
+
+    struct [[nodiscard]] WritableAwaiter
+    {
+        IoChannel * channel_;
+
+        bool await_ready() noexcept;
+        bool await_suspend(std::coroutine_handle<> h) noexcept;
+        void await_resume() noexcept;
+    };
+
     template <typename T>
     Task<> performReadImpl(T && funcOrReader)
     {
+        co_await scheduler_->run_here();
         while (true)
         {
             if (!readable_)
@@ -142,6 +144,7 @@ private:
     template <typename T>
     Task<> performWriteImpl(T && funcOrWriter)
     {
+        co_await scheduler_->run_here();
         while (true)
         {
             if (!writable_)

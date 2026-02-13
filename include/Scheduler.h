@@ -10,6 +10,7 @@
 #include <coroutine>
 #include <memory>
 #include <queue>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -43,6 +44,7 @@ private:
     TimePoint when_;
 };
 
+
 class Scheduler
 {
 public:
@@ -56,6 +58,21 @@ public:
 
     void run();
     void stop();
+
+    bool isInOwnThread() const noexcept;
+    auto run_here() noexcept
+    {
+        struct [[nodiscard]] RunHereAwaiter
+        {
+            Scheduler * scheduler_;
+
+            bool await_ready() const noexcept { return scheduler_->isInOwnThread(); }
+            void await_suspend(std::coroutine_handle<> h) noexcept { scheduler_->schedule(h); }
+            void await_resume() noexcept {}
+        };
+
+        return RunHereAwaiter{ this };
+    }
 
     void registerIoChannel(IoChannel *);
     void unregisterIoChannel(IoChannel *);
@@ -104,6 +121,8 @@ private:
     friend class TimerAwaiter;
 
     static thread_local Scheduler * current_;
+
+    std::thread::id thread_id_;
 
     int epoll_fd_{ -1 };
     int wakeup_fd_{ -1 }; // eventfd 用于唤醒 epoll

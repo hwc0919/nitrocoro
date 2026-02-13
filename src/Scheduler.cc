@@ -63,6 +63,7 @@ Scheduler * Scheduler::current() noexcept
 
 void Scheduler::run()
 {
+    thread_id_ = std::this_thread::get_id();
     wakeupChannel_ = std::make_unique<IoChannel>(wakeup_fd_, this);
 
     running_.store(true, std::memory_order_release);
@@ -249,6 +250,11 @@ void Scheduler::updateChannel(IoChannel * channel)
     ev.events = channel->events_ | (channel->triggerMode_ == TriggerMode::EdgeTriggered ? EPOLLET : 0);
     ev.data.ptr = channel;
     ::epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, channel->fd_, &ev);
+}
+
+bool Scheduler::isInOwnThread() const noexcept
+{
+    return std::this_thread::get_id() == thread_id_;
 }
 
 } // namespace my_coro
