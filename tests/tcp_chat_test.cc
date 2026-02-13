@@ -4,7 +4,6 @@
  */
 #include "Mutex.h"
 #include "Scheduler.h"
-#include "TcpClient.h"
 #include "TcpConnection.h"
 #include "TcpServer.h"
 #include <cstdlib>
@@ -183,8 +182,7 @@ Task<> send_messages(const TcpConnectionPtr & connPtr)
 
 Task<> tcp_client_main(const char * host, int port, const char * username)
 {
-    TcpClient client;
-    auto connPtr = co_await client.connect(host, port);
+    auto connPtr = co_await TcpConnection::connect(host, port);
 
     // Send username
     std::string user = std::string(username) + "\n";

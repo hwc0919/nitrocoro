@@ -7,13 +7,25 @@
 #include "IoChannel.h"
 #include "Mutex.h"
 #include "Task.h"
+#include <netinet/in.h>
 
 namespace my_coro
 {
+class TcpConnection;
+using TcpConnectionPtr = std::shared_ptr<TcpConnection>;
 
 class TcpConnection
 {
 public:
+    enum class IpVersion
+    {
+        Ipv4,
+        Ipv6
+    };
+
+    static Task<TcpConnectionPtr> connect(const sockaddr * addr, socklen_t addrLen);
+    static Task<TcpConnectionPtr> connect(const char * ip, uint16_t port, IpVersion v = IpVersion::Ipv4);
+
     explicit TcpConnection(std::unique_ptr<IoChannel>);
     ~TcpConnection();
 
@@ -34,7 +46,5 @@ private:
     std::unique_ptr<IoChannel> ioChannelPtr_;
     Mutex writeMutex_;
 };
-
-using TcpConnectionPtr = std::shared_ptr<TcpConnection>;
 
 } // namespace my_coro

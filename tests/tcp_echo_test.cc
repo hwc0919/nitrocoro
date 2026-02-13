@@ -3,7 +3,6 @@
  * @brief Test program for TcpServer component
  */
 #include "Scheduler.h"
-#include "TcpClient.h"
 #include "TcpConnection.h"
 #include "TcpServer.h"
 #include <cstdlib>
@@ -42,8 +41,7 @@ Task<> tcp_server_main(int port)
 
 Task<> tcp_client_main(const char * host, int port)
 {
-    TcpClient client;
-    auto connPtr = co_await client.connect(host, port);
+    auto connPtr = co_await TcpConnection::connect(host, port);
     std::cout << "Connected to server\n";
 
     std::string line;

@@ -9,7 +9,6 @@ set(CMAKE_CXX_FLAGS "-ggdb")
 add_library(coro_lib STATIC
     src/Scheduler.cc
     src/TcpServer.cc
-    src/TcpClient.cc
     src/TcpConnection.cc
     src/IoChannel.cc
 )
