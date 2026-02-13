@@ -1,7 +1,8 @@
 /**
- * @file IoChannel.h
- * @brief IoChannel abstraction for managing fd I/O operations with multiple concurrent readers/writers
- */
+* @file IoChannel.h
+* @brief IoChannel abstraction for managing fd I/O operations
+* @note Only supports one concurrent reader and one concurrent writer per fd
+*/
 #pragma once
 
 #include "Scheduler.h"
