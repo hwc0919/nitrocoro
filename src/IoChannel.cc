@@ -5,6 +5,7 @@
 #include "IoChannel.h"
 #include "Scheduler.h"
 #include <arpa/inet.h>
+#include <cstring>
 #include <sys/epoll.h>
 
 namespace my_coro
@@ -29,6 +30,22 @@ void IoChannel::handleIoEvents(int fd, uint32_t ev)
     {
         // channel->handleError();
         printf("Unhandled channel error for fd %d\n", fd_);
+
+        int error = 0;
+        socklen_t len = sizeof(error);
+        if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
+        {
+            printf("getsockopt failed: %s\n", strerror(errno));
+        }
+        if (error == 0)
+        {
+            printf("EPOLLERR but no error\n");
+        }
+        else
+        {
+            printf("socket %d error %d: %s\n", fd_, error, strerror(error));
+        }
+
         return;
     }
     if (ev & EPOLLIN)
