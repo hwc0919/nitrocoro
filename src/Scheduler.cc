@@ -133,14 +133,15 @@ void Scheduler::process_io_events(int timeout_ms)
             continue;
         }
 
-        if (!ioChannels_.contains(channel->fd_) || ioChannels_.at(channel->fd_) != channel)
+        int fd = channel->fd();
+        if (!ioChannels_.contains(fd) || ioChannels_.at(fd) != channel)
         {
-            printf("channel with fd %d not found!!!\n", channel->fd_);
+            printf("channel with fd %d not found!!!\n", fd);
             continue;
         }
 
         printf("fd %d event %d: IN: %d, OUT: %d, ERR: %d\n",
-               channel->fd_,
+               fd,
                ev,
                ev & EPOLLIN,
                ev & EPOLLOUT,
@@ -209,15 +210,15 @@ void Scheduler::wakeup()
 
 void Scheduler::registerIoChannel(IoChannel * channel)
 {
-    int fd = channel->fd_;
+    int fd = channel->fd();
     epoll_event ev{};
-    ev.events = channel->events_ | (channel->triggerMode_ == TriggerMode::EdgeTriggered ? EPOLLET : 0);
+    ev.events = channel->events() | (channel->triggerMode() == TriggerMode::EdgeTriggered ? EPOLLET : 0);
     ev.data.ptr = channel;
 
     assert(!ioChannels_.contains(fd));
     ioChannels_[fd] = channel;
 
-    if (::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, channel->fd_, &ev) < 0)
+    if (::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev) < 0)
     {
         throw std::runtime_error("Failed to call EPOLL_CTL_ADD on epoll");
     }
@@ -225,7 +226,7 @@ void Scheduler::registerIoChannel(IoChannel * channel)
 
 void Scheduler::unregisterIoChannel(IoChannel * channel)
 {
-    int fd = channel->fd_;
+    int fd = channel->fd();
     assert(ioChannels_.contains(fd));
     assert(ioChannels_.at(fd) == channel);
     size_t n = ioChannels_.erase(fd);
@@ -244,10 +245,13 @@ void Scheduler::unregisterIoChannel(IoChannel * channel)
 
 void Scheduler::updateChannel(IoChannel * channel)
 {
+    int fd = channel->fd();
+    assert(ioChannels_.contains(fd));
+    assert(ioChannels_.at(fd) == channel);
     epoll_event ev{};
-    ev.events = channel->events_ | (channel->triggerMode_ == TriggerMode::EdgeTriggered ? EPOLLET : 0);
+    ev.events = channel->events() | (channel->triggerMode() == TriggerMode::EdgeTriggered ? EPOLLET : 0);
     ev.data.ptr = channel;
-    ::epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, channel->fd_, &ev);
+    ::epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &ev);
 }
 
 bool Scheduler::isInOwnThread() const noexcept

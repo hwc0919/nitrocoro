@@ -46,6 +46,7 @@ public:
     int fd() const { return fd_; }
     Scheduler * scheduler() const { return scheduler_; }
     TriggerMode triggerMode() const { return triggerMode_; }
+    uint32_t events() const { return events_; }
 
     enum class IoResult
     {
