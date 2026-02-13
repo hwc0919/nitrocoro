@@ -13,7 +13,9 @@ namespace my_coro
 IoChannel::IoChannel(int fd, Scheduler * scheduler, TriggerMode mode)
     : fd_(fd), scheduler_(scheduler), triggerMode_(mode), events_(EPOLLIN)
 {
-    scheduler_->registerIoChannel(this);
+    scheduler_->registerIoChannel(this, [this](int fd, uint32_t ev) {
+        handleIoEvents(fd, ev);
+    });
 }
 
 IoChannel::~IoChannel()
@@ -21,30 +23,32 @@ IoChannel::~IoChannel()
     scheduler_->unregisterIoChannel(this);
 }
 
-void IoChannel::handleReadable()
+void IoChannel::handleIoEvents(int fd, uint32_t ev)
 {
-    readable_ = true;
-    if (readableWaiter_)
+    if (ev & (EPOLLERR | EPOLLHUP))
     {
-        auto h = readableWaiter_;
-        readableWaiter_ = nullptr;
-        if (h)
+        // channel->handleError();
+        printf("Unhandled channel error for fd %d\n", fd_);
+        return;
+    }
+    if (ev & EPOLLIN)
+    {
+        readable_ = true;
+        if (readableWaiter_)
         {
+            auto h = readableWaiter_;
+            readableWaiter_ = nullptr;
             scheduler_->schedule(h);
         }
     }
-}
-
-void IoChannel::handleWritable()
-{
-    printf("Handle write fd %d writable = %d\n", fd_, writable_);
-    writable_ = true;
-    if (writableWaiter_)
+    if (ev & EPOLLOUT)
     {
-        auto h = writableWaiter_;
-        writableWaiter_ = nullptr;
-        if (h)
+        printf("Handle write fd %d writable = %d\n", fd_, writable_);
+        writable_ = true;
+        if (writableWaiter_)
         {
+            auto h = writableWaiter_;
+            writableWaiter_ = nullptr;
             scheduler_->schedule(h);
         }
     }

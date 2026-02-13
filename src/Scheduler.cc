@@ -134,7 +134,7 @@ void Scheduler::process_io_events(int timeout_ms)
         }
 
         int fd = channel->fd();
-        if (!ioChannels_.contains(fd) || ioChannels_.at(fd) != channel)
+        if (!ioChannels_.contains(fd) || ioChannels_.at(fd).channel != channel)
         {
             printf("channel with fd %d not found!!!\n", fd);
             continue;
@@ -148,22 +148,7 @@ void Scheduler::process_io_events(int timeout_ms)
                ev & (EPOLLERR | EPOLLHUP));
         fflush(stdout);
 
-        if (ev & (EPOLLERR | EPOLLHUP))
-        {
-            // channel->handleError();
-            printf("Unhandled channel error for fd %d\n", channel->fd_);
-            continue;
-        }
-
-        if (ev & EPOLLIN)
-        {
-            channel->handleReadable();
-        }
-        if (ev & EPOLLOUT)
-        {
-            printf("handleWritable OUT: %d\n", ev & EPOLLOUT);
-            channel->handleWritable();
-        }
+        ioChannels_.at(fd).handler(fd, ev);
     }
 }
 
@@ -208,7 +193,7 @@ void Scheduler::wakeup()
     write(wakeup_fd_, &val, sizeof(val));
 }
 
-void Scheduler::registerIoChannel(IoChannel * channel)
+void Scheduler::registerIoChannel(IoChannel * channel, IoEventHandler handler)
 {
     int fd = channel->fd();
     epoll_event ev{};
@@ -216,7 +201,7 @@ void Scheduler::registerIoChannel(IoChannel * channel)
     ev.data.ptr = channel;
 
     assert(!ioChannels_.contains(fd));
-    ioChannels_[fd] = channel;
+    ioChannels_.emplace(fd, IoChannelContext{ channel, std::move(handler) });
 
     if (::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev) < 0)
     {
@@ -228,7 +213,7 @@ void Scheduler::unregisterIoChannel(IoChannel * channel)
 {
     int fd = channel->fd();
     assert(ioChannels_.contains(fd));
-    assert(ioChannels_.at(fd) == channel);
+    assert(ioChannels_.at(fd).channel == channel);
     size_t n = ioChannels_.erase(fd);
     (void)n;
     assert(n == 1);
@@ -247,7 +232,7 @@ void Scheduler::updateChannel(IoChannel * channel)
 {
     int fd = channel->fd();
     assert(ioChannels_.contains(fd));
-    assert(ioChannels_.at(fd) == channel);
+    assert(ioChannels_.at(fd).channel == channel);
     epoll_event ev{};
     ev.events = channel->events() | (channel->triggerMode() == TriggerMode::EdgeTriggered ? EPOLLET : 0);
     ev.data.ptr = channel;

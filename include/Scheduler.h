@@ -50,6 +50,13 @@ struct [[nodiscard]] SchedulerAwaiter
 class Scheduler
 {
 public:
+    using IoEventHandler = std::function<void(int, uint32_t)>;
+    struct IoChannelContext
+    {
+        IoChannel * channel;
+        IoEventHandler handler;
+    };
+
     Scheduler();
     ~Scheduler();
 
@@ -63,7 +70,7 @@ public:
 
     bool isInOwnThread() const noexcept;
 
-    void registerIoChannel(IoChannel *);
+    void registerIoChannel(IoChannel *, IoEventHandler handler);
     void unregisterIoChannel(IoChannel *);
     void updateChannel(IoChannel *);
 
@@ -138,7 +145,7 @@ private:
     int64_t get_next_timeout();
     void wakeup();
 
-    std::unordered_map<int, IoChannel *> ioChannels_;
+    std::unordered_map<int, IoChannelContext> ioChannels_;
 
     std::unique_ptr<IoChannel> wakeupChannel_;
 };

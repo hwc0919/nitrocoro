@@ -90,12 +90,8 @@ public:
     }
 
 private:
-    friend class Scheduler;
-
-    // Called by Scheduler::process_io_events() when epoll reports readable event
-    void handleReadable();
-    // Called by Scheduler::process_io_events() when epoll reports writable event
-    void handleWritable();
+    // Called by Scheduler::process_io_events() when epoll reports events
+    void handleIoEvents(int fd, uint32_t ev);
 
     struct [[nodiscard]] ReadableAwaiter
     {
