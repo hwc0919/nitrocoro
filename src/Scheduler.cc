@@ -19,11 +19,6 @@ static constexpr int64_t kDefaultTimeoutMs = 10000; // 10秒默认超时
 
 thread_local Scheduler * Scheduler::current_ = nullptr;
 
-void TimerAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
-{
-    sched_->register_timer(when_, h);
-}
-
 Scheduler::Scheduler()
 {
     if (current_ != nullptr)
@@ -94,13 +89,18 @@ TimerAwaiter Scheduler::sleep_until(TimePoint when)
     return TimerAwaiter{ this, when };
 }
 
+SchedulerAwaiter Scheduler::run_here() noexcept
+{
+    return SchedulerAwaiter{ this };
+}
+
 void Scheduler::schedule(std::coroutine_handle<> coro)
 {
     ready_queue_.push(coro);
     wakeup();
 }
 
-void Scheduler::register_timer(TimePoint when, std::coroutine_handle<> coro)
+void Scheduler::schedule_at(TimePoint when, std::coroutine_handle<> coro)
 {
     pending_timers_.push(Timer{ when, coro });
     wakeup();
@@ -255,6 +255,21 @@ void Scheduler::updateChannel(IoChannel * channel)
 bool Scheduler::isInOwnThread() const noexcept
 {
     return std::this_thread::get_id() == thread_id_;
+}
+
+void TimerAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
+{
+    sched_->schedule_at(when_, h);
+}
+
+bool SchedulerAwaiter::await_ready() const noexcept
+{
+    return scheduler_->isInOwnThread();
+}
+
+void SchedulerAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
+{
+    scheduler_->schedule(h);
 }
 
 } // namespace my_coro

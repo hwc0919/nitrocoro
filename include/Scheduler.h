@@ -44,6 +44,14 @@ private:
     TimePoint when_;
 };
 
+struct [[nodiscard]] SchedulerAwaiter
+{
+    Scheduler * scheduler_;
+
+    bool await_ready() const noexcept;
+    void await_suspend(std::coroutine_handle<> h) noexcept;
+    void await_resume() noexcept {}
+};
 
 class Scheduler
 {
@@ -60,19 +68,6 @@ public:
     void stop();
 
     bool isInOwnThread() const noexcept;
-    auto run_here() noexcept
-    {
-        struct [[nodiscard]] RunHereAwaiter
-        {
-            Scheduler * scheduler_;
-
-            bool await_ready() const noexcept { return scheduler_->isInOwnThread(); }
-            void await_suspend(std::coroutine_handle<> h) noexcept { scheduler_->schedule(h); }
-            void await_resume() noexcept {}
-        };
-
-        return RunHereAwaiter{ this };
-    }
 
     void registerIoChannel(IoChannel *);
     void unregisterIoChannel(IoChannel *);
@@ -80,8 +75,10 @@ public:
 
     TimerAwaiter sleep_for(double seconds);
     TimerAwaiter sleep_until(TimePoint when);
+    SchedulerAwaiter run_here() noexcept;
 
     void schedule(std::coroutine_handle<> coro);
+    void schedule_at(TimePoint when, std::coroutine_handle<> coro);
 
     template <typename Coro>
     void spawn(Coro && coro)
@@ -118,8 +115,6 @@ public:
     }
 
 private:
-    friend class TimerAwaiter;
-
     static thread_local Scheduler * current_;
 
     std::thread::id thread_id_;
@@ -142,8 +137,6 @@ private:
     };
     std::priority_queue<Timer, std::vector<Timer>, std::greater<Timer>> timers_;
     MpscQueue<Timer> pending_timers_;
-
-    void register_timer(TimePoint when, std::coroutine_handle<> coro);
 
     void resume_ready_coros();
     void process_io_events(int timeout_ms);
