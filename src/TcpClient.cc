@@ -25,13 +25,13 @@ TcpClient::~TcpClient()
 {
 }
 
-struct Connector : public IoChannel::IoWriter
+struct Connector
 {
     Connector(sockaddr * addr, size_t addrLen) : addr_(addr), addrLen_(addrLen)
     {
     }
 
-    IoChannel::IoResult write(int fd) override
+    IoChannel::IoResult write(int fd)
     {
         if (connecting_)
         {

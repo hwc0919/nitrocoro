@@ -71,10 +71,9 @@ void TcpServer::set_handler(ConnectionHandler handler)
     handler_ = std::move(handler);
 }
 
-
-struct Acceptor : public IoChannel::IoReader
+struct Acceptor
 {
-    IoChannel::IoResult read(int fd) override
+    IoChannel::IoResult read(int fd)
     {
         socklen_t len = sizeof(clientAddr_);
         fd_ = ::accept4(fd, reinterpret_cast<struct sockaddr *>(&clientAddr_), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);

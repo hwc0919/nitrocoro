@@ -52,6 +52,33 @@ void IoChannel::handleWritable()
     }
 }
 
+bool IoChannel::ReadableAwaiter::await_ready() noexcept
+{
+    return channel_->readable_;
+}
+
+bool IoChannel::ReadableAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
+{
+    if (channel_->readable_)
+    {
+        return false;
+    }
+    else
+    {
+        channel_->readableWaiter_ = h;
+        return true;
+    }
+}
+
+void IoChannel::ReadableAwaiter::await_resume() noexcept
+{
+}
+
+bool IoChannel::WritableAwaiter::await_ready() noexcept
+{
+    return channel_->writable_;
+}
+
 bool IoChannel::WritableAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
 {
     if (channel_->writable_)
