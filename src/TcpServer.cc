@@ -17,11 +17,11 @@
 namespace my_coro
 {
 
-TcpServer::TcpServer(int port) : listen_fd_(-1), port_(port), running_(false)
+TcpServer::TcpServer(Scheduler * scheduler, int port) : scheduler_(scheduler), listen_fd_(-1), port_(port), running_(false)
 {
     setup_socket();
 
-    listenChannel_ = std::make_unique<IoChannel>(listen_fd_, Scheduler::current(), TriggerMode::LevelTriggered);
+    listenChannel_ = std::make_unique<IoChannel>(listen_fd_, scheduler_, TriggerMode::LevelTriggered);
 }
 
 TcpServer::~TcpServer()
@@ -66,11 +66,6 @@ void TcpServer::setup_socket()
     std::cout << "TcpServer listening on port " << port_ << "\n";
 }
 
-void TcpServer::set_handler(ConnectionHandler handler)
-{
-    handler_ = std::move(handler);
-}
-
 struct Acceptor
 {
     IoChannel::IoResult read(int fd)
@@ -105,13 +100,8 @@ private:
     int fd_{ -1 };
 };
 
-Task<> TcpServer::start()
+Task<> TcpServer::start(ConnectionHandler handler)
 {
-    if (!handler_)
-    {
-        throw std::runtime_error("No connection handler set");
-    }
-
     running_ = true;
     while (running_)
     {
@@ -119,10 +109,10 @@ Task<> TcpServer::start()
         co_await listenChannel_->performRead(&acceptor);
 
         std::cout << "Accepted connection: fd=" << acceptor.clientFd() << "\n";
-        auto ioChannelPtr = std::make_unique<IoChannel>(acceptor.clientFd(), Scheduler::current(), TriggerMode::EdgeTriggered);
+        auto ioChannelPtr = std::make_unique<IoChannel>(acceptor.clientFd(), scheduler_, TriggerMode::EdgeTriggered);
         auto connPtr = std::make_shared<TcpConnection>(std::move(ioChannelPtr));
-        Scheduler::current()->spawn([this, connPtr = std::move(connPtr)]() mutable -> Task<> {
-            co_await handler_(std::move(connPtr));
+        scheduler_->spawn([handler, connPtr = std::move(connPtr)]() mutable -> Task<> {
+            co_await handler(std::move(connPtr));
         });
     }
 }

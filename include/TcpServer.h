@@ -17,18 +17,17 @@ class TcpServer
 public:
     using ConnectionHandler = std::function<Task<>(std::shared_ptr<TcpConnection>)>;
 
-    explicit TcpServer(int port);
+    explicit TcpServer(Scheduler * scheduler, int port);
     ~TcpServer();
 
-    void set_handler(ConnectionHandler handler);
-    Task<> start();
+    Task<> start(ConnectionHandler handler);
     void stop();
 
 private:
+    Scheduler * scheduler_;
     int listen_fd_;
     int port_;
-    bool running_;
-    ConnectionHandler handler_;
+    bool running_; // TODO
 
     std::unique_ptr<IoChannel> listenChannel_;
 

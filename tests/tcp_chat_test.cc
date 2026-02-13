@@ -106,11 +106,10 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
     }
 }
 
-Task<> tcp_server_main(int port)
+Task<> tcp_server_main(int port, Scheduler * scheduler)
 {
-    TcpServer server(port);
-    server.set_handler(chat_handler);
-    co_await server.start();
+    TcpServer server(scheduler, port);
+    co_await server.start(chat_handler);
 }
 
 Task<> receive_messages(const TcpConnectionPtr & connPtr)
@@ -209,7 +208,7 @@ int main(int argc, char * argv[])
     {
         int port = (argc >= 3) ? atoi(argv[2]) : 8888;
         std::cout << "=== Chat Server on port " << port << " ===\n";
-        scheduler.spawn([port]() -> Task<> { co_await tcp_server_main(port); });
+        scheduler.spawn([port, &scheduler]() -> Task<> { co_await tcp_server_main(port, &scheduler); });
     }
     else if (strcmp(argv[1], "client") == 0)
     {
