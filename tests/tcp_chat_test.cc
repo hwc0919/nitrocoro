@@ -13,7 +13,7 @@
 #include <memory>
 #include <random>
 #include <unistd.h>
-#include <vector>
+#include <unordered_map>
 
 using namespace my_coro;
 
@@ -21,24 +21,23 @@ using namespace my_coro;
 
 struct ChatClient
 {
-    std::shared_ptr<TcpConnection> conn;
     std::string username;
 };
 
 Mutex clientsMutex;
-std::vector<ChatClient> clients;
+std::unordered_map<std::shared_ptr<TcpConnection>, ChatClient> clients;
 
 Task<> broadcast(const std::string & message, std::shared_ptr<TcpConnection> sender)
 {
     printf("broadcast %s\n", message.c_str());
 
     [[maybe_unused]] auto lock = co_await clientsMutex.scoped_lock();
-    for (auto & client : clients)
+    for (auto & [conn, client] : clients)
     {
-        if (client.conn != sender)
+        if (conn != sender)
         {
             printf("broadcast to %s\n", client.username.c_str());
-            Scheduler::current()->spawn([message, conn = client.conn]() -> Task<> {
+            Scheduler::current()->spawn([message, conn]() -> Task<> {
                 static thread_local std::mt19937 gen(std::random_device{}());
                 static std::uniform_real_distribution<> dis(0.0, 1.0);
                 double delay = dis(gen);
@@ -63,9 +62,8 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
     std::string username;
 
     // Read username
-    ssize_t n = co_await conn->read(buf, sizeof(buf) - 1);
-    if (n <= 0)
-        co_return;
+    size_t n = co_await conn->read(buf, sizeof(buf) - 1);
+    assert(n > 0);
     buf[n] = '\0';
     username = buf;
     if (!username.empty() && username.back() == '\n')
@@ -73,7 +71,7 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
 
     {
         [[maybe_unused]] auto lock = co_await clientsMutex.scoped_lock();
-        clients.push_back({ conn, username });
+        clients[conn] = { username };
     }
     std::cout << username << " joined\n";
 
@@ -89,8 +87,7 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
             printf("Read error: %s\n", e.what());
             break;
         }
-        if (n <= 0)
-            break;
+        assert(n > 0);
         buf[n] = '\0';
         std::string msg = username + ": " + buf;
         std::cout << msg << std::endl;
@@ -100,14 +97,11 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
     // Remove client
     {
         [[maybe_unused]] auto lock = co_await clientsMutex.scoped_lock();
-        for (auto it = clients.begin(); it != clients.end(); ++it)
+        auto it = clients.find(conn);
+        if (it != clients.end())
         {
-            if (it->conn == conn)
-            {
-                std::cout << username << " left\n";
-                clients.erase(it);
-                break;
-            }
+            std::cout << username << " left\n";
+            clients.erase(it);
         }
     }
 }
@@ -205,7 +199,7 @@ int main(int argc, char * argv[])
     {
         std::cout << "Usage:\n";
         std::cout << "  " << argv[0] << " server [port]\n";
-        std::cout << "  " << argv[0] << " client [host] [port] [username]\n";
+        std::cout << "  " << argv[0] << " client <username> [port] [host]\n";
         return 1;
     }
 
@@ -219,9 +213,14 @@ int main(int argc, char * argv[])
     }
     else if (strcmp(argv[1], "client") == 0)
     {
-        const char * host = (argc >= 3) ? argv[2] : "127.0.0.1";
+        if (argc < 3)
+        {
+            std::cout << "Usage: " << argv[0] << " client <username> [port] [host]\n";
+            return 1;
+        }
+        const char * username = argv[2];
         int port = (argc >= 4) ? atoi(argv[3]) : 8888;
-        const char * username = (argc >= 5) ? argv[4] : "User";
+        const char * host = (argc >= 5) ? argv[4] : "127.0.0.1";
         std::cout << "=== Chat Client (" << username << ") ===\n";
         std::cout << "Type 'q' to quit\n";
         scheduler.spawn([host, port, username]() -> Task<> { co_await tcp_client_main(host, port, username); });

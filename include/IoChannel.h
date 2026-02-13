@@ -248,7 +248,7 @@ struct BufferReader
 private:
     void * buf_;
     size_t len_;
-    ssize_t readLen_{ 0 };
+    size_t readLen_{ 0 };
 };
 
 struct BufferWriter

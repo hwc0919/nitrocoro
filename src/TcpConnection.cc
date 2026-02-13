@@ -125,7 +125,7 @@ TcpConnection::TcpConnection(std::unique_ptr<IoChannel> channelPtr)
 
 TcpConnection::~TcpConnection() = default;
 
-Task<ssize_t> TcpConnection::read(void * buf, size_t len)
+Task<size_t> TcpConnection::read(void * buf, size_t len)
 {
     BufferReader reader(buf, len);
     co_await ioChannelPtr_->performRead(&reader);

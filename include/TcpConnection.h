@@ -34,7 +34,7 @@ public:
     TcpConnection(TcpConnection &&) = delete;
     TcpConnection & operator=(TcpConnection &&) = delete;
 
-    Task<ssize_t> read(void * buf, size_t len);
+    Task<size_t> read(void * buf, size_t len);
     Task<> write(const void * buf, size_t len);
 
     Task<> close();
