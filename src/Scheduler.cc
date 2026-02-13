@@ -15,7 +15,7 @@
 namespace my_coro
 {
 
-static constexpr int64_t kDefaultTimeoutMs = 10000; // 10秒默认超时
+static constexpr int64_t kDefaultTimeoutMs = 10000;
 
 thread_local Scheduler * Scheduler::current_ = nullptr;
 
@@ -158,7 +158,6 @@ void Scheduler::process_io_events(int timeout_ms)
         {
             channel->handleReadable();
         }
-        // 处理写事件
         if (ev & EPOLLOUT)
         {
             printf("handleWritable OUT: %d\n", ev & EPOLLOUT);
@@ -169,7 +168,6 @@ void Scheduler::process_io_events(int timeout_ms)
 
 int64_t Scheduler::get_next_timeout()
 {
-    // 先处理待注册的定时器
     while (auto timer = pending_timers_.pop())
     {
         timers_.push(std::move(*timer));

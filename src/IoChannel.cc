@@ -18,13 +18,11 @@ IoChannel::IoChannel(int fd, Scheduler * scheduler, TriggerMode mode)
 
 IoChannel::~IoChannel()
 {
-    // TODO: clear all pending handles
     scheduler_->unregisterIoChannel(this);
 }
 
 void IoChannel::handleReadable()
 {
-    //    assert(readable_ == false);
     readable_ = true;
     if (readableWaiter_)
     {

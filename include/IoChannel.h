@@ -1,8 +1,18 @@
 /**
-* @file IoChannel.h
-* @brief IoChannel abstraction for managing fd I/O operations
-* @note Only supports one concurrent reader and one concurrent writer per fd
-*/
+ * @file IoChannel.h
+ * @brief IoChannel abstraction for managing fd I/O operations
+ * @note Only supports one concurrent reader and one concurrent writer per fd
+ *
+ * THREAD SAFETY:
+ * All member accesses are serialized by the single-threaded Scheduler event loop.
+ * The execution order is: process_io_events() -> process_timers() -> resume_ready_coros().
+ * handleReadable/handleWritable are called in process_io_events(), while coroutines
+ * (performReadImpl/performWriteImpl and awaiters) execute in resume_ready_coros().
+ * These phases never overlap, ensuring no race conditions on member variables.
+ *
+ * CRITICAL: Any future modifications MUST preserve this serialization guarantee.
+ * Do NOT introduce concurrent access to IoChannel members from multiple threads.
+ */
 #pragma once
 
 #include "Scheduler.h"
@@ -39,11 +49,11 @@ public:
 
     enum class IoResult
     {
-        Success,    // 操作成功
-        WouldBlock, // EAGAIN，需要等待
-        Retry,      // EINTR，立即重试
-        Disconnect, // 连接中断
-        Error       // 错误
+        Success,
+        WouldBlock,
+        Retry,
+        Disconnect,
+        Error
     };
 
     template <typename Reader>
@@ -80,6 +90,11 @@ public:
 
 private:
     friend class Scheduler;
+
+    // Called by Scheduler::process_io_events() when epoll reports readable event
+    void handleReadable();
+    // Called by Scheduler::process_io_events() when epoll reports writable event
+    void handleWritable();
 
     struct [[nodiscard]] ReadableAwaiter
     {
@@ -181,17 +196,15 @@ private:
         }
     }
 
-    void handleReadable();
-    void handleWritable();
-
     int fd_{ -1 };
     Scheduler * scheduler_{ nullptr };
     TriggerMode triggerMode_{ TriggerMode::EdgeTriggered };
 
+    // All members below are accessed only within Scheduler's single thread.
+    // No synchronization primitives needed due to serialized execution model.
     uint32_t events_{ 0 };
     bool readable_{ false };
     bool writable_{ true };
-
     std::coroutine_handle<> readableWaiter_;
     std::coroutine_handle<> writableWaiter_;
 };

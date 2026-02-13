@@ -22,12 +22,6 @@ namespace my_coro
 class Scheduler;
 class IoChannel;
 
-enum class IoOp
-{
-    Read,
-    Write
-};
-
 using TimePoint = std::chrono::steady_clock::time_point;
 
 struct [[nodiscard]] TimerAwaiter
@@ -120,7 +114,7 @@ private:
     std::thread::id thread_id_;
 
     int epoll_fd_{ -1 };
-    int wakeup_fd_{ -1 }; // eventfd 用于唤醒 epoll
+    int wakeup_fd_{ -1 };
     std::atomic<bool> running_{ false };
 
     MpscQueue<std::coroutine_handle<>> ready_queue_;
