@@ -64,8 +64,8 @@ public:
     };
 
     template <typename Reader>
-        requires requires(Reader r, int fd) {
-            { r->read(fd) } -> std::same_as<IoResult>;
+        requires requires(Reader r, int fd, IoChannel * channel) {
+            { r->read(fd, channel) } -> std::same_as<IoResult>;
         }
     Task<> performRead(Reader && reader)
     {
@@ -73,15 +73,16 @@ public:
     }
 
     template <typename Func>
-        requires std::invocable<Func, int> && std::same_as<std::invoke_result_t<Func, int>, IoResult>
+        requires std::invocable<Func, int, IoChannel *>
+                 && std::same_as<std::invoke_result_t<Func, int, IoChannel *>, IoResult>
     Task<> performRead(Func && func)
     {
         co_return co_await performReadImpl(std::forward<Func>(func));
     }
 
     template <typename Writer>
-        requires requires(Writer w, int fd) {
-            { w->write(fd) } -> std::same_as<IoResult>;
+        requires requires(Writer w, int fd, IoChannel * channel) {
+            { w->write(fd, channel) } -> std::same_as<IoResult>;
         }
     Task<> performWrite(Writer && writer)
     {
@@ -89,7 +90,8 @@ public:
     }
 
     template <typename Func>
-        requires std::invocable<Func, int> && std::same_as<std::invoke_result_t<Func, int>, IoResult>
+        requires std::invocable<Func, int, IoChannel *>
+                 && std::same_as<std::invoke_result_t<Func, int, IoChannel *>, IoResult>
     Task<> performWrite(Func && func)
     {
         co_return co_await performWriteImpl(std::forward<Func>(func));
@@ -130,9 +132,9 @@ private:
 
             IoResult result;
             if constexpr (std::is_pointer_v<std::remove_reference_t<T>>)
-                result = funcOrReader->read(fd_);
+                result = funcOrReader->read(fd_, this);
             else
-                result = funcOrReader(fd_);
+                result = funcOrReader(fd_, this);
 
             switch (result)
             {
@@ -173,9 +175,9 @@ private:
 
             IoResult result;
             if constexpr (std::is_pointer_v<std::remove_reference_t<T>>)
-                result = funcOrWriter->write(fd_);
+                result = funcOrWriter->write(fd_, this);
             else
-                result = funcOrWriter(fd_);
+                result = funcOrWriter(fd_, this);
 
             switch (result)
             {
@@ -212,12 +214,20 @@ private:
     std::coroutine_handle<> writableWaiter_;
 };
 
+// Built-in BufferReader/BufferWriter have different event control strategy,
+// and should be elaborated carefully in comment.
+// To be specific, BufferReader never calls enable/disableReading, it
+// assumes that the reading event is enabled by user and won't be disabled.
+// While BufferWriter calls enable/disableWriting only when needed, it
+// assumes that user don't enable/disable write event manually.
+// If situation is different, user should implement their own Reader/Writer.
+
 struct BufferReader
 {
     BufferReader(void * buf, size_t len) : buf_(buf), len_(len) {}
-    ssize_t readLen() const { return readLen_; }
+    size_t readLen() const { return readLen_; }
 
-    IoChannel::IoResult read(int fd)
+    IoChannel::IoResult read(int fd, IoChannel *)
     {
         if (!buf_ || len_ == 0)
         {
@@ -263,7 +273,7 @@ struct BufferWriter
     {
     }
 
-    IoChannel::IoResult write(int fd)
+    IoChannel::IoResult write(int fd, IoChannel * channel)
     {
         if (!buf_ || len_ == 0)
         {
@@ -276,6 +286,7 @@ struct BufferWriter
             wroteLen_ += ret;
             if (wroteLen_ >= static_cast<ssize_t>(len_))
             {
+                channel->disableWriting();
                 return IoChannel::IoResult::Success;
             }
             else
@@ -291,6 +302,7 @@ struct BufferWriter
 #if EAGAIN != EWOULDBLOCK
                 case EWOULDBLOCK:
 #endif
+                    channel->enableWriting();
                     return IoChannel::IoResult::WouldBlock;
                 case EINTR:
                     return IoChannel::IoResult::Retry;

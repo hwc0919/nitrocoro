@@ -58,7 +58,7 @@ void TcpServer::setup_socket()
 
 struct Acceptor
 {
-    IoChannel::IoResult read(int fd)
+    IoChannel::IoResult read(int fd, IoChannel *)
     {
         socklen_t len = sizeof(clientAddr_);
         fd_ = ::accept4(fd, reinterpret_cast<struct sockaddr *>(&clientAddr_), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);

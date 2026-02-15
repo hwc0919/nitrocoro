@@ -14,12 +14,12 @@ namespace my_coro
 
 struct Connector
 {
-    Connector(const sockaddr * addr, socklen_t addrLen, IoChannel * channel)
-        : addr_(addr), addrLen_(addrLen), channel_(channel)
+    Connector(const sockaddr * addr, socklen_t addrLen)
+        : addr_(addr), addrLen_(addrLen)
     {
     }
 
-    IoChannel::IoResult write(int fd)
+    IoChannel::IoResult write(int fd, IoChannel * channel)
     {
         if (connecting_)
         {
@@ -31,7 +31,7 @@ struct Connector
             }
             if (error == 0)
             {
-                channel_->disableWriting();
+                channel->disableWriting();
                 return IoChannel::IoResult::Success;
             }
             else if (error == EINPROGRESS || error == EALREADY)
@@ -47,19 +47,19 @@ struct Connector
         int ret = ::connect(fd, addr_, addrLen_);
         if (ret == 0)
         {
-            channel_->disableWriting();
+            channel->disableWriting();
             return IoChannel::IoResult::Success;
         }
         int lastErrno = errno;
         switch (lastErrno)
         {
             case EISCONN:
-                channel_->disableWriting();
+                channel->disableWriting();
                 return IoChannel::IoResult::Success;
             case EINPROGRESS:
             case EALREADY:
                 connecting_ = true;
-                channel_->enableWriting();
+                channel->enableWriting();
                 return IoChannel::IoResult::WouldBlock;
             case EINTR:
                 return IoChannel::IoResult::Retry;
@@ -72,7 +72,6 @@ struct Connector
 private:
     const sockaddr * addr_;
     socklen_t addrLen_;
-    IoChannel * channel_;
 
     bool connecting_{ false };
 };
@@ -89,7 +88,7 @@ Task<TcpConnectionPtr> TcpConnection::connect(const sockaddr * addr, socklen_t a
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 
     auto channelPtr = std::make_unique<IoChannel>(fd, Scheduler::current());
-    Connector connector(addr, addrLen, channelPtr.get());
+    Connector connector(addr, addrLen);
     co_await channelPtr->performWrite(&connector);
 
     co_return std::make_shared<TcpConnection>(std::move(channelPtr));
@@ -140,10 +139,8 @@ Task<size_t> TcpConnection::read(void * buf, size_t len)
 Task<> TcpConnection::write(const void * buf, size_t len)
 {
     [[maybe_unused]] auto lock = co_await writeMutex_.scoped_lock();
-    ioChannelPtr_->enableWriting();
     BufferWriter writer(buf, len);
     co_await ioChannelPtr_->performWrite(&writer);
-    ioChannelPtr_->disableWriting();
 }
 
 Task<> TcpConnection::close()
