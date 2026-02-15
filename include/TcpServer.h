@@ -29,7 +29,7 @@ private:
     int port_;
     bool running_; // TODO
 
-    std::unique_ptr<IoChannel> listenChannel_;
+    std::shared_ptr<IoChannel> listenChannel_;
 
     void setup_socket();
 };

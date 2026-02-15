@@ -99,7 +99,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
     }
     std::cout << "TcpServer listening on port " << port_ << "\n";
 
-    listenChannel_ = std::make_unique<IoChannel>(listen_fd_, scheduler_, TriggerMode::LevelTriggered);
+    listenChannel_ = IoChannel::create(listen_fd_, scheduler_, TriggerMode::LevelTriggered);
     listenChannel_->enableReading();
     running_ = true;
     while (running_)
@@ -108,7 +108,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
         co_await listenChannel_->performRead(&acceptor);
 
         std::cout << "Accepted connection: fd=" << acceptor.clientFd() << "\n";
-        auto ioChannelPtr = std::make_unique<IoChannel>(acceptor.clientFd(), scheduler_, TriggerMode::EdgeTriggered);
+        auto ioChannelPtr = IoChannel::create(acceptor.clientFd(), scheduler_, TriggerMode::EdgeTriggered);
         ioChannelPtr->enableReading();
         auto connPtr = std::make_shared<TcpConnection>(std::move(ioChannelPtr));
         scheduler_->spawn([handler, connPtr = std::move(connPtr)]() mutable -> Task<> {

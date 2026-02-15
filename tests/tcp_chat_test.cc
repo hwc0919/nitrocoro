@@ -141,7 +141,7 @@ Task<> send_messages(const TcpConnectionPtr & connPtr)
     // Set stdin to non-blocking
     int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-    std::unique_ptr<IoChannel> stdinChannel = std::make_unique<IoChannel>(STDIN_FILENO, Scheduler::current());
+    auto stdinChannel = IoChannel::create(STDIN_FILENO, Scheduler::current());
     stdinChannel->enableReading();
 
     char buf[BUFFER_SIZE];

@@ -5,28 +5,38 @@
 #include "IoChannel.h"
 #include "Scheduler.h"
 #include <arpa/inet.h>
-#include <cassert>
 #include <cstring>
 #include <sys/epoll.h>
 
 namespace my_coro
 {
 
+IoChannelPtr IoChannel::create(int fd, Scheduler * scheduler, TriggerMode mode)
+{
+    auto channel = std::shared_ptr<IoChannel>(new IoChannel(fd, scheduler, mode));
+    scheduler->schedule([weakChannel = std::weak_ptr(channel), scheduler = scheduler]() {
+        if (auto thisPtr = weakChannel.lock())
+        {
+            scheduler->setIoChannelHandler(thisPtr, [weakChannel](int fd, uint32_t ev) {
+                if (auto thisPtr = weakChannel.lock())
+                {
+                    thisPtr->handleIoEvents(ev);
+                }
+            });
+        }
+    });
+    return channel;
+}
+
 IoChannel::IoChannel(int fd, Scheduler * scheduler, TriggerMode mode)
     : fd_(fd), scheduler_(scheduler), triggerMode_(mode)
 {
-    scheduler_->schedule([this]() {
-        scheduler_->setIoChannelHandler(this, [this](int fd, uint32_t ev) {
-            assert(fd == fd_);
-            handleIoEvents(ev);
-        });
-    });
 }
 
 IoChannel::~IoChannel()
 {
-    scheduler_->schedule([this]() {
-        scheduler_->removeIoChannel(this);
+    scheduler_->schedule([id = id_, scheduler = scheduler_]() {
+        scheduler->removeIoChannel(id);
     });
 }
 
@@ -131,7 +141,7 @@ void IoChannel::enableReading()
     if (!(events_ & EPOLLIN))
     {
         events_ |= EPOLLIN;
-        scheduler_->updateIoChannel(this);
+        scheduler_->updateIoChannel(shared_from_this());
     }
 }
 
@@ -140,7 +150,7 @@ void IoChannel::disableReading()
     if (events_ & EPOLLIN)
     {
         events_ &= ~EPOLLIN;
-        scheduler_->updateIoChannel(this);
+        scheduler_->updateIoChannel(shared_from_this());
     }
 }
 
@@ -149,7 +159,7 @@ void IoChannel::enableWriting()
     if (!(events_ & EPOLLOUT))
     {
         events_ |= EPOLLOUT;
-        scheduler_->updateIoChannel(this);
+        scheduler_->updateIoChannel(shared_from_this());
     }
 }
 
@@ -158,7 +168,7 @@ void IoChannel::disableWriting()
     if (events_ & EPOLLOUT)
     {
         events_ &= ~EPOLLOUT;
-        scheduler_->updateIoChannel(this);
+        scheduler_->updateIoChannel(shared_from_this());
     }
 }
 

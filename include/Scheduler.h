@@ -20,6 +20,7 @@ namespace my_coro
 {
 class Scheduler;
 class IoChannel;
+using IoChannelPtr = std::shared_ptr<IoChannel>;
 
 using TimePoint = std::chrono::steady_clock::time_point;
 
@@ -52,7 +53,9 @@ public:
     using IoEventHandler = std::function<void(int, uint32_t)>;
     struct IoChannelContext
     {
-        IoChannel * channel;
+        uint64_t id;
+        int fd;
+        std::weak_ptr<IoChannel> weakChannel;
         IoEventHandler handler;
         bool addedToEpoll = false;
     };
@@ -70,9 +73,9 @@ public:
 
     bool isInOwnThread() const noexcept;
 
-    void setIoChannelHandler(IoChannel *, IoEventHandler handler);
-    void updateIoChannel(IoChannel *);
-    void removeIoChannel(IoChannel *);
+    void setIoChannelHandler(const IoChannelPtr & channel, IoEventHandler handler);
+    void updateIoChannel(const IoChannelPtr & channel);
+    void removeIoChannel(uint64_t id);
 
     TimerAwaiter sleep_for(double seconds);
     TimerAwaiter sleep_until(TimePoint when);
@@ -170,9 +173,9 @@ private:
     void process_io_events(int timeout_ms);
     void wakeup();
 
-    std::unordered_map<int, IoChannelContext> ioChannels_;
+    std::unordered_map<uint64_t, IoChannelContext> ioChannels_;
 
-    std::unique_ptr<IoChannel> wakeupChannel_;
+    std::shared_ptr<IoChannel> wakeupChannel_;
 };
 
 } // namespace my_coro

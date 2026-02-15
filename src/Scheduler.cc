@@ -62,7 +62,7 @@ Scheduler * Scheduler::current() noexcept
 void Scheduler::run()
 {
     thread_id_ = std::this_thread::get_id();
-    wakeupChannel_ = std::make_unique<IoChannel>(wakeup_fd_, this);
+    wakeupChannel_ = IoChannel::create(wakeup_fd_, this);
     wakeupChannel_->enableReading();
 
     running_.store(true, std::memory_order_release);
@@ -126,9 +126,9 @@ void Scheduler::process_io_events(int timeout_ms)
 
     for (int i = 0; i < n; ++i)
     {
-        auto * channel = static_cast<IoChannel *>(events[i].data.ptr);
+        uint64_t channelId = events[i].data.u64;
         uint32_t ev = events[i].events;
-        if (channel == wakeupChannel_.get())
+        if (channelId == wakeupChannel_->id())
         {
             uint64_t dummy;
             ssize_t ret = read(wakeup_fd_, &dummy, sizeof(dummy));
@@ -137,12 +137,14 @@ void Scheduler::process_io_events(int timeout_ms)
             continue;
         }
 
-        int fd = channel->fd();
-        if (!ioChannels_.contains(fd) || ioChannels_.at(fd).channel != channel)
+        auto iter = ioChannels_.find(channelId);
+        if (iter == ioChannels_.end())
         {
-            printf("channel with fd %d not found!!!\n", fd);
+            printf("channel with id %ld not found!!!\n", channelId);
             continue;
         }
+        auto * ctx = &iter->second;
+        int fd = ctx->fd;
 
         printf("fd %d event %d: IN: %d, OUT: %d, ERR: %d\n",
                fd,
@@ -152,7 +154,7 @@ void Scheduler::process_io_events(int timeout_ms)
                ev & (EPOLLERR | EPOLLHUP));
         fflush(stdout);
 
-        ioChannels_.at(fd).handler(fd, ev);
+        ctx->handler(fd, ev);
     }
 }
 
@@ -197,39 +199,40 @@ void Scheduler::wakeup()
     write(wakeup_fd_, &val, sizeof(val));
 }
 
-void Scheduler::setIoChannelHandler(IoChannel * channel, my_coro::Scheduler::IoEventHandler handler)
+void Scheduler::setIoChannelHandler(const IoChannelPtr & channel, my_coro::Scheduler::IoEventHandler handler)
 {
     MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
+    uint64_t id = channel->id();
     int fd = channel->fd();
-    auto iter = ioChannels_.find(fd);
+    auto iter = ioChannels_.find(id);
     if (iter != ioChannels_.end())
     {
-        assert(iter->second.channel == channel);
         assert(iter->second.handler == nullptr);
         iter->second.handler = std::move(handler);
     }
     else
     {
-        ioChannels_.emplace(fd, IoChannelContext{ channel, std::move(handler) });
+        ioChannels_.emplace(id, IoChannelContext{ id, fd, { channel }, std::move(handler) });
     }
 }
 
-void Scheduler::updateIoChannel(IoChannel * channel)
+void Scheduler::updateIoChannel(const IoChannelPtr & channel)
 {
     MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
+    uint64_t id = channel->id();
     int fd = channel->fd();
     IoChannelContext * ctx;
-    auto iter = ioChannels_.find(fd);
+    auto iter = ioChannels_.find(id);
     if (iter != ioChannels_.end())
     {
         ctx = &iter->second;
-        assert(ctx->channel == channel);
+        assert(ctx->weakChannel.lock() == channel);
     }
     else
     {
-        ctx = &ioChannels_.emplace(fd, IoChannelContext{ channel, IoEventHandler{} }).first->second;
+        ctx = &ioChannels_.emplace(id, IoChannelContext{ id, fd, { channel }, IoEventHandler{} }).first->second;
     }
 
     uint32_t events = channel->events();
@@ -249,7 +252,7 @@ void Scheduler::updateIoChannel(IoChannel * channel)
 
     epoll_event ev{};
     ev.events = events | (channel->triggerMode() == TriggerMode::EdgeTriggered ? EPOLLET : 0);
-    ev.data.ptr = channel;
+    ev.data.u64 = id;
 
     int op = ctx->addedToEpoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
     if (::epoll_ctl(epoll_fd_, op, fd, &ev) < 0)
@@ -260,20 +263,17 @@ void Scheduler::updateIoChannel(IoChannel * channel)
     ctx->addedToEpoll = true;
 }
 
-void Scheduler::removeIoChannel(IoChannel * channel)
+void Scheduler::removeIoChannel(uint64_t id)
 {
     MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
-    int fd = channel->fd();
-    assert(ioChannels_.contains(fd));
-    assert(ioChannels_.at(fd).channel == channel);
-    size_t n = ioChannels_.erase(fd);
-    (void)n;
-    assert(n == 1);
+    assert(ioChannels_.contains(id));
+    int fd = ioChannels_.at(id).fd;
+    ioChannels_.erase(id);
 
     epoll_event ev{};
     ev.events = 0;
-    ev.data.ptr = channel;
+    ev.data.u64 = id;
     if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, &ev) < 0)
     {
         printf("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epoll_fd_, fd, errno);

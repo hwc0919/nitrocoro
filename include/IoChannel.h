@@ -32,10 +32,13 @@ enum class TriggerMode
     LevelTriggered
 };
 
-class IoChannel
+class IoChannel;
+using IoChannelPtr = std::shared_ptr<IoChannel>;
+
+class IoChannel : public std::enable_shared_from_this<IoChannel>
 {
 public:
-    IoChannel(int fd, Scheduler * scheduler, TriggerMode mode = TriggerMode::EdgeTriggered);
+    static IoChannelPtr create(int fd, Scheduler * scheduler, TriggerMode mode = TriggerMode::EdgeTriggered);
     ~IoChannel();
 
     IoChannel(const IoChannel &) = delete;
@@ -43,6 +46,7 @@ public:
     IoChannel(IoChannel &&) = delete;
     IoChannel & operator=(IoChannel &&) = delete;
 
+    uint64_t id() const { return id_; }
     int fd() const { return fd_; }
     Scheduler * scheduler() const { return scheduler_; }
     TriggerMode triggerMode() const { return triggerMode_; }
@@ -98,6 +102,8 @@ public:
     }
 
 private:
+    IoChannel(int fd, Scheduler * scheduler, TriggerMode mode);
+
     // Called by Scheduler::process_io_events() when epoll reports events
     void handleIoEvents(uint32_t ev);
 
@@ -200,6 +206,9 @@ private:
             }
         }
     }
+
+    inline static std::atomic_uint64_t idSeq_{ 0 };
+    const uint64_t id_{ ++idSeq_ };
 
     int fd_{ -1 };
     Scheduler * scheduler_{ nullptr };
