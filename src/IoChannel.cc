@@ -5,6 +5,7 @@
 #include "IoChannel.h"
 #include "Scheduler.h"
 #include <arpa/inet.h>
+#include <cassert>
 #include <cstring>
 #include <sys/epoll.h>
 

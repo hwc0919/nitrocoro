@@ -12,6 +12,9 @@
 #include <sys/eventfd.h>
 #include <unistd.h>
 
+#define MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD() \
+    assert(isInOwnThread() && "Must be called in its own thread")
+
 namespace my_coro
 {
 
@@ -60,7 +63,7 @@ void Scheduler::run()
 {
     thread_id_ = std::this_thread::get_id();
     wakeupChannel_ = std::make_unique<IoChannel>(wakeup_fd_, this);
-    wakeupChannel_->enableReading();  // 手动启用wakeup fd的读事件
+    wakeupChannel_->enableReading();
 
     running_.store(true, std::memory_order_release);
 
@@ -196,6 +199,8 @@ void Scheduler::wakeup()
 
 void Scheduler::registerIoChannel(IoChannel * channel, IoEventHandler handler)
 {
+    MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
+
     int fd = channel->fd();
     assert(!ioChannels_.contains(fd));
     ioChannels_.emplace(fd, IoChannelContext{ channel, std::move(handler) });
@@ -203,6 +208,8 @@ void Scheduler::registerIoChannel(IoChannel * channel, IoEventHandler handler)
 
 void Scheduler::unregisterIoChannel(IoChannel * channel)
 {
+    MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
+
     int fd = channel->fd();
     assert(ioChannels_.contains(fd));
     assert(ioChannels_.at(fd).channel == channel);
@@ -222,6 +229,8 @@ void Scheduler::unregisterIoChannel(IoChannel * channel)
 
 void Scheduler::updateChannel(IoChannel * channel)
 {
+    MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
+
     int fd = channel->fd();
     assert(ioChannels_.contains(fd));
     assert(ioChannels_.at(fd).channel == channel);
