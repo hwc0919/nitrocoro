@@ -32,11 +32,16 @@ IoChannel::~IoChannel()
 
 void IoChannel::handleIoEvents(uint32_t ev)
 {
-    // TODO: handle ERR, HUP correctly
-    if (ev & (EPOLLERR | EPOLLHUP))
+    if ((ev & EPOLLHUP) && !(ev & EPOLLIN))
     {
-        printf("Unhandled channel error for fd %d\n", fd_);
+        // peer closed, and no more bytes to read
+        printf("Peer closed, fd %d\n", fd_);
+        // TODO: handle close
+    }
 
+    if (ev & EPOLLERR) // (POLLNVAL | POLLERR)
+    {
+        printf("Channel error for fd %d\n", fd_);
         int error = 0;
         socklen_t len = sizeof(error);
         if (getsockopt(fd_, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
@@ -51,10 +56,10 @@ void IoChannel::handleIoEvents(uint32_t ev)
         {
             printf("socket %d error %d: %s\n", fd_, error, strerror(error));
         }
-
-        return;
+        // TODO: mark error
     }
-    if (ev & EPOLLIN)
+
+    if (ev & EPOLLIN) // (POLLIN | POLLPRI | POLLRDHUP)
     {
         readable_ = true;
         if (readableWaiter_)
@@ -64,7 +69,7 @@ void IoChannel::handleIoEvents(uint32_t ev)
             scheduler_->schedule(h);
         }
     }
-    if (ev & EPOLLOUT)
+    if (ev & EPOLLOUT) // WIN32: if ((ev & POLLOUT) && !(ev & POLLHUP))
     {
         printf("Handle write fd %d writable = %d\n", fd_, writable_);
         writable_ = true;
