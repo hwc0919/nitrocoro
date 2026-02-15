@@ -4,6 +4,8 @@
  */
 #include "TcpConnection.h"
 #include "Scheduler.h"
+#include "io_adapters/BufferReader.h"
+#include "io_adapters/BufferWriter.h"
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <iostream>

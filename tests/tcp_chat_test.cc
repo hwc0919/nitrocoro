@@ -6,6 +6,7 @@
 #include "Scheduler.h"
 #include "TcpConnection.h"
 #include "TcpServer.h"
+#include "io_adapters/BufferReader.h"
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
