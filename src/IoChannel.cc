@@ -12,7 +12,7 @@ namespace my_coro
 {
 
 IoChannel::IoChannel(int fd, Scheduler * scheduler, TriggerMode mode)
-    : fd_(fd), scheduler_(scheduler), triggerMode_(mode), events_(EPOLLIN)
+    : fd_(fd), scheduler_(scheduler), triggerMode_(mode)
 {
     scheduler_->registerIoChannel(this, [this](int fd, uint32_t ev) {
         assert(fd == fd_);
@@ -108,16 +108,48 @@ bool IoChannel::WritableAwaiter::await_suspend(std::coroutine_handle<> h) noexce
     else
     {
         channel_->writableWaiter_ = h;
-        channel_->events_ |= EPOLLOUT;
-        channel_->scheduler_->updateChannel(channel_);
         return true;
     }
 }
 
 void IoChannel::WritableAwaiter::await_resume() noexcept
 {
-    channel_->events_ &= ~EPOLLOUT;
-    channel_->scheduler_->updateChannel(channel_);
+}
+
+void IoChannel::enableReading()
+{
+    if (!(events_ & EPOLLIN))
+    {
+        events_ |= EPOLLIN;
+        scheduler_->updateChannel(this);
+    }
+}
+
+void IoChannel::disableReading()
+{
+    if (events_ & EPOLLIN)
+    {
+        events_ &= ~EPOLLIN;
+        scheduler_->updateChannel(this);
+    }
+}
+
+void IoChannel::enableWriting()
+{
+    if (!(events_ & EPOLLOUT))
+    {
+        events_ |= EPOLLOUT;
+        scheduler_->updateChannel(this);
+    }
+}
+
+void IoChannel::disableWriting()
+{
+    if (events_ & EPOLLOUT)
+    {
+        events_ &= ~EPOLLOUT;
+        scheduler_->updateChannel(this);
+    }
 }
 
 } // namespace my_coro

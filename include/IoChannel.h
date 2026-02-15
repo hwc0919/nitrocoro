@@ -48,6 +48,11 @@ public:
     TriggerMode triggerMode() const { return triggerMode_; }
     uint32_t events() const { return events_; }
 
+    void enableReading();
+    void disableReading();
+    void enableWriting();
+    void disableWriting();
+
     enum class IoResult
     {
         Success,

@@ -60,6 +60,7 @@ void Scheduler::run()
 {
     thread_id_ = std::this_thread::get_id();
     wakeupChannel_ = std::make_unique<IoChannel>(wakeup_fd_, this);
+    wakeupChannel_->enableReading();  // 手动启用wakeup fd的读事件
 
     running_.store(true, std::memory_order_release);
 
@@ -196,17 +197,8 @@ void Scheduler::wakeup()
 void Scheduler::registerIoChannel(IoChannel * channel, IoEventHandler handler)
 {
     int fd = channel->fd();
-    epoll_event ev{};
-    ev.events = channel->events() | (channel->triggerMode() == TriggerMode::EdgeTriggered ? EPOLLET : 0);
-    ev.data.ptr = channel;
-
     assert(!ioChannels_.contains(fd));
     ioChannels_.emplace(fd, IoChannelContext{ channel, std::move(handler) });
-
-    if (::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev) < 0)
-    {
-        throw std::runtime_error("Failed to call EPOLL_CTL_ADD on epoll");
-    }
 }
 
 void Scheduler::unregisterIoChannel(IoChannel * channel)
@@ -233,10 +225,27 @@ void Scheduler::updateChannel(IoChannel * channel)
     int fd = channel->fd();
     assert(ioChannels_.contains(fd));
     assert(ioChannels_.at(fd).channel == channel);
+
     epoll_event ev{};
     ev.events = channel->events() | (channel->triggerMode() == TriggerMode::EdgeTriggered ? EPOLLET : 0);
     ev.data.ptr = channel;
-    ::epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &ev);
+
+    // 尝试MOD，如果失败则ADD（首次注册）
+    if (::epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &ev) < 0)
+    {
+        if (errno == ENOENT)
+        {
+            // fd未注册，执行ADD
+            if (::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev) < 0)
+            {
+                throw std::runtime_error("Failed to call EPOLL_CTL_ADD on epoll");
+            }
+        }
+        else
+        {
+            throw std::runtime_error("Failed to call EPOLL_CTL_MOD on epoll");
+        }
+    }
 }
 
 bool Scheduler::isInOwnThread() const noexcept

@@ -14,7 +14,8 @@ namespace my_coro
 
 struct Connector
 {
-    Connector(const sockaddr * addr, socklen_t addrLen) : addr_(addr), addrLen_(addrLen)
+    Connector(const sockaddr * addr, socklen_t addrLen, IoChannel * channel)
+        : addr_(addr), addrLen_(addrLen), channel_(channel)
     {
     }
 
@@ -22,7 +23,6 @@ struct Connector
     {
         if (connecting_)
         {
-            // 第二次调用：检查连接结果
             int error = 0;
             socklen_t len = sizeof(error);
             if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
@@ -31,34 +31,38 @@ struct Connector
             }
             if (error == 0)
             {
-                return IoChannel::IoResult::Success; // 连接成功
+                channel_->disableWriting();
+                return IoChannel::IoResult::Success;
             }
             else if (error == EINPROGRESS || error == EALREADY)
             {
-                return IoChannel::IoResult::WouldBlock; // 继续等待
+                return IoChannel::IoResult::WouldBlock;
             }
             else
             {
-                return IoChannel::IoResult::Error; // 连接失败
+                return IoChannel::IoResult::Error;
             }
         }
 
         int ret = ::connect(fd, addr_, addrLen_);
         if (ret == 0)
         {
-            return IoChannel::IoResult::Success; // Connected immediately
+            channel_->disableWriting();
+            return IoChannel::IoResult::Success;
         }
         int lastErrno = errno;
         switch (lastErrno)
         {
             case EISCONN:
+                channel_->disableWriting();
                 return IoChannel::IoResult::Success;
             case EINPROGRESS:
             case EALREADY:
                 connecting_ = true;
+                channel_->enableWriting();
                 return IoChannel::IoResult::WouldBlock;
             case EINTR:
-                return IoChannel::IoResult::Retry; // 立即重试
+                return IoChannel::IoResult::Retry;
 
             default:
                 return IoChannel::IoResult::Error;
@@ -68,6 +72,7 @@ struct Connector
 private:
     const sockaddr * addr_;
     socklen_t addrLen_;
+    IoChannel * channel_;
 
     bool connecting_{ false };
 };
@@ -83,9 +88,8 @@ Task<TcpConnectionPtr> TcpConnection::connect(const sockaddr * addr, socklen_t a
     int flags = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 
-    Connector connector(addr, addrLen);
-
     auto channelPtr = std::make_unique<IoChannel>(fd, Scheduler::current());
+    Connector connector(addr, addrLen, channelPtr.get());
     co_await channelPtr->performWrite(&connector);
 
     co_return std::make_shared<TcpConnection>(std::move(channelPtr));
@@ -121,6 +125,7 @@ TcpConnection::TcpConnection(std::unique_ptr<IoChannel> channelPtr)
     : fd_(channelPtr->fd())
     , ioChannelPtr_(std::move(channelPtr))
 {
+    ioChannelPtr_->enableReading();
 }
 
 TcpConnection::~TcpConnection() = default;
@@ -135,8 +140,10 @@ Task<size_t> TcpConnection::read(void * buf, size_t len)
 Task<> TcpConnection::write(const void * buf, size_t len)
 {
     [[maybe_unused]] auto lock = co_await writeMutex_.scoped_lock();
+    ioChannelPtr_->enableWriting();
     BufferWriter writer(buf, len);
     co_await ioChannelPtr_->performWrite(&writer);
+    ioChannelPtr_->disableWriting();
 }
 
 Task<> TcpConnection::close()

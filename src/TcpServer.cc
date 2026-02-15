@@ -20,8 +20,6 @@ namespace my_coro
 TcpServer::TcpServer(Scheduler * scheduler, int port) : scheduler_(scheduler), listen_fd_(-1), port_(port), running_(false)
 {
     setup_socket();
-
-    listenChannel_ = std::make_unique<IoChannel>(listen_fd_, scheduler_, TriggerMode::LevelTriggered);
 }
 
 TcpServer::~TcpServer()
@@ -56,14 +54,6 @@ void TcpServer::setup_socket()
         close(listen_fd_);
         throw std::runtime_error(std::string("Failed to bind socket: ") + strerror(errno));
     }
-
-    if (listen(listen_fd_, 128) < 0)
-    {
-        close(listen_fd_);
-        throw std::runtime_error(std::string("Failed to listen on socket: ") + strerror(errno));
-    }
-
-    std::cout << "TcpServer listening on port " << port_ << "\n";
 }
 
 struct Acceptor
@@ -102,6 +92,15 @@ private:
 
 Task<> TcpServer::start(ConnectionHandler handler)
 {
+    if (listen(listen_fd_, 128) < 0)
+    {
+        close(listen_fd_);
+        throw std::runtime_error(std::string("Failed to listen on socket: ") + strerror(errno));
+    }
+    std::cout << "TcpServer listening on port " << port_ << "\n";
+
+    listenChannel_ = std::make_unique<IoChannel>(listen_fd_, scheduler_, TriggerMode::LevelTriggered);
+    listenChannel_->enableReading();
     running_ = true;
     while (running_)
     {
@@ -110,6 +109,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
 
         std::cout << "Accepted connection: fd=" << acceptor.clientFd() << "\n";
         auto ioChannelPtr = std::make_unique<IoChannel>(acceptor.clientFd(), scheduler_, TriggerMode::EdgeTriggered);
+        ioChannelPtr->enableReading();
         auto connPtr = std::make_shared<TcpConnection>(std::move(ioChannelPtr));
         scheduler_->spawn([handler, connPtr = std::move(connPtr)]() mutable -> Task<> {
             co_await handler(std::move(connPtr));
