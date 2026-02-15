@@ -15,15 +15,23 @@ namespace my_coro
 IoChannel::IoChannel(int fd, Scheduler * scheduler, TriggerMode mode)
     : fd_(fd), scheduler_(scheduler), triggerMode_(mode)
 {
-    scheduler_->registerIoChannel(this, [this](int fd, uint32_t ev) {
+    auto handler = [this](int fd, uint32_t ev) {
         assert(fd == fd_);
         handleIoEvents(ev);
+    };
+
+    scheduler_->spawn([this, handler = std::move(handler)]() -> Task<> {
+        scheduler_->registerIoChannel(this, std::move(handler));
+        co_return;
     });
 }
 
 IoChannel::~IoChannel()
 {
-    scheduler_->unregisterIoChannel(this);
+    scheduler_->spawn([this]() -> Task<> {
+        scheduler_->unregisterIoChannel(this);
+        co_return;
+    });
 }
 
 void IoChannel::handleIoEvents(uint32_t ev)
