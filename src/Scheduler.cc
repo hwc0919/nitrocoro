@@ -233,28 +233,35 @@ void Scheduler::updateChannel(IoChannel * channel)
 
     int fd = channel->fd();
     assert(ioChannels_.contains(fd));
-    assert(ioChannels_.at(fd).channel == channel);
+    auto & ctx = ioChannels_.at(fd);
+    assert(ctx.channel == channel);
+
+    uint32_t events = channel->events();
+    if (events == 0)
+    {
+        if (ctx.addedToEpoll)
+        {
+            epoll_event ev{};
+            if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, &ev) < 0)
+            {
+                throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
+            }
+            ctx.addedToEpoll = false;
+        }
+        return;
+    }
 
     epoll_event ev{};
-    ev.events = channel->events() | (channel->triggerMode() == TriggerMode::EdgeTriggered ? EPOLLET : 0);
+    ev.events = events | (channel->triggerMode() == TriggerMode::EdgeTriggered ? EPOLLET : 0);
     ev.data.ptr = channel;
 
-    // 尝试MOD，如果失败则ADD（首次注册）
-    if (::epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &ev) < 0)
+    int op = ctx.addedToEpoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
+    if (::epoll_ctl(epoll_fd_, op, fd, &ev) < 0)
     {
-        if (errno == ENOENT)
-        {
-            // fd未注册，执行ADD
-            if (::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev) < 0)
-            {
-                throw std::runtime_error("Failed to call EPOLL_CTL_ADD on epoll");
-            }
-        }
-        else
-        {
-            throw std::runtime_error("Failed to call EPOLL_CTL_MOD on epoll");
-        }
+        throw std::runtime_error(ctx.addedToEpoll ? "Failed to call EPOLL_CTL_MOD on epoll" : "Failed to call EPOLL_CTL_ADD on epoll");
     }
+
+    ctx.addedToEpoll = true;
 }
 
 bool Scheduler::isInOwnThread() const noexcept

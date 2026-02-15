@@ -54,6 +54,7 @@ public:
     {
         IoChannel * channel;
         IoEventHandler handler;
+        bool addedToEpoll = false;
     };
 
     Scheduler();
