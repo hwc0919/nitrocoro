@@ -70,20 +70,45 @@ public:
 
     bool isInOwnThread() const noexcept;
 
-    void registerIoChannel(IoChannel *, IoEventHandler handler);
-    void unregisterIoChannel(IoChannel *);
-    void updateChannel(IoChannel *);
+    void setIoChannelHandler(IoChannel *, IoEventHandler handler);
+    void updateIoChannel(IoChannel *);
+    void removeIoChannel(IoChannel *);
 
     TimerAwaiter sleep_for(double seconds);
     TimerAwaiter sleep_until(TimePoint when);
     SchedulerAwaiter run_here() noexcept;
 
-    void schedule(std::coroutine_handle<> coro);
-    void schedule_at(TimePoint when, std::coroutine_handle<> coro);
-
-    template <typename Coro>
-    void spawn(Coro && coro)
+    void schedule(std::coroutine_handle<> handle);
+    void schedule_at(TimePoint when, std::coroutine_handle<> handle);
+    template <typename Func>
+    void schedule(Func && func)
     {
+        ready_queue_.push(std::forward<Func>(func));
+        if (!isInOwnThread())
+        {
+            wakeup();
+        }
+    }
+
+    template <typename Func>
+    void dispatch(Func && func)
+    {
+        if (isInOwnThread())
+        {
+            std::forward<Func>(func)();
+        }
+        else
+        {
+            ready_queue_.push(std::forward<Func>(func));
+            wakeup();
+        }
+    }
+
+    template <typename Func>
+    void spawn(Func && func)
+    {
+        static_assert(is_awaitable_v<std::decay_t<decltype(func())>>);
+
         struct [[nodiscard]] FireAndForget
         {
             struct promise_type;
@@ -103,15 +128,15 @@ public:
                 std::suspend_always initial_suspend() noexcept { return {}; }
                 void unhandled_exception() { std::terminate(); }
                 void return_void() noexcept {}
+                // do not suspend at final, auto destroy
                 std::suspend_never final_suspend() const noexcept { return {}; }
             };
         };
 
-        auto task = [](std::decay_t<Coro> coro) -> FireAndForget {
-            static_assert(is_awaitable_v<std::decay_t<decltype(coro())>>);
-            co_await coro();
+        auto task = [](std::decay_t<Func> func) -> FireAndForget {
+            co_await func();
             co_return;
-        }(std::forward<Coro>(coro));
+        }(std::forward<Func>(func));
         schedule(task.handle_);
     }
 
@@ -124,25 +149,25 @@ private:
     int wakeup_fd_{ -1 };
     std::atomic<bool> running_{ false };
 
-    MpscQueue<std::coroutine_handle<>> ready_queue_;
+    MpscQueue<std::function<void()>> ready_queue_;
 
     struct Timer
     {
         TimePoint when;
-        std::coroutine_handle<> coro;
+        std::coroutine_handle<> handle;
 
         bool operator>(const Timer & other) const
         {
             return when > other.when;
         }
     };
-    std::priority_queue<Timer, std::vector<Timer>, std::greater<Timer>> timers_;
+    std::priority_queue<Timer, std::vector<Timer>, std::greater<>> timers_;
     MpscQueue<Timer> pending_timers_;
 
-    void resume_ready_coros();
-    void process_io_events(int timeout_ms);
-    void process_timers();
     int64_t get_next_timeout();
+    void process_ready_queue();
+    void process_timers();
+    void process_io_events(int timeout_ms);
     void wakeup();
 
     std::unordered_map<int, IoChannelContext> ioChannels_;

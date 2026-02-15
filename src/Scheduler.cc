@@ -72,7 +72,7 @@ void Scheduler::run()
         int timeout_ms = static_cast<int>(get_next_timeout());
         process_io_events(timeout_ms);
         process_timers();
-        resume_ready_coros();
+        process_ready_queue();
     }
 }
 
@@ -98,30 +98,30 @@ SchedulerAwaiter Scheduler::run_here() noexcept
     return SchedulerAwaiter{ this };
 }
 
-void Scheduler::schedule(std::coroutine_handle<> coro)
+void Scheduler::schedule(std::coroutine_handle<> handle)
 {
-    ready_queue_.push(coro);
+    ready_queue_.push([handle]() { handle.resume(); });
     wakeup();
 }
 
-void Scheduler::schedule_at(TimePoint when, std::coroutine_handle<> coro)
+void Scheduler::schedule_at(TimePoint when, std::coroutine_handle<> handle)
 {
-    pending_timers_.push(Timer{ when, coro });
+    pending_timers_.push(Timer{ when, handle });
     wakeup();
 }
 
-void Scheduler::resume_ready_coros()
+void Scheduler::process_ready_queue()
 {
-    while (auto coro = ready_queue_.pop())
+    while (auto func = ready_queue_.pop())
     {
-        if (!coro->done())
-            coro->resume();
+        (*func)();
     }
 }
 
 void Scheduler::process_io_events(int timeout_ms)
 {
     epoll_event events[128];
+    // TODO: abstract poller
     int n = epoll_wait(epoll_fd_, events, 128, timeout_ms);
 
     for (int i = 0; i < n; ++i)
@@ -187,7 +187,7 @@ void Scheduler::process_timers()
     {
         auto timer = std::move(timers_.top());
         timers_.pop();
-        ready_queue_.push(timer.coro);
+        ready_queue_.push([handle = timer.handle]() { handle.resume(); });
     }
 }
 
@@ -197,16 +197,70 @@ void Scheduler::wakeup()
     write(wakeup_fd_, &val, sizeof(val));
 }
 
-void Scheduler::registerIoChannel(IoChannel * channel, IoEventHandler handler)
+void Scheduler::setIoChannelHandler(IoChannel * channel, my_coro::Scheduler::IoEventHandler handler)
 {
     MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
     int fd = channel->fd();
-    assert(!ioChannels_.contains(fd));
-    ioChannels_.emplace(fd, IoChannelContext{ channel, std::move(handler) });
+    auto iter = ioChannels_.find(fd);
+    if (iter != ioChannels_.end())
+    {
+        assert(iter->second.channel == channel);
+        assert(iter->second.handler == nullptr);
+        iter->second.handler = std::move(handler);
+    }
+    else
+    {
+        ioChannels_.emplace(fd, IoChannelContext{ channel, std::move(handler) });
+    }
 }
 
-void Scheduler::unregisterIoChannel(IoChannel * channel)
+void Scheduler::updateIoChannel(IoChannel * channel)
+{
+    MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
+
+    int fd = channel->fd();
+    IoChannelContext * ctx;
+    auto iter = ioChannels_.find(fd);
+    if (iter != ioChannels_.end())
+    {
+        ctx = &iter->second;
+        assert(ctx->channel == channel);
+    }
+    else
+    {
+        ctx = &ioChannels_.emplace(fd, IoChannelContext{ channel, IoEventHandler{} }).first->second;
+    }
+
+    uint32_t events = channel->events();
+    if (events == 0)
+    {
+        if (ctx->addedToEpoll)
+        {
+            epoll_event ev{};
+            if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, &ev) < 0)
+            {
+                throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
+            }
+            ctx->addedToEpoll = false;
+        }
+        return;
+    }
+
+    epoll_event ev{};
+    ev.events = events | (channel->triggerMode() == TriggerMode::EdgeTriggered ? EPOLLET : 0);
+    ev.data.ptr = channel;
+
+    int op = ctx->addedToEpoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
+    if (::epoll_ctl(epoll_fd_, op, fd, &ev) < 0)
+    {
+        throw std::runtime_error(ctx->addedToEpoll ? "Failed to call EPOLL_CTL_MOD on epoll" : "Failed to call EPOLL_CTL_ADD on epoll");
+    }
+
+    ctx->addedToEpoll = true;
+}
+
+void Scheduler::removeIoChannel(IoChannel * channel)
 {
     MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
@@ -225,43 +279,6 @@ void Scheduler::unregisterIoChannel(IoChannel * channel)
         printf("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epoll_fd_, fd, errno);
         // throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
     }
-}
-
-void Scheduler::updateChannel(IoChannel * channel)
-{
-    MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
-
-    int fd = channel->fd();
-    assert(ioChannels_.contains(fd));
-    auto & ctx = ioChannels_.at(fd);
-    assert(ctx.channel == channel);
-
-    uint32_t events = channel->events();
-    if (events == 0)
-    {
-        if (ctx.addedToEpoll)
-        {
-            epoll_event ev{};
-            if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, &ev) < 0)
-            {
-                throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
-            }
-            ctx.addedToEpoll = false;
-        }
-        return;
-    }
-
-    epoll_event ev{};
-    ev.events = events | (channel->triggerMode() == TriggerMode::EdgeTriggered ? EPOLLET : 0);
-    ev.data.ptr = channel;
-
-    int op = ctx.addedToEpoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
-    if (::epoll_ctl(epoll_fd_, op, fd, &ev) < 0)
-    {
-        throw std::runtime_error(ctx.addedToEpoll ? "Failed to call EPOLL_CTL_MOD on epoll" : "Failed to call EPOLL_CTL_ADD on epoll");
-    }
-
-    ctx.addedToEpoll = true;
 }
 
 bool Scheduler::isInOwnThread() const noexcept

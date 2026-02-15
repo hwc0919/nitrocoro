@@ -15,22 +15,18 @@ namespace my_coro
 IoChannel::IoChannel(int fd, Scheduler * scheduler, TriggerMode mode)
     : fd_(fd), scheduler_(scheduler), triggerMode_(mode)
 {
-    auto handler = [this](int fd, uint32_t ev) {
-        assert(fd == fd_);
-        handleIoEvents(ev);
-    };
-
-    scheduler_->spawn([this, handler = std::move(handler)]() -> Task<> {
-        scheduler_->registerIoChannel(this, std::move(handler));
-        co_return;
+    scheduler_->schedule([this]() {
+        scheduler_->setIoChannelHandler(this, [this](int fd, uint32_t ev) {
+            assert(fd == fd_);
+            handleIoEvents(ev);
+        });
     });
 }
 
 IoChannel::~IoChannel()
 {
-    scheduler_->spawn([this]() -> Task<> {
-        scheduler_->unregisterIoChannel(this);
-        co_return;
+    scheduler_->schedule([this]() {
+        scheduler_->removeIoChannel(this);
     });
 }
 
@@ -130,7 +126,7 @@ void IoChannel::enableReading()
     if (!(events_ & EPOLLIN))
     {
         events_ |= EPOLLIN;
-        scheduler_->updateChannel(this);
+        scheduler_->updateIoChannel(this);
     }
 }
 
@@ -139,7 +135,7 @@ void IoChannel::disableReading()
     if (events_ & EPOLLIN)
     {
         events_ &= ~EPOLLIN;
-        scheduler_->updateChannel(this);
+        scheduler_->updateIoChannel(this);
     }
 }
 
@@ -148,7 +144,7 @@ void IoChannel::enableWriting()
     if (!(events_ & EPOLLOUT))
     {
         events_ |= EPOLLOUT;
-        scheduler_->updateChannel(this);
+        scheduler_->updateIoChannel(this);
     }
 }
 
@@ -157,7 +153,7 @@ void IoChannel::disableWriting()
     if (events_ & EPOLLOUT)
     {
         events_ &= ~EPOLLOUT;
-        scheduler_->updateChannel(this);
+        scheduler_->updateIoChannel(this);
     }
 }
 
