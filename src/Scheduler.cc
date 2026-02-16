@@ -243,6 +243,7 @@ void Scheduler::updateIoChannel(const std::shared_ptr<io::IoChannel> & channel)
             epoll_event ev{};
             if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, &ev) < 0)
             {
+                perror("epoll_ctl error");
                 throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
             }
             ctx->addedToEpoll = false;
@@ -268,15 +269,19 @@ void Scheduler::removeIoChannel(uint64_t id)
     NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
     assert(ioChannels_.contains(id));
-    int fd = ioChannels_.at(id).fd;
+    auto ctx = std::move(ioChannels_.at(id));
     ioChannels_.erase(id);
 
+    if (!ctx.addedToEpoll)
+    {
+        return;
+    }
     epoll_event ev{};
     ev.events = 0;
     ev.data.u64 = id;
-    if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, &ev) < 0)
+    if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, ctx.fd, &ev) < 0)
     {
-        printf("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epoll_fd_, fd, errno);
+        printf("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epoll_fd_, ctx.fd, errno);
         // throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
     }
 }

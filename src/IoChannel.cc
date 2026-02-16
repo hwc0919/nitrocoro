@@ -2,10 +2,10 @@
  * @file IoChannel.cc
  * @brief Implementation of IoChannel
  */
-#include <nitro_coro/io/IoChannel.h>
-#include <nitro_coro/core/Scheduler.h>
 #include <arpa/inet.h>
 #include <cstring>
+#include <nitro_coro/core/Scheduler.h>
+#include <nitro_coro/io/IoChannel.h>
 #include <sys/epoll.h>
 
 namespace nitro_coro::io
@@ -171,6 +171,31 @@ void IoChannel::disableWriting()
     {
         events_ &= ~EPOLLOUT;
         scheduler_->updateIoChannel(shared_from_this());
+    }
+}
+
+void IoChannel::disableAll()
+{
+    if (events_ != 0)
+    {
+        events_ = 0;
+        scheduler_->updateIoChannel(shared_from_this());
+    }
+}
+
+void IoChannel::cancel()
+{
+    if (readableWaiter_)
+    {
+        auto h = readableWaiter_;
+        readableWaiter_ = nullptr;
+        scheduler_->schedule(h);
+    }
+    if (writableWaiter_)
+    {
+        auto h = writableWaiter_;
+        writableWaiter_ = nullptr;
+        scheduler_->schedule(h);
     }
 }
 

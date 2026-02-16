@@ -96,6 +96,8 @@ private:
 
 Task<> TcpServer::start(ConnectionHandler handler)
 {
+    co_await scheduler_->run_here();
+
     if (listen(listen_fd_, 128) < 0)
     {
         close(listen_fd_);
@@ -106,24 +108,59 @@ Task<> TcpServer::start(ConnectionHandler handler)
     listenChannel_ = IoChannel::create(listen_fd_, scheduler_, TriggerMode::LevelTriggered);
     listenChannel_->enableReading();
     running_ = true;
-    while (running_)
+    [[maybe_unused]] auto lock = co_await closeMutex_.scoped_lock();
+    while (running_.load())
     {
         Acceptor acceptor;
-        co_await listenChannel_->performRead(&acceptor);
+        try
+        {
+            co_await listenChannel_->performRead(&acceptor);
+        }
+        catch (const std::exception & e)
+        {
+            std::cout << "Accept error: " << e.what() << "\n";
+            break;
+        }
 
         std::cout << "Accepted connection: fd=" << acceptor.clientFd() << "\n";
         auto ioChannelPtr = IoChannel::create(acceptor.clientFd(), scheduler_, TriggerMode::EdgeTriggered);
         ioChannelPtr->enableReading();
         auto connPtr = std::make_shared<TcpConnection>(std::move(ioChannelPtr));
         scheduler_->spawn([handler, connPtr = std::move(connPtr)]() mutable -> Task<> {
-            co_await handler(std::move(connPtr));
+            try
+            {
+                co_await handler(std::move(connPtr));
+            }
+            catch (...)
+            {
+                printf("Exception escaped from TcpServer handler");
+            }
         });
     }
+    listenChannel_->disableAll();
+    if (listen_fd_ >= 0)
+    {
+        ::close(listen_fd_);
+        listen_fd_ = -1;
+    }
+    printf("TcpServer::start() quit\n");
 }
 
-void TcpServer::stop()
+Task<> TcpServer::stop()
 {
-    running_ = false;
+    if (!running_.exchange(false))
+        co_return;
+
+    co_await scheduler_->run_here();
+    printf("TcpServer::stop() requested\n");
+    listenChannel_->disableAll();
+    listenChannel_->cancel();
+    if (listen_fd_ >= 0)
+    {
+        ::close(listen_fd_);
+        listen_fd_ = -1;
+    }
+    [[maybe_unused]] auto lock = co_await closeMutex_.scoped_lock();
 }
 
 } // namespace nitro_coro::net

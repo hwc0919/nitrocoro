@@ -53,11 +53,13 @@ public:
     TriggerMode triggerMode() const { return triggerMode_; }
     uint32_t events() const { return events_; }
 
-    // Following 4 functions MUST be called from Scheduler's thread
+    // Following methods MUST be called from Scheduler's thread
     void enableReading();
-    void disableReading();
     void enableWriting();
+    void disableReading();
     void disableWriting();
+    void disableAll();
+    void cancel();
 
     enum class IoResult
     {

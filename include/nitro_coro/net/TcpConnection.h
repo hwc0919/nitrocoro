@@ -4,16 +4,16 @@
  */
 #pragma once
 
-#include <nitro_coro/core/Mutex.h>
-#include <nitro_coro/io/IoChannel.h>
-#include <nitro_coro/core/Task.h>
 #include <netinet/in.h>
+#include <nitro_coro/core/Mutex.h>
+#include <nitro_coro/core/Task.h>
+#include <nitro_coro/io/IoChannel.h>
 
 namespace nitro_coro::net
 {
 
-using nitro_coro::Task;
 using nitro_coro::Mutex;
+using nitro_coro::Task;
 using nitro_coro::io::IoChannel;
 class TcpConnection;
 using TcpConnectionPtr = std::shared_ptr<TcpConnection>;
@@ -42,8 +42,7 @@ public:
     Task<> write(const void * buf, size_t len);
 
     Task<> close();
-    Task<> finishWriteAndClose();
-    bool is_open() const { return fd_ >= 0; }
+    bool isOpen() const { return fd_ >= 0; }
 
 private:
     int fd_;

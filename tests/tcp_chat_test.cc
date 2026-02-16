@@ -2,16 +2,16 @@
  * @file tcp_chat_test.cc
  * @brief Test program for TCP chat room
  */
-#include <nitro_coro/core/Mutex.h>
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/net/TcpConnection.h>
-#include <nitro_coro/net/TcpServer.h>
-#include <nitro_coro/io/adapters/BufferReader.h>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
 #include <memory>
+#include <nitro_coro/core/Mutex.h>
+#include <nitro_coro/core/Scheduler.h>
+#include <nitro_coro/io/adapters/BufferReader.h>
+#include <nitro_coro/net/TcpConnection.h>
+#include <nitro_coro/net/TcpServer.h>
 #include <random>
 #include <unistd.h>
 #include <unordered_map>
@@ -60,7 +60,7 @@ Task<> broadcast(const std::string & message, std::shared_ptr<TcpConnection> sen
     co_return;
 }
 
-Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
+Task<bool> chat_handler(std::shared_ptr<TcpConnection> conn)
 {
     char buf[BUFFER_SIZE];
     std::string username;
@@ -79,6 +79,7 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
     }
     std::cout << username << " joined\n";
 
+    bool closeServer{ false };
     // Broadcast messages
     while (true)
     {
@@ -93,6 +94,13 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
         }
         assert(n > 0);
         buf[n] = '\0';
+
+        if (strncmp(buf, "close\n", n) == 0)
+        {
+            printf("User %s request close\n", username.c_str());
+            closeServer = true;
+            break;
+        }
         std::string msg = username + ": " + buf;
         std::cout << msg << std::endl;
         co_await broadcast(msg, conn);
@@ -108,12 +116,21 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
             clients.erase(it);
         }
     }
+
+    co_return closeServer;
 }
 
 Task<> tcp_server_main(int port, Scheduler * scheduler)
 {
     TcpServer server(scheduler, port);
-    co_await server.start(chat_handler);
+    co_await server.start([&server](TcpConnectionPtr conn) -> Task<> {
+        auto closeServer = co_await chat_handler(std::move(conn));
+        if (closeServer)
+        {
+            co_await server.stop();
+            Scheduler::current()->stop();
+        }
+    });
 }
 
 Task<> receive_messages(const TcpConnectionPtr & connPtr)

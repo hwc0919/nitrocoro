@@ -2,20 +2,20 @@
  * @file TcpConnection.cc
  * @brief Implementation of TcpConnection
  */
-#include <nitro_coro/net/TcpConnection.h>
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/io/adapters/BufferReader.h>
-#include <nitro_coro/io/adapters/BufferWriter.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <iostream>
+#include <nitro_coro/core/Scheduler.h>
+#include <nitro_coro/io/adapters/BufferReader.h>
+#include <nitro_coro/io/adapters/BufferWriter.h>
+#include <nitro_coro/net/TcpConnection.h>
 #include <unistd.h>
 
 namespace nitro_coro::net
 {
 
-using nitro_coro::Task;
 using nitro_coro::Scheduler;
+using nitro_coro::Task;
 using nitro_coro::io::IoChannel;
 using nitro_coro::io::adapters::BufferReader;
 using nitro_coro::io::adapters::BufferWriter;
@@ -153,13 +153,15 @@ Task<> TcpConnection::write(const void * buf, size_t len)
 
 Task<> TcpConnection::close()
 {
-    // TODO
-    co_return;
-}
+    if (fd_ < 0)
+        co_return;
 
-Task<> TcpConnection::finishWriteAndClose()
-{
-    // TODO
+    co_await ioChannelPtr_->scheduler()->run_here();
+    ioChannelPtr_->disableReading();
+    ioChannelPtr_->disableWriting();
+    ::close(fd_);
+    fd_ = -1;
+
     co_return;
 }
 

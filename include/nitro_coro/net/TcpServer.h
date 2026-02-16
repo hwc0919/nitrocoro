@@ -4,17 +4,19 @@
  */
 #pragma once
 
+#include <nitro_coro/core/Mutex.h>
 #include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/core/Task.h>
 #include <nitro_coro/net/TcpConnection.h>
+
 #include <functional>
 #include <memory>
 
 namespace nitro_coro::net
 {
 
-using nitro_coro::Task;
 using nitro_coro::Scheduler;
+using nitro_coro::Task;
 using nitro_coro::io::IoChannel;
 
 class TcpServer
@@ -26,13 +28,14 @@ public:
     ~TcpServer();
 
     Task<> start(ConnectionHandler handler);
-    void stop();
+    Task<> stop();
 
 private:
     Scheduler * scheduler_;
     int listen_fd_;
     int port_;
-    bool running_; // TODO
+    std::atomic_bool running_{ false };
+    Mutex closeMutex_;
 
     std::shared_ptr<IoChannel> listenChannel_;
 
