@@ -134,12 +134,13 @@ Task<> TcpServer::start(ConnectionHandler handler)
         scheduler_->spawn([handler, connPtr = std::move(connPtr)]() mutable -> Task<> {
             try
             {
-                co_await handler(std::move(connPtr));
+                co_await handler(connPtr);
             }
             catch (...)
             {
                 printf("Exception escaped from TcpServer handler");
             }
+            co_await connPtr->close();
         });
     }
     listenChannel_->disableAll();
