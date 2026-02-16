@@ -14,13 +14,17 @@
 #include <unordered_set>
 
 #include <nitro_coro/core/CoroTraits.h>
-#include <nitro_coro/sync/MpscQueue.h>
+#include <nitro_coro/core/MpscQueue.h>
 
 namespace nitro_coro
 {
-class Scheduler;
+
+namespace io
+{
 class IoChannel;
-using IoChannelPtr = std::shared_ptr<IoChannel>;
+}
+
+class Scheduler;
 
 using TimePoint = std::chrono::steady_clock::time_point;
 
@@ -55,7 +59,7 @@ public:
     {
         uint64_t id;
         int fd;
-        std::weak_ptr<IoChannel> weakChannel;
+        std::weak_ptr<io::IoChannel> weakChannel;
         IoEventHandler handler;
         bool addedToEpoll = false;
     };
@@ -73,8 +77,8 @@ public:
 
     bool isInOwnThread() const noexcept;
 
-    void setIoChannelHandler(const IoChannelPtr & channel, IoEventHandler handler);
-    void updateIoChannel(const IoChannelPtr & channel);
+    void setIoChannelHandler(const std::shared_ptr<io::IoChannel> & channel, IoEventHandler handler);
+    void updateIoChannel(const std::shared_ptr<io::IoChannel> & channel);
     void removeIoChannel(uint64_t id);
 
     TimerAwaiter sleep_for(double seconds);
@@ -175,7 +179,7 @@ private:
 
     std::unordered_map<uint64_t, IoChannelContext> ioChannels_;
 
-    std::shared_ptr<IoChannel> wakeupChannel_;
+    std::shared_ptr<io::IoChannel> wakeupChannel_;
 };
 
 } // namespace nitro_coro

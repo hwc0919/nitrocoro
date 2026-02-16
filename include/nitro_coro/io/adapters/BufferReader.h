@@ -3,8 +3,10 @@
 #include <nitro_coro/io/IoChannel.h>
 #include <unistd.h>
 
-namespace nitro_coro
+namespace nitro_coro::io::adapters
 {
+
+using nitro_coro::io::IoChannel;
 
 // BufferReader never calls enable/disableReading, it assumes that
 // the reading event is enabled by user and won't be disabled.
@@ -53,4 +55,4 @@ private:
     size_t readLen_{ 0 };
 };
 
-} // namespace nitro_coro
+} // namespace nitro_coro::io::adapters

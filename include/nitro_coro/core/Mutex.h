@@ -1,9 +1,9 @@
 #pragma once
-#include <nitro_coro/core/Scheduler.h>
 #include <atomic>
 #include <cassert>
 #include <coroutine>
 #include <mutex>
+#include <nitro_coro/core/Scheduler.h>
 
 namespace nitro_coro
 {

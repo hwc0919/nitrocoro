@@ -10,6 +10,7 @@
 #include <iostream>
 
 using namespace nitro_coro;
+using namespace nitro_coro::net;
 
 #define BUFFER_SIZE 8
 

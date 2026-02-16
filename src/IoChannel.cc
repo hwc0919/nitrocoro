@@ -8,8 +8,10 @@
 #include <cstring>
 #include <sys/epoll.h>
 
-namespace nitro_coro
+namespace nitro_coro::io
 {
+
+using nitro_coro::Scheduler;
 
 IoChannelPtr IoChannel::create(int fd, Scheduler * scheduler, TriggerMode mode)
 {
@@ -172,4 +174,4 @@ void IoChannel::disableWriting()
     }
 }
 
-} // namespace nitro_coro
+} // namespace nitro_coro::io

@@ -15,15 +15,6 @@ namespace nitro_coro
 template <typename T>
 class MpscQueue
 {
-    struct Node
-    {
-        T value;
-        std::atomic<Node *> next;
-
-        Node() : value{}, next(nullptr) {}
-        explicit Node(T val) : value(std::move(val)), next(nullptr) {}
-    };
-
 public:
     MpscQueue()
     {
@@ -71,6 +62,15 @@ public:
     }
 
 private:
+    struct Node
+    {
+        T value;
+        std::atomic<Node *> next;
+
+        Node() : value{}, next(nullptr) {}
+        explicit Node(T val) : value(std::move(val)), next(nullptr) {}
+    };
+
     /* alignas(64) */ std::atomic<Node *> head_;
     /* alignas(64) */ std::atomic<Node *> tail_;
 };

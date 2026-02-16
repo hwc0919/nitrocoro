@@ -3,8 +3,10 @@
 #include <nitro_coro/io/IoChannel.h>
 #include <unistd.h>
 
-namespace nitro_coro
+namespace nitro_coro::io::adapters
 {
+
+using nitro_coro::io::IoChannel;
 
 // BufferWriter calls enable/disableWriting only when needed, it assumes
 // that user don't enable/disable write event manually.
@@ -63,4 +65,4 @@ private:
     ssize_t wroteLen_{ 0 };
 };
 
-} // namespace nitro_coro
+} // namespace nitro_coro::io::adapters

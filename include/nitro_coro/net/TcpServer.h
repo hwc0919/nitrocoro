@@ -4,13 +4,18 @@
  */
 #pragma once
 
+#include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/core/Task.h>
 #include <nitro_coro/net/TcpConnection.h>
 #include <functional>
 #include <memory>
 
-namespace nitro_coro
+namespace nitro_coro::net
 {
+
+using nitro_coro::Task;
+using nitro_coro::Scheduler;
+using nitro_coro::io::IoChannel;
 
 class TcpServer
 {
@@ -34,4 +39,4 @@ private:
     void setup_socket();
 };
 
-} // namespace nitro_coro
+} // namespace nitro_coro::net

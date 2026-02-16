@@ -2,17 +2,17 @@
  * @file CoroScheduler.cc
  * @brief Native coroutine scheduler implementation
  */
-#include <nitro_coro/io/IoChannel.h>
-#include <nitro_coro/core/Scheduler.h>
 #include <cassert>
 #include <csignal>
 #include <cstring>
+#include <nitro_coro/core/Scheduler.h>
+#include <nitro_coro/io/IoChannel.h>
 #include <stdexcept>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
 
-#define MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD() \
+#define NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD() \
     assert(isInOwnThread() && "Must be called in its own thread")
 
 namespace nitro_coro
@@ -62,7 +62,7 @@ Scheduler * Scheduler::current() noexcept
 void Scheduler::run()
 {
     thread_id_ = std::this_thread::get_id();
-    wakeupChannel_ = IoChannel::create(wakeup_fd_, this);
+    wakeupChannel_ = io::IoChannel::create(wakeup_fd_, this);
     wakeupChannel_->enableReading();
 
     running_.store(true, std::memory_order_release);
@@ -199,9 +199,9 @@ void Scheduler::wakeup()
     write(wakeup_fd_, &val, sizeof(val));
 }
 
-void Scheduler::setIoChannelHandler(const IoChannelPtr & channel, my_coro::Scheduler::IoEventHandler handler)
+void Scheduler::setIoChannelHandler(const std::shared_ptr<io::IoChannel> & channel, Scheduler::IoEventHandler handler)
 {
-    MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
+    NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
     uint64_t id = channel->id();
     int fd = channel->fd();
@@ -217,9 +217,9 @@ void Scheduler::setIoChannelHandler(const IoChannelPtr & channel, my_coro::Sched
     }
 }
 
-void Scheduler::updateIoChannel(const IoChannelPtr & channel)
+void Scheduler::updateIoChannel(const std::shared_ptr<io::IoChannel> & channel)
 {
-    MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
+    NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
     uint64_t id = channel->id();
     int fd = channel->fd();
@@ -251,7 +251,7 @@ void Scheduler::updateIoChannel(const IoChannelPtr & channel)
     }
 
     epoll_event ev{};
-    ev.events = events | (channel->triggerMode() == TriggerMode::EdgeTriggered ? EPOLLET : 0);
+    ev.events = events | (channel->triggerMode() == io::TriggerMode::EdgeTriggered ? EPOLLET : 0);
     ev.data.u64 = id;
 
     int op = ctx->addedToEpoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
@@ -265,7 +265,7 @@ void Scheduler::updateIoChannel(const IoChannelPtr & channel)
 
 void Scheduler::removeIoChannel(uint64_t id)
 {
-    MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
+    NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
     assert(ioChannels_.contains(id));
     int fd = ioChannels_.at(id).fd;

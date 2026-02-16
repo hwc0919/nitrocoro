@@ -21,10 +21,11 @@
 #include <memory>
 #include <queue>
 
-namespace nitro_coro
+namespace nitro_coro::io
 {
 
-class Scheduler;
+using nitro_coro::Scheduler;
+using nitro_coro::Task;
 
 enum class TriggerMode
 {
@@ -223,4 +224,4 @@ private:
     std::coroutine_handle<> writableWaiter_;
 };
 
-} // namespace nitro_coro
+} // namespace nitro_coro::io

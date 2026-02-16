@@ -11,8 +11,14 @@
 #include <iostream>
 #include <unistd.h>
 
-namespace nitro_coro
+namespace nitro_coro::net
 {
+
+using nitro_coro::Task;
+using nitro_coro::Scheduler;
+using nitro_coro::io::IoChannel;
+using nitro_coro::io::adapters::BufferReader;
+using nitro_coro::io::adapters::BufferWriter;
 
 struct Connector
 {
@@ -157,4 +163,4 @@ Task<> TcpConnection::finishWriteAndClose()
     co_return;
 }
 
-} // namespace nitro_coro
+} // namespace nitro_coro::net
