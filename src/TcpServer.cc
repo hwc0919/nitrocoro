@@ -21,7 +21,13 @@ using nitro_coro::Task;
 using nitro_coro::io::IoChannel;
 using nitro_coro::io::TriggerMode;
 
-TcpServer::TcpServer(Scheduler * scheduler, int port) : scheduler_(scheduler), listen_fd_(-1), port_(port), running_(false)
+TcpServer::TcpServer(Scheduler * scheduler, int port)
+    : scheduler_(scheduler)
+    , listenChannel_(nullptr)
+    , listen_fd_(-1)
+    , port_(port)
+    , running_(false)
+    , stopPromise_(scheduler)
 {
     setup_socket();
 }
@@ -108,7 +114,6 @@ Task<> TcpServer::start(ConnectionHandler handler)
     listenChannel_ = IoChannel::create(listen_fd_, scheduler_, TriggerMode::LevelTriggered);
     listenChannel_->enableReading();
     running_ = true;
-    [[maybe_unused]] auto lock = co_await closeMutex_.scoped_lock();
     while (running_.load())
     {
         Acceptor acceptor;
@@ -143,6 +148,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
         ::close(listen_fd_);
         listen_fd_ = -1;
     }
+    stopPromise_.set_value();
     printf("TcpServer::start() quit\n");
 }
 
@@ -154,7 +160,7 @@ Task<> TcpServer::stop()
     co_await scheduler_->run_here();
     printf("TcpServer::stop() requested\n");
     listenChannel_->cancelAll();
-    [[maybe_unused]] auto lock = co_await closeMutex_.scoped_lock();
+    co_await stopPromise_.get_future().get();
 }
 
 } // namespace nitro_coro::net

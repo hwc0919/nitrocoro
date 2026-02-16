@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <nitro_coro/core/Future.h>
 #include <nitro_coro/core/Mutex.h>
 #include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/core/Task.h>
@@ -35,7 +36,7 @@ private:
     int listen_fd_;
     int port_;
     std::atomic_bool running_{ false };
-    Mutex closeMutex_;
+    Promise<> stopPromise_;
 
     std::shared_ptr<IoChannel> listenChannel_;
 
