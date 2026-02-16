@@ -1,3 +1,15 @@
+/**
+ * @file Mutex.h
+ * @brief Coroutine-aware mutex implementation
+ *
+ * This implementation is adapted from the Drogon framework:
+ * https://github.com/drogonframework/drogon/pull/2095
+ * Original author: fantasy-peak (https://github.com/fantasy-peak)
+ *
+ * A lock-free mutex designed for C++20 coroutines that suspends waiting
+ * coroutines instead of blocking threads.
+ */
+
 #pragma once
 #include <atomic>
 #include <cassert>
