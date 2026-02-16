@@ -13,10 +13,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "CoroTraits.h"
-#include "MpscQueue.h"
+#include <nitro_coro/core/CoroTraits.h>
+#include <nitro_coro/sync/MpscQueue.h>
 
-namespace my_coro
+namespace nitro_coro
 {
 class Scheduler;
 class IoChannel;
@@ -178,4 +178,4 @@ private:
     std::shared_ptr<IoChannel> wakeupChannel_;
 };
 
-} // namespace my_coro
+} // namespace nitro_coro

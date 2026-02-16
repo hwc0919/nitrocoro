@@ -2,14 +2,14 @@
  * @file tcp_test.cc
  * @brief Test program for TcpServer component
  */
-#include "Scheduler.h"
-#include "TcpConnection.h"
-#include "TcpServer.h"
+#include <nitro_coro/core/Scheduler.h>
+#include <nitro_coro/net/TcpConnection.h>
+#include <nitro_coro/net/TcpServer.h>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 
-using namespace my_coro;
+using namespace nitro_coro;
 
 #define BUFFER_SIZE 8
 

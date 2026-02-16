@@ -2,7 +2,7 @@
 
 #include <functional>
 
-namespace my_coro
+namespace nitro_coro
 {
 
 namespace detail
@@ -63,4 +63,4 @@ struct is_awaitable<
 template <typename T>
 constexpr bool is_awaitable_v = is_awaitable<T>::value;
 
-} // namespace my_coro
+} // namespace nitro_coro

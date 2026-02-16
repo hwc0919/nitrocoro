@@ -2,11 +2,11 @@
  * @file tcp_chat_test.cc
  * @brief Test program for TCP chat room
  */
-#include "Mutex.h"
-#include "Scheduler.h"
-#include "TcpConnection.h"
-#include "TcpServer.h"
-#include "io_adapters/BufferReader.h"
+#include <nitro_coro/sync/Mutex.h>
+#include <nitro_coro/core/Scheduler.h>
+#include <nitro_coro/net/TcpConnection.h>
+#include <nitro_coro/net/TcpServer.h>
+#include <nitro_coro/io/adapters/BufferReader.h>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
@@ -16,7 +16,7 @@
 #include <unistd.h>
 #include <unordered_map>
 
-using namespace my_coro;
+using namespace nitro_coro;
 
 #define BUFFER_SIZE 1024
 

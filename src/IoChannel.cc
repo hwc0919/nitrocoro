@@ -2,13 +2,13 @@
  * @file IoChannel.cc
  * @brief Implementation of IoChannel
  */
-#include "IoChannel.h"
-#include "Scheduler.h"
+#include <nitro_coro/io/IoChannel.h>
+#include <nitro_coro/core/Scheduler.h>
 #include <arpa/inet.h>
 #include <cstring>
 #include <sys/epoll.h>
 
-namespace my_coro
+namespace nitro_coro
 {
 
 IoChannelPtr IoChannel::create(int fd, Scheduler * scheduler, TriggerMode mode)
@@ -172,4 +172,4 @@ void IoChannel::disableWriting()
     }
 }
 
-} // namespace my_coro
+} // namespace nitro_coro

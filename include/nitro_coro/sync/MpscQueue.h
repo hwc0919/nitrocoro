@@ -9,7 +9,7 @@
 #include <optional>
 #include <utility>
 
-namespace my_coro
+namespace nitro_coro
 {
 
 template <typename T>
@@ -75,4 +75,4 @@ private:
     /* alignas(64) */ std::atomic<Node *> tail_;
 };
 
-} // namespace my_coro
+} // namespace nitro_coro

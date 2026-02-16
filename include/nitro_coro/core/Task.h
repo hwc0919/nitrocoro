@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace my_coro
+namespace nitro_coro
 {
 
 template <typename PromiseType>
@@ -164,4 +164,4 @@ struct [[nodiscard]] Task<void>
     auto operator co_await() { return TaskAwaiter{ handle_ }; }
 };
 
-} // namespace my_coro
+} // namespace nitro_coro

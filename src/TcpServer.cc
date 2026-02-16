@@ -2,9 +2,9 @@
  * @file TcpServer.cc
  * @brief Implementation of coroutine-based TCP server
  */
-#include "TcpServer.h"
-#include "Scheduler.h"
-#include "TcpConnection.h"
+#include <nitro_coro/net/TcpServer.h>
+#include <nitro_coro/core/Scheduler.h>
+#include <nitro_coro/net/TcpConnection.h>
 
 #include <cstring>
 #include <fcntl.h>
@@ -14,7 +14,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-namespace my_coro
+namespace nitro_coro
 {
 
 TcpServer::TcpServer(Scheduler * scheduler, int port) : scheduler_(scheduler), listen_fd_(-1), port_(port), running_(false)
@@ -122,4 +122,4 @@ void TcpServer::stop()
     running_ = false;
 }
 
-} // namespace my_coro
+} // namespace nitro_coro

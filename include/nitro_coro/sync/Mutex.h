@@ -1,11 +1,11 @@
 #pragma once
-#include "Scheduler.h"
+#include <nitro_coro/core/Scheduler.h>
 #include <atomic>
 #include <cassert>
 #include <coroutine>
 #include <mutex>
 
-namespace my_coro
+namespace nitro_coro
 {
 
 class Mutex final
@@ -181,4 +181,4 @@ private:
     CoroMutexAwaiter * waiters_;
 };
 
-} // namespace my_coro
+} // namespace nitro_coro

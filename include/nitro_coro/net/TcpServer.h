@@ -4,12 +4,12 @@
  */
 #pragma once
 
-#include "Task.h"
-#include "TcpConnection.h"
+#include <nitro_coro/core/Task.h>
+#include <nitro_coro/net/TcpConnection.h>
 #include <functional>
 #include <memory>
 
-namespace my_coro
+namespace nitro_coro
 {
 
 class TcpServer
@@ -34,4 +34,4 @@ private:
     void setup_socket();
 };
 
-} // namespace my_coro
+} // namespace nitro_coro

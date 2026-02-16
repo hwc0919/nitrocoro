@@ -4,12 +4,12 @@
  */
 #pragma once
 
-#include "IoChannel.h"
-#include "Mutex.h"
-#include "Task.h"
+#include <nitro_coro/io/IoChannel.h>
+#include <nitro_coro/sync/Mutex.h>
+#include <nitro_coro/core/Task.h>
 #include <netinet/in.h>
 
-namespace my_coro
+namespace nitro_coro
 {
 class TcpConnection;
 using TcpConnectionPtr = std::shared_ptr<TcpConnection>;
@@ -47,4 +47,4 @@ private:
     Mutex writeMutex_;
 };
 
-} // namespace my_coro
+} // namespace nitro_coro

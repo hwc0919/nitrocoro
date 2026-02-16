@@ -1,9 +1,9 @@
 #pragma once
 
-#include "IoChannel.h"
+#include <nitro_coro/io/IoChannel.h>
 #include <unistd.h>
 
-namespace my_coro
+namespace nitro_coro
 {
 
 // BufferWriter calls enable/disableWriting only when needed, it assumes
@@ -63,4 +63,4 @@ private:
     ssize_t wroteLen_{ 0 };
 };
 
-} // namespace my_coro
+} // namespace nitro_coro

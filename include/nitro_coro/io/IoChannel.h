@@ -15,13 +15,13 @@
  */
 #pragma once
 
-#include "Scheduler.h"
-#include "Task.h"
+#include <nitro_coro/core/Scheduler.h>
+#include <nitro_coro/core/Task.h>
 #include <coroutine>
 #include <memory>
 #include <queue>
 
-namespace my_coro
+namespace nitro_coro
 {
 
 class Scheduler;
@@ -223,4 +223,4 @@ private:
     std::coroutine_handle<> writableWaiter_;
 };
 
-} // namespace my_coro
+} // namespace nitro_coro

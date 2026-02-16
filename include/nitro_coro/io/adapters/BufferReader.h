@@ -1,9 +1,9 @@
 #pragma once
 
-#include "IoChannel.h"
+#include <nitro_coro/io/IoChannel.h>
 #include <unistd.h>
 
-namespace my_coro
+namespace nitro_coro
 {
 
 // BufferReader never calls enable/disableReading, it assumes that
@@ -53,4 +53,4 @@ private:
     size_t readLen_{ 0 };
 };
 
-} // namespace my_coro
+} // namespace nitro_coro

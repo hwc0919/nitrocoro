@@ -2,8 +2,8 @@
  * @file CoroScheduler.cc
  * @brief Native coroutine scheduler implementation
  */
-#include <IoChannel.h>
-#include <Scheduler.h>
+#include <nitro_coro/io/IoChannel.h>
+#include <nitro_coro/core/Scheduler.h>
 #include <cassert>
 #include <csignal>
 #include <cstring>
@@ -15,7 +15,7 @@
 #define MYCORO_SCHEDULER_ASSERT_IN_OWN_THREAD() \
     assert(isInOwnThread() && "Must be called in its own thread")
 
-namespace my_coro
+namespace nitro_coro
 {
 
 static constexpr int64_t kDefaultTimeoutMs = 10000;
@@ -301,4 +301,4 @@ void SchedulerAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
     scheduler_->schedule(h);
 }
 
-} // namespace my_coro
+} // namespace nitro_coro

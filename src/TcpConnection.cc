@@ -2,16 +2,16 @@
  * @file TcpConnection.cc
  * @brief Implementation of TcpConnection
  */
-#include "TcpConnection.h"
-#include "Scheduler.h"
-#include "io_adapters/BufferReader.h"
-#include "io_adapters/BufferWriter.h"
+#include <nitro_coro/net/TcpConnection.h>
+#include <nitro_coro/core/Scheduler.h>
+#include <nitro_coro/io/adapters/BufferReader.h>
+#include <nitro_coro/io/adapters/BufferWriter.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <iostream>
 #include <unistd.h>
 
-namespace my_coro
+namespace nitro_coro
 {
 
 struct Connector
@@ -157,4 +157,4 @@ Task<> TcpConnection::finishWriteAndClose()
     co_return;
 }
 
-} // namespace my_coro
+} // namespace nitro_coro
