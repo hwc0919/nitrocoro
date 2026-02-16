@@ -112,8 +112,13 @@ bool IoChannel::ReadableAwaiter::await_suspend(std::coroutine_handle<> h) noexce
     }
 }
 
-void IoChannel::ReadableAwaiter::await_resume() noexcept
+void IoChannel::ReadableAwaiter::await_resume()
 {
+    if (channel_->readCanceled_)
+    {
+        channel_->readCanceled_ = false;
+        throw std::runtime_error("Read canceled");
+    }
 }
 
 bool IoChannel::WritableAwaiter::await_ready() noexcept
@@ -134,8 +139,13 @@ bool IoChannel::WritableAwaiter::await_suspend(std::coroutine_handle<> h) noexce
     }
 }
 
-void IoChannel::WritableAwaiter::await_resume() noexcept
+void IoChannel::WritableAwaiter::await_resume()
 {
+    if (channel_->writeCanceled_)
+    {
+        channel_->writeCanceled_ = false;
+        throw std::runtime_error("Write canceled");
+    }
 }
 
 void IoChannel::enableReading()
@@ -183,20 +193,32 @@ void IoChannel::disableAll()
     }
 }
 
-void IoChannel::cancel()
+void IoChannel::cancelRead()
 {
     if (readableWaiter_)
     {
+        readCanceled_ = true;
         auto h = readableWaiter_;
         readableWaiter_ = nullptr;
         scheduler_->schedule(h);
     }
+}
+
+void IoChannel::cancelWrite()
+{
     if (writableWaiter_)
     {
+        writeCanceled_ = true;
         auto h = writableWaiter_;
         writableWaiter_ = nullptr;
         scheduler_->schedule(h);
     }
+}
+
+void IoChannel::cancelAll()
+{
+    cancelRead();
+    cancelWrite();
 }
 
 } // namespace nitro_coro::io

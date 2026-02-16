@@ -15,10 +15,10 @@
  */
 #pragma once
 
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/core/Task.h>
 #include <coroutine>
 #include <memory>
+#include <nitro_coro/core/Scheduler.h>
+#include <nitro_coro/core/Task.h>
 #include <queue>
 
 namespace nitro_coro::io
@@ -59,7 +59,6 @@ public:
     void disableReading();
     void disableWriting();
     void disableAll();
-    void cancel();
 
     enum class IoResult
     {
@@ -104,6 +103,10 @@ public:
         co_return co_await performWriteImpl(std::forward<Func>(func));
     }
 
+    void cancelRead();
+    void cancelWrite();
+    void cancelAll();
+
 private:
     IoChannel(int fd, Scheduler * scheduler, TriggerMode mode);
 
@@ -116,7 +119,7 @@ private:
 
         bool await_ready() noexcept;
         bool await_suspend(std::coroutine_handle<> h) noexcept;
-        void await_resume() noexcept;
+        void await_resume();
     };
 
     struct [[nodiscard]] WritableAwaiter
@@ -125,7 +128,7 @@ private:
 
         bool await_ready() noexcept;
         bool await_suspend(std::coroutine_handle<> h) noexcept;
-        void await_resume() noexcept;
+        void await_resume();
     };
 
     template <typename T>
@@ -224,6 +227,8 @@ private:
     bool writable_{ true };
     std::coroutine_handle<> readableWaiter_;
     std::coroutine_handle<> writableWaiter_;
+    bool readCanceled_{ false };
+    bool writeCanceled_{ false };
 };
 
 } // namespace nitro_coro::io

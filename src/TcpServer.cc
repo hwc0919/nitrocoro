@@ -153,13 +153,7 @@ Task<> TcpServer::stop()
 
     co_await scheduler_->run_here();
     printf("TcpServer::stop() requested\n");
-    listenChannel_->disableAll();
-    listenChannel_->cancel();
-    if (listen_fd_ >= 0)
-    {
-        ::close(listen_fd_);
-        listen_fd_ = -1;
-    }
+    listenChannel_->cancelAll();
     [[maybe_unused]] auto lock = co_await closeMutex_.scoped_lock();
 }
 
