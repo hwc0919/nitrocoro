@@ -8,6 +8,7 @@
 #include <memory>
 #include <nitro_coro/core/Scheduler.h>
 #include <optional>
+#include <vector>
 
 namespace nitro_coro
 {
@@ -15,11 +16,14 @@ namespace nitro_coro
 template <typename T>
 class Promise;
 
+template <typename T>
+class SharedFuture;
+
 template <typename T = void>
 struct FutureState
 {
     bool ready_{ false };
-    std::coroutine_handle<> waiter_;
+    std::vector<std::coroutine_handle<>> waiters_; // 支持多等待者
     std::optional<T> value_;
 };
 
@@ -27,7 +31,7 @@ template <>
 struct FutureState<void>
 {
     bool ready_{ false };
-    std::coroutine_handle<> waiter_;
+    std::vector<std::coroutine_handle<>> waiters_; // 支持多等待者
 };
 
 template <typename T = void>
@@ -43,7 +47,7 @@ public:
     {
         std::shared_ptr<FutureState<T>> state_;
         bool await_ready() const noexcept { return state_->ready_; }
-        void await_suspend(std::coroutine_handle<> h) noexcept { state_->waiter_ = h; }
+        void await_suspend(std::coroutine_handle<> h) noexcept { state_->waiters_.push_back(h); }
         T await_resume() noexcept
         {
             if constexpr (!std::is_void_v<T>)
@@ -51,8 +55,14 @@ public:
         }
     };
 
-    Awaiter get() noexcept { return Awaiter{ state_ }; }
+    [[nodiscard]] Awaiter get() noexcept
+    {
+        auto awaiter = Awaiter{ state_ };
+        state_.reset(); // 重置状态，只能调用一次
+        return awaiter;
+    }
     bool valid() const noexcept { return state_ != nullptr; }
+    SharedFuture<T> share() noexcept;
 
 private:
     friend class Promise<T>;
@@ -75,12 +85,18 @@ public:
     {
         std::shared_ptr<FutureState<void>> state_;
         bool await_ready() const noexcept { return state_->ready_; }
-        void await_suspend(std::coroutine_handle<> h) noexcept { state_->waiter_ = h; }
+        void await_suspend(std::coroutine_handle<> h) noexcept { state_->waiters_.push_back(h); }
         void await_resume() noexcept {}
     };
 
-    Awaiter get() noexcept { return Awaiter{ state_ }; }
+    [[nodiscard]] Awaiter get() noexcept
+    {
+        auto awaiter = Awaiter{ state_ };
+        state_.reset(); // 重置状态，只能调用一次
+        return awaiter;
+    }
     bool valid() const noexcept { return state_ != nullptr; }
+    SharedFuture<void> share() noexcept;
 
 private:
     friend class Promise<void>;
@@ -89,6 +105,73 @@ private:
 
     std::shared_ptr<FutureState<void>> state_;
 };
+
+template <typename T = void>
+class SharedFuture
+{
+public:
+    SharedFuture(const SharedFuture &) = default;
+    SharedFuture & operator=(const SharedFuture &) = default;
+    SharedFuture(SharedFuture &&) = default;
+    SharedFuture & operator=(SharedFuture &&) = default;
+
+    struct Awaiter
+    {
+        std::shared_ptr<FutureState<T>> state_;
+        bool await_ready() const noexcept { return state_->ready_; }
+        void await_suspend(std::coroutine_handle<> h) noexcept { state_->waiters_.push_back(h); }
+        const T & await_resume() const noexcept { return *state_->value_; }
+    };
+
+    [[nodiscard]] Awaiter get() const noexcept { return Awaiter{ state_ }; }
+    bool valid() const noexcept { return state_ != nullptr; }
+
+private:
+    friend class Future<T>;
+
+    explicit SharedFuture(std::shared_ptr<FutureState<T>> state) : state_(std::move(state)) {}
+
+    std::shared_ptr<FutureState<T>> state_;
+};
+
+template <>
+class SharedFuture<void>
+{
+public:
+    SharedFuture(const SharedFuture &) = default;
+    SharedFuture & operator=(const SharedFuture &) = default;
+    SharedFuture(SharedFuture &&) = default;
+    SharedFuture & operator=(SharedFuture &&) = default;
+
+    struct Awaiter
+    {
+        std::shared_ptr<FutureState<void>> state_;
+        bool await_ready() const noexcept { return state_->ready_; }
+        void await_suspend(std::coroutine_handle<> h) noexcept { state_->waiters_.push_back(h); }
+        void await_resume() const noexcept {}
+    };
+
+    [[nodiscard]] Awaiter get() const noexcept { return Awaiter{ state_ }; }
+    bool valid() const noexcept { return state_ != nullptr; }
+
+private:
+    friend class Future<void>;
+
+    explicit SharedFuture(std::shared_ptr<FutureState<void>> state) : state_(std::move(state)) {}
+
+    std::shared_ptr<FutureState<void>> state_;
+};
+
+template <typename T>
+SharedFuture<T> Future<T>::share() noexcept
+{
+    return SharedFuture<T>(std::move(state_)); // 直接转移状态
+}
+
+inline SharedFuture<void> Future<void>::share() noexcept
+{
+    return SharedFuture<void>(std::move(state_)); // 直接转移状态
+}
 
 template <typename T = void>
 class Promise
@@ -107,11 +190,11 @@ public:
     {
         state_->value_.emplace(std::move(value));
         state_->ready_ = true;
-        if (state_->waiter_)
+        for (auto h : state_->waiters_)
         {
-            scheduler_->schedule(state_->waiter_);
-            state_->waiter_ = nullptr;
+            scheduler_->schedule(h);
         }
+        state_->waiters_.clear();
     }
 
 private:
@@ -135,11 +218,11 @@ public:
     void set_value()
     {
         state_->ready_ = true;
-        if (state_->waiter_)
+        for (auto h : state_->waiters_)
         {
-            scheduler_->schedule(state_->waiter_);
-            state_->waiter_ = nullptr;
+            scheduler_->schedule(h);
         }
+        state_->waiters_.clear();
     }
 
 private:
