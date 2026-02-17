@@ -32,15 +32,17 @@ public:
     Task<> stop();
 
 private:
+    void setup_socket();
+
     Scheduler * scheduler_;
     int listen_fd_;
     int port_;
     std::atomic_bool running_{ false };
     Promise<> stopPromise_;
+    SharedFuture<> stopFuture_;
 
     std::shared_ptr<IoChannel> listenChannel_;
 
-    void setup_socket();
 };
 
 } // namespace nitro_coro::net

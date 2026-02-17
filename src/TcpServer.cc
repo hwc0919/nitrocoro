@@ -23,11 +23,10 @@ using nitro_coro::io::TriggerMode;
 
 TcpServer::TcpServer(Scheduler * scheduler, int port)
     : scheduler_(scheduler)
-    , listenChannel_(nullptr)
     , listen_fd_(-1)
     , port_(port)
-    , running_(false)
     , stopPromise_(scheduler)
+    , stopFuture_(stopPromise_.get_future().share())
 {
     setup_socket();
 }
@@ -92,6 +91,7 @@ struct Acceptor
             }
         }
     }
+
     int clientFd() const { return fd_; }
     const struct sockaddr_in & clientAddr() const { return clientAddr_; }
 
@@ -131,7 +131,11 @@ Task<> TcpServer::start(ConnectionHandler handler)
         auto ioChannelPtr = IoChannel::create(acceptor.clientFd(), scheduler_, TriggerMode::EdgeTriggered);
         ioChannelPtr->enableReading();
         auto connPtr = std::make_shared<TcpConnection>(std::move(ioChannelPtr));
-        scheduler_->spawn([handler, connPtr = std::move(connPtr)]() mutable -> Task<> {
+        scheduler_->spawn([stopFuture = stopFuture_, connPtr]()-> Task<> {
+            co_await stopFuture.get();
+            co_await connPtr->close();
+        });
+        scheduler_->spawn([handler, connPtr]() mutable -> Task<> {
             try
             {
                 co_await handler(connPtr);
@@ -161,7 +165,7 @@ Task<> TcpServer::stop()
     co_await scheduler_->run_here();
     printf("TcpServer::stop() requested\n");
     listenChannel_->cancelAll();
-    co_await stopPromise_.get_future().get();
+    co_await stopFuture_.get();
 }
 
 } // namespace nitro_coro::net

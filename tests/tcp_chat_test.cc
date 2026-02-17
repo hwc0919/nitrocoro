@@ -60,7 +60,7 @@ Task<> broadcast(const std::string & message, std::shared_ptr<TcpConnection> sen
     co_return;
 }
 
-Task<bool> chat_handler(std::shared_ptr<TcpConnection> conn)
+Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
 {
     char buf[BUFFER_SIZE];
     std::string username;
@@ -79,7 +79,6 @@ Task<bool> chat_handler(std::shared_ptr<TcpConnection> conn)
     }
     std::cout << username << " joined\n";
 
-    bool closeServer{ false };
     // Broadcast messages
     while (true)
     {
@@ -95,10 +94,8 @@ Task<bool> chat_handler(std::shared_ptr<TcpConnection> conn)
         assert(n > 0);
         buf[n] = '\0';
 
-        if (strncmp(buf, "close\n", n) == 0)
+        if (strncmp(buf, "quit\n", n) == 0)
         {
-            printf("User %s request close\n", username.c_str());
-            closeServer = true;
             break;
         }
         std::string msg = username + ": " + buf;
@@ -117,20 +114,64 @@ Task<bool> chat_handler(std::shared_ptr<TcpConnection> conn)
         }
     }
 
-    co_return closeServer;
+    co_return;
 }
 
 Task<> tcp_server_main(int port, Scheduler * scheduler)
 {
-    TcpServer server(scheduler, port);
-    co_await server.start([&server](TcpConnectionPtr conn) -> Task<> {
-        auto closeServer = co_await chat_handler(std::move(conn));
-        if (closeServer)
+    TcpServer * currentServer = nullptr;
+    std::atomic_bool running = true;
+
+    scheduler->spawn([&currentServer, &running]()-> Task<> {
+        // Set stdin to non-blocking
+        int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+        fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+        auto stdinChannel = IoChannel::create(STDIN_FILENO, Scheduler::current());
+        stdinChannel->enableReading();
+
+        char buf[BUFFER_SIZE];
+        std::string line;
+
+        while (true)
         {
-            co_await server.stop();
-            Scheduler::current()->stop();
+            BufferReader reader(buf, sizeof(buf) - 1);
+            co_await stdinChannel->performRead(&reader);
+            buf[reader.readLen()] = '\0';
+            line += buf;
+
+            // Process complete lines
+            size_t pos;
+            while ((pos = line.find('\n')) != std::string::npos)
+            {
+                std::string msg = line.substr(0, pos);
+                line.erase(0, pos + 1);
+                if (msg == "restart")
+                {
+                    if (currentServer)
+                    {
+                        co_await currentServer->stop();
+                    }
+                }
+                else if (msg == "quit")
+                {
+                    running = false;
+                    if (currentServer)
+                    {
+                        co_await currentServer->stop();
+                    }
+                }
+            }
         }
     });
+
+    while (running.load())
+    {
+        TcpServer server(scheduler, port);
+        currentServer = &server;
+        co_await server.start(chat_handler);
+    }
+
+    scheduler->stop();
 }
 
 Task<> receive_messages(const TcpConnectionPtr & connPtr)
