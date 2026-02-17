@@ -166,7 +166,7 @@ Task<> tcp_server_main(int port, Scheduler * scheduler)
 
     while (running.load())
     {
-        TcpServer server(scheduler, port);
+        TcpServer server(port, scheduler);
         currentServer = &server;
         co_await server.start(chat_handler);
     }

@@ -35,7 +35,7 @@ Task<> echo_handler(std::shared_ptr<TcpConnection> conn)
 
 Task<> tcp_server_main(int port, Scheduler * scheduler)
 {
-    TcpServer server(scheduler, port);
+    TcpServer server(port, scheduler);
     co_await server.start(echo_handler);
 }
 

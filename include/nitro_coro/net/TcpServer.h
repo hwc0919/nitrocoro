@@ -26,21 +26,23 @@ class TcpServer
 public:
     using ConnectionHandler = std::function<Task<>(std::shared_ptr<TcpConnection>)>;
 
-    explicit TcpServer(Scheduler * scheduler, int port);
+    explicit TcpServer(uint16_t port, Scheduler * scheduler = Scheduler::current());
     ~TcpServer();
 
     Task<> start(ConnectionHandler handler);
     Task<> stop();
+    Task<> wait() const;
 
 private:
     void setup_socket();
 
+    uint16_t port_;
     Scheduler * scheduler_;
-    int listenFd_;
-    int port_;
+    int listenFd_{ -1 };
     std::atomic_bool started_{ false };
     std::atomic_bool stopped_{ false };
     Promise<> stopPromise_;
+    SharedFuture<> stopFuture_;
     std::shared_ptr<IoChannel> listenChannel_;
 
     using ConnectionSet = std::unordered_set<TcpConnectionPtr>;

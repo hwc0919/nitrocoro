@@ -9,6 +9,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
+#include <list>
 #include <netinet/in.h>
 #include <stdexcept>
 #include <sys/socket.h>
@@ -21,11 +22,11 @@ using nitro_coro::Task;
 using nitro_coro::io::IoChannel;
 using nitro_coro::io::TriggerMode;
 
-TcpServer::TcpServer(Scheduler * scheduler, int port)
-    : scheduler_(scheduler)
-    , listenFd_(-1)
-    , port_(port)
+TcpServer::TcpServer(uint16_t port, Scheduler * scheduler)
+    : port_(port)
+    , scheduler_(scheduler)
     , stopPromise_(scheduler)
+    , stopFuture_(stopPromise_.get_future().share())
 {
     setup_socket();
 }
@@ -60,6 +61,7 @@ void TcpServer::setup_socket()
     if (bind(listenFd_, (sockaddr *)&addr, sizeof(addr)) < 0)
     {
         close(listenFd_);
+        listenFd_ = -1;
         throw std::runtime_error(std::string("Failed to bind socket: ") + strerror(errno));
     }
 }
@@ -101,20 +103,21 @@ private:
 
 Task<> TcpServer::start(ConnectionHandler handler)
 {
+    co_await scheduler_->run_here();
     if (started_.exchange(true))
     {
-        throw std::runtime_error("TcpServer already started");
+        throw std::logic_error("TcpServer already started");
     }
-
-    co_await scheduler_->run_here();
 
     if (listen(listenFd_, 128) < 0)
     {
-        close(listenFd_);
+        stopped_.store(true);
+        stopPromise_.set_value();
         throw std::runtime_error(std::string("Failed to listen on socket: ") + strerror(errno));
     }
-    std::cout << "TcpServer listening on port " << port_ << "\n";
+    printf("TcpServer listening on port %hu\n", port_);
 
+    auto handlerPtr = std::make_shared<ConnectionHandler>(std::move(handler));
     listenChannel_ = IoChannel::create(listenFd_, scheduler_, TriggerMode::LevelTriggered);
     listenChannel_->enableReading();
     while (!stopped_.load())
@@ -126,24 +129,26 @@ Task<> TcpServer::start(ConnectionHandler handler)
         }
         catch (const std::exception & e)
         {
-            std::cout << "Accept error: " << e.what() << "\n";
+            if (acceptor.clientFd() >= 0)
+                ::close(acceptor.clientFd());
+            printf("Accept error: %s\n", e.what());
             break;
         }
 
-        std::cout << "Accepted connection: fd=" << acceptor.clientFd() << "\n";
+        printf("Accepted connection: fd = %d\n", acceptor.clientFd());
         auto ioChannelPtr = IoChannel::create(acceptor.clientFd(), scheduler_, TriggerMode::EdgeTriggered);
         ioChannelPtr->enableReading();
         auto connPtr = std::make_shared<TcpConnection>(std::move(ioChannelPtr));
         connSetPtr_->insert(connPtr);
         std::weak_ptr<ConnectionSet> weakConnSet{ connSetPtr_ };
-        scheduler_->spawn([scheduler = scheduler_, handler, connPtr, weakConnSet]() mutable -> Task<> {
+        scheduler_->spawn([scheduler = scheduler_, handlerPtr, connPtr, weakConnSet]() mutable -> Task<> {
             try
             {
-                co_await handler(connPtr);
+                co_await (*handlerPtr)(connPtr);
             }
             catch (...)
             {
-                printf("Exception escaped from TcpServer handler");
+                printf("Exception escaped from TcpServer handler\n");
             }
             co_await scheduler->run_here();
             if (auto connSetPtr = weakConnSet.lock())
@@ -165,10 +170,10 @@ Task<> TcpServer::start(ConnectionHandler handler)
 
 Task<> TcpServer::stop()
 {
+    co_await scheduler_->run_here();
     if (stopped_.exchange(true))
         co_return;
 
-    co_await scheduler_->run_here();
     listenChannel_->disableAll(); // stop listening first
     listenChannel_->cancelAll();
 
@@ -178,7 +183,12 @@ Task<> TcpServer::stop()
         co_await c->close();
     }
     printf("TcpServer::stop() requested\n");
-    co_await stopPromise_.get_future().get();
+    co_await stopFuture_.get();
+}
+
+Task<> TcpServer::wait() const
+{
+    co_await stopFuture_.get();
 }
 
 } // namespace nitro_coro::net

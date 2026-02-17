@@ -4,9 +4,10 @@
  */
 #pragma once
 
+#include <nitro_coro/core/Scheduler.h>
 #include <coroutine>
 #include <memory>
-#include <nitro_coro/core/Scheduler.h>
+#include <mutex>
 #include <optional>
 #include <vector>
 
@@ -22,16 +23,18 @@ class SharedFuture;
 template <typename T = void>
 struct FutureState
 {
+    std::mutex mutex_;
     bool ready_{ false };
-    std::vector<std::coroutine_handle<>> waiters_; // 支持多等待者
+    std::vector<std::coroutine_handle<>> waiters_;
     std::optional<T> value_;
 };
 
 template <>
 struct FutureState<void>
 {
+    std::mutex mutex_;
     bool ready_{ false };
-    std::vector<std::coroutine_handle<>> waiters_; // 支持多等待者
+    std::vector<std::coroutine_handle<>> waiters_;
 };
 
 template <typename T = void>
@@ -46,8 +49,24 @@ public:
     struct Awaiter
     {
         std::shared_ptr<FutureState<T>> state_;
-        bool await_ready() const noexcept { return state_->ready_; }
-        void await_suspend(std::coroutine_handle<> h) noexcept { state_->waiters_.push_back(h); }
+
+        bool await_ready() const noexcept
+        {
+            std::lock_guard lock(state_->mutex_);
+            return state_->ready_;
+        }
+
+        bool await_suspend(std::coroutine_handle<> h) noexcept
+        {
+            std::lock_guard lock(state_->mutex_);
+            if (state_->ready_)
+            {
+                return false;
+            }
+            state_->waiters_.push_back(h);
+            return true;
+        }
+
         T await_resume() noexcept
         {
             if constexpr (!std::is_void_v<T>)
@@ -58,16 +77,20 @@ public:
     [[nodiscard]] Awaiter get() noexcept
     {
         auto awaiter = Awaiter{ state_ };
-        state_.reset(); // 重置状态，只能调用一次
+        state_.reset();
         return awaiter;
     }
+
     bool valid() const noexcept { return state_ != nullptr; }
     SharedFuture<T> share() noexcept;
 
 private:
     friend class Promise<T>;
 
-    explicit Future(std::shared_ptr<FutureState<T>> state) : state_(std::move(state)) {}
+    explicit Future(std::shared_ptr<FutureState<T>> state)
+        : state_(std::move(state))
+    {
+    }
 
     std::shared_ptr<FutureState<T>> state_;
 };
@@ -84,24 +107,46 @@ public:
     struct Awaiter
     {
         std::shared_ptr<FutureState<void>> state_;
-        bool await_ready() const noexcept { return state_->ready_; }
-        void await_suspend(std::coroutine_handle<> h) noexcept { state_->waiters_.push_back(h); }
-        void await_resume() noexcept {}
+
+        bool await_ready() const noexcept
+        {
+            std::lock_guard lock(state_->mutex_);
+            return state_->ready_;
+        }
+
+        bool await_suspend(std::coroutine_handle<> h) noexcept
+        {
+            std::lock_guard lock(state_->mutex_);
+            if (state_->ready_)
+            {
+                return false;
+            }
+            state_->waiters_.push_back(h);
+            return true;
+        }
+
+        void await_resume() noexcept
+        {
+        }
     };
 
     [[nodiscard]] Awaiter get() noexcept
     {
         auto awaiter = Awaiter{ state_ };
-        state_.reset(); // 重置状态，只能调用一次
+        state_.reset();
         return awaiter;
     }
+
     bool valid() const noexcept { return state_ != nullptr; }
     SharedFuture<void> share() noexcept;
 
 private:
     friend class Promise<void>;
 
-    explicit Future(std::shared_ptr<FutureState<void>> state) : state_(std::move(state)) {}
+    explicit Future(std::shared_ptr<FutureState<void>> state)
+        : state_(std::move(state))
+    {
+    }
 
     std::shared_ptr<FutureState<void>> state_;
 };
@@ -118,8 +163,24 @@ public:
     struct Awaiter
     {
         std::shared_ptr<FutureState<T>> state_;
-        bool await_ready() const noexcept { return state_->ready_; }
-        void await_suspend(std::coroutine_handle<> h) noexcept { state_->waiters_.push_back(h); }
+
+        bool await_ready() const noexcept
+        {
+            std::lock_guard lock(state_->mutex_);
+            return state_->ready_;
+        }
+
+        bool await_suspend(std::coroutine_handle<> h) noexcept
+        {
+            std::lock_guard lock(state_->mutex_);
+            if (state_->ready_)
+            {
+                return false;
+            }
+            state_->waiters_.push_back(h);
+            return true;
+        }
+
         const T & await_resume() const noexcept { return *state_->value_; }
     };
 
@@ -129,7 +190,10 @@ public:
 private:
     friend class Future<T>;
 
-    explicit SharedFuture(std::shared_ptr<FutureState<T>> state) : state_(std::move(state)) {}
+    explicit SharedFuture(std::shared_ptr<FutureState<T>> state)
+        : state_(std::move(state))
+    {
+    }
 
     std::shared_ptr<FutureState<T>> state_;
 };
@@ -146,9 +210,27 @@ public:
     struct Awaiter
     {
         std::shared_ptr<FutureState<void>> state_;
-        bool await_ready() const noexcept { return state_->ready_; }
-        void await_suspend(std::coroutine_handle<> h) noexcept { state_->waiters_.push_back(h); }
-        void await_resume() const noexcept {}
+
+        bool await_ready() const noexcept
+        {
+            std::lock_guard lock(state_->mutex_);
+            return state_->ready_;
+        }
+
+        bool await_suspend(std::coroutine_handle<> h) noexcept
+        {
+            std::lock_guard lock(state_->mutex_);
+            if (state_->ready_)
+            {
+                return false;
+            }
+            state_->waiters_.push_back(h);
+            return true;
+        }
+
+        void await_resume() const noexcept
+        {
+        }
     };
 
     [[nodiscard]] Awaiter get() const noexcept { return Awaiter{ state_ }; }
@@ -157,7 +239,10 @@ public:
 private:
     friend class Future<void>;
 
-    explicit SharedFuture(std::shared_ptr<FutureState<void>> state) : state_(std::move(state)) {}
+    explicit SharedFuture(std::shared_ptr<FutureState<void>> state)
+        : state_(std::move(state))
+    {
+    }
 
     std::shared_ptr<FutureState<void>> state_;
 };
@@ -165,19 +250,23 @@ private:
 template <typename T>
 SharedFuture<T> Future<T>::share() noexcept
 {
-    return SharedFuture<T>(std::move(state_)); // 直接转移状态
+    return SharedFuture<T>(std::move(state_));
 }
 
 inline SharedFuture<void> Future<void>::share() noexcept
 {
-    return SharedFuture<void>(std::move(state_)); // 直接转移状态
+    return SharedFuture<void>(std::move(state_));
 }
 
 template <typename T = void>
 class Promise
 {
 public:
-    explicit Promise(Scheduler * scheduler) : scheduler_(scheduler), state_(std::make_shared<FutureState<T>>()) {}
+    explicit Promise(Scheduler * scheduler)
+        : scheduler_(scheduler)
+        , state_(std::make_shared<FutureState<T>>())
+    {
+    }
 
     Promise(const Promise &) = delete;
     Promise & operator=(const Promise &) = delete;
@@ -188,13 +277,17 @@ public:
 
     void set_value(T value)
     {
-        state_->value_.emplace(std::move(value));
-        state_->ready_ = true;
-        for (auto h : state_->waiters_)
+        std::vector<std::coroutine_handle<>> waiters;
+        {
+            std::lock_guard lock(state_->mutex_);
+            state_->value_.emplace(std::move(value));
+            state_->ready_ = true;
+            waiters = std::move(state_->waiters_);
+        }
+        for (auto h : waiters)
         {
             scheduler_->schedule(h);
         }
-        state_->waiters_.clear();
     }
 
 private:
@@ -206,7 +299,11 @@ template <>
 class Promise<void>
 {
 public:
-    explicit Promise(Scheduler * scheduler) : scheduler_(scheduler), state_(std::make_shared<FutureState<void>>()) {}
+    explicit Promise(Scheduler * scheduler)
+        : scheduler_(scheduler)
+        , state_(std::make_shared<FutureState<void>>())
+    {
+    }
 
     Promise(const Promise &) = delete;
     Promise & operator=(const Promise &) = delete;
@@ -217,12 +314,16 @@ public:
 
     void set_value()
     {
-        state_->ready_ = true;
-        for (auto h : state_->waiters_)
+        std::vector<std::coroutine_handle<>> waiters;
+        {
+            std::lock_guard lock(state_->mutex_);
+            state_->ready_ = true;
+            waiters = std::move(state_->waiters_);
+        }
+        for (auto h : waiters)
         {
             scheduler_->schedule(h);
         }
-        state_->waiters_.clear();
     }
 
 private:
