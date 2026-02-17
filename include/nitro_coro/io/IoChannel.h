@@ -19,7 +19,6 @@
 #include <memory>
 #include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/core/Task.h>
-#include <queue>
 
 namespace nitro_coro::io
 {
@@ -36,7 +35,7 @@ enum class TriggerMode
 class IoChannel;
 using IoChannelPtr = std::shared_ptr<IoChannel>;
 
-class IoChannel : public std::enable_shared_from_this<IoChannel>
+class IoChannel
 {
 public:
     static IoChannelPtr create(int fd, Scheduler * scheduler, TriggerMode mode = TriggerMode::EdgeTriggered);

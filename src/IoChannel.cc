@@ -153,7 +153,7 @@ void IoChannel::enableReading()
     if (!(events_ & EPOLLIN))
     {
         events_ |= EPOLLIN;
-        scheduler_->updateIoChannel(shared_from_this());
+        scheduler_->updateIoChannel(this);
     }
 }
 
@@ -162,7 +162,7 @@ void IoChannel::disableReading()
     if (events_ & EPOLLIN)
     {
         events_ &= ~EPOLLIN;
-        scheduler_->updateIoChannel(shared_from_this());
+        scheduler_->updateIoChannel(this);
     }
 }
 
@@ -171,7 +171,7 @@ void IoChannel::enableWriting()
     if (!(events_ & EPOLLOUT))
     {
         events_ |= EPOLLOUT;
-        scheduler_->updateIoChannel(shared_from_this());
+        scheduler_->updateIoChannel(this);
     }
 }
 
@@ -180,7 +180,7 @@ void IoChannel::disableWriting()
     if (events_ & EPOLLOUT)
     {
         events_ &= ~EPOLLOUT;
-        scheduler_->updateIoChannel(shared_from_this());
+        scheduler_->updateIoChannel(this);
     }
 }
 
@@ -189,7 +189,7 @@ void IoChannel::disableAll()
     if (events_ != 0)
     {
         events_ = 0;
-        scheduler_->updateIoChannel(shared_from_this());
+        scheduler_->updateIoChannel(this);
     }
 }
 

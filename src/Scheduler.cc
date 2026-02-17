@@ -209,6 +209,8 @@ void Scheduler::setIoChannelHandler(const std::shared_ptr<io::IoChannel> & chann
     if (iter != ioChannels_.end())
     {
         assert(iter->second.handler == nullptr);
+        assert(!iter->second.weakChannel.lock());
+        iter->second.weakChannel = channel;
         iter->second.handler = std::move(handler);
     }
     else
@@ -217,7 +219,7 @@ void Scheduler::setIoChannelHandler(const std::shared_ptr<io::IoChannel> & chann
     }
 }
 
-void Scheduler::updateIoChannel(const std::shared_ptr<io::IoChannel> & channel)
+void Scheduler::updateIoChannel(const io::IoChannel * channel)
 {
     NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
@@ -228,11 +230,11 @@ void Scheduler::updateIoChannel(const std::shared_ptr<io::IoChannel> & channel)
     if (iter != ioChannels_.end())
     {
         ctx = &iter->second;
-        assert(ctx->weakChannel.lock() == channel);
+        assert(ctx->weakChannel.lock().get() == channel);
     }
     else
     {
-        ctx = &ioChannels_.emplace(id, IoChannelContext{ id, fd, { channel }, IoEventHandler{} }).first->second;
+        ctx = &ioChannels_.emplace(id, IoChannelContext{ id, fd, {}, IoEventHandler{} }).first->second;
     }
 
     uint32_t events = channel->events();

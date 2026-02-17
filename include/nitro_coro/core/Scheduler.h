@@ -78,7 +78,7 @@ public:
     bool isInOwnThread() const noexcept;
 
     void setIoChannelHandler(const std::shared_ptr<io::IoChannel> & channel, IoEventHandler handler);
-    void updateIoChannel(const std::shared_ptr<io::IoChannel> & channel);
+    void updateIoChannel(const io::IoChannel * channel);
     void removeIoChannel(uint64_t id);
 
     TimerAwaiter sleep_for(double seconds);
