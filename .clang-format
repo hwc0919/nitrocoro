@@ -21,6 +21,7 @@ ConstructorInitializerAllOnOneLineOrOnePerLine: true
 ExperimentalAutoDetectBinPacking: false
 IndentWidth: 4
 IndentCaseLabels: true
+InsertNewlineAtEOF: true
 NamespaceIndentation: None
 MaxEmptyLinesToKeep: 2
 ObjCSpaceBeforeProtocolList: true

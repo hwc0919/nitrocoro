@@ -5,13 +5,14 @@
 #pragma once
 
 #include <nitro_coro/core/Future.h>
-#include <nitro_coro/core/Mutex.h>
 #include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/core/Task.h>
 #include <nitro_coro/net/TcpConnection.h>
 
+#include <atomic>
 #include <functional>
 #include <memory>
+#include <unordered_set>
 
 namespace nitro_coro::net
 {
@@ -35,14 +36,15 @@ private:
     void setup_socket();
 
     Scheduler * scheduler_;
-    int listen_fd_;
+    int listenFd_;
     int port_;
-    std::atomic_bool running_{ false };
+    std::atomic_bool started_{ false };
+    std::atomic_bool stopped_{ false };
     Promise<> stopPromise_;
-    SharedFuture<> stopFuture_;
-
     std::shared_ptr<IoChannel> listenChannel_;
 
+    using ConnectionSet = std::unordered_set<TcpConnectionPtr>;
+    std::shared_ptr<ConnectionSet> connSetPtr_{ std::make_shared<ConnectionSet>() };
 };
 
 } // namespace nitro_coro::net

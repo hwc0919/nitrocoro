@@ -23,7 +23,8 @@ using nitro_coro::io::adapters::BufferWriter;
 struct Connector
 {
     Connector(const sockaddr * addr, socklen_t addrLen)
-        : addr_(addr), addrLen_(addrLen)
+        : addr_(addr)
+        , addrLen_(addrLen)
     {
     }
 
