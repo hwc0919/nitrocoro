@@ -11,11 +11,12 @@
  */
 
 #pragma once
+#include <nitro_coro/core/Scheduler.h>
+
 #include <atomic>
 #include <cassert>
 #include <coroutine>
 #include <mutex>
-#include <nitro_coro/core/Scheduler.h>
 
 namespace nitro_coro
 {
@@ -26,7 +27,8 @@ class Mutex final
     class CoroMutexAwaiter;
 
 public:
-    Mutex() noexcept : state_(unlockedValue()), waiters_(nullptr)
+    Mutex() noexcept
+        : state_(unlockedValue()), waiters_(nullptr)
     {
     }
 

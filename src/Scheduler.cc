@@ -1,5 +1,5 @@
 /**
- * @file CoroScheduler.cc
+ * @file Scheduler.cc
  * @brief Native coroutine scheduler implementation
  */
 #include <cassert>

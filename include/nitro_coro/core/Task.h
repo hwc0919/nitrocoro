@@ -4,14 +4,9 @@
  */
 #pragma once
 
-#include <atomic>
-#include <chrono>
 #include <coroutine>
 #include <exception>
 #include <optional>
-#include <queue>
-#include <unordered_map>
-#include <unordered_set>
 
 namespace nitro_coro
 {
@@ -89,8 +84,10 @@ struct [[nodiscard]] Task
 
     handle_type handle_;
 
-    Task(handle_type h) : handle_(h) {}
-    Task(Task && other) noexcept : handle_(other.handle_) { other.handle_ = nullptr; }
+    Task(handle_type h)
+        : handle_(h) {}
+    Task(Task && other) noexcept
+        : handle_(other.handle_) { other.handle_ = nullptr; }
     Task & operator=(Task && other) noexcept
     {
         if (this != &other)
@@ -139,8 +136,10 @@ struct [[nodiscard]] Task<void>
 
     handle_type handle_;
 
-    Task(handle_type h) : handle_(h) {}
-    Task(Task && other) noexcept : handle_(other.handle_) { other.handle_ = nullptr; }
+    Task(handle_type h)
+        : handle_(h) {}
+    Task(Task && other) noexcept
+        : handle_(other.handle_) { other.handle_ = nullptr; }
     Task & operator=(Task && other) noexcept
     {
         if (this != &other)

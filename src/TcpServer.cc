@@ -9,7 +9,6 @@
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
-#include <list>
 #include <netinet/in.h>
 #include <stdexcept>
 #include <sys/socket.h>

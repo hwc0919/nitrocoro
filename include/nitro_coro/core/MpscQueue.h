@@ -5,7 +5,6 @@
 #pragma once
 
 #include <atomic>
-#include <cstddef>
 #include <optional>
 #include <utility>
 
@@ -67,8 +66,14 @@ private:
         T value;
         std::atomic<Node *> next;
 
-        Node() : value{}, next(nullptr) {}
-        explicit Node(T val) : value(std::move(val)), next(nullptr) {}
+        Node()
+            : value{}, next(nullptr)
+        {
+        }
+        explicit Node(T val)
+            : value(std::move(val)), next(nullptr)
+        {
+        }
     };
 
     /* alignas(64) */ std::atomic<Node *> head_;

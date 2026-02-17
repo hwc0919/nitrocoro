@@ -1,8 +1,11 @@
 /**
- * @file CoroScheduler.h
+ * @file Scheduler.h
  * @brief Native coroutine scheduler - replaces EventLoop for coroutine-first design
  */
 #pragma once
+
+#include <nitro_coro/core/CoroTraits.h>
+#include <nitro_coro/core/MpscQueue.h>
 
 #include <atomic>
 #include <chrono>
@@ -11,10 +14,6 @@
 #include <queue>
 #include <thread>
 #include <unordered_map>
-#include <unordered_set>
-
-#include <nitro_coro/core/CoroTraits.h>
-#include <nitro_coro/core/MpscQueue.h>
 
 namespace nitro_coro
 {
@@ -30,7 +29,8 @@ using TimePoint = std::chrono::steady_clock::time_point;
 
 struct [[nodiscard]] TimerAwaiter
 {
-    TimerAwaiter(Scheduler * sched, TimePoint when) : sched_{ sched }, when_{ when } {};
+    TimerAwaiter(Scheduler * sched, TimePoint when)
+        : sched_{ sched }, when_{ when } {};
 
     bool await_ready() const noexcept { return false; }
     void await_suspend(std::coroutine_handle<> h) noexcept;
@@ -123,7 +123,8 @@ public:
 
             handle_type handle_;
 
-            FireAndForget(handle_type handle) : handle_{ handle } {}
+            FireAndForget(handle_type handle)
+                : handle_{ handle } {}
             FireAndForget(const FireAndForget &) = delete;
             FireAndForget(FireAndForget &&) = delete;
             FireAndForget & operator=(const FireAndForget &) = delete;
