@@ -4,6 +4,7 @@
  */
 #include <nitro_coro/http/HttpClient.h>
 #include <nitro_coro/net/Dns.h>
+#include <nitro_coro/net/Url.h>
 #include <sstream>
 #include <stdexcept>
 
@@ -38,57 +39,27 @@ Task<HttpClientResponse> HttpClient::post(const std::string & url, const std::st
 
 Task<HttpClientResponse> HttpClient::request(const std::string & method, const std::string & url, const std::string & body)
 {
-    auto parts = parseUrl(url);
-    co_return co_await sendRequest(method, parts, body);
+    net::Url parsedUrl(url);
+    if (!parsedUrl.isValid())
+        throw std::invalid_argument("Invalid URL");
+    co_return co_await sendRequest(method, parsedUrl, body);
 }
 
-HttpClient::UrlParts HttpClient::parseUrl(const std::string & url)
-{
-    UrlParts parts;
-
-    // Parse http://host:port/path
-    size_t pos = url.find("://");
-    if (pos == std::string::npos)
-        throw std::invalid_argument("Invalid URL: missing protocol");
-
-    std::string rest = url.substr(pos + 3);
-
-    // Find path separator
-    size_t pathPos = rest.find('/');
-    std::string hostPort = (pathPos != std::string::npos) ? rest.substr(0, pathPos) : rest;
-    parts.path = (pathPos != std::string::npos) ? rest.substr(pathPos) : "/";
-
-    // Parse host:port
-    size_t colonPos = hostPort.find(':');
-    if (colonPos != std::string::npos)
-    {
-        parts.host = hostPort.substr(0, colonPos);
-        parts.port = std::stoi(hostPort.substr(colonPos + 1));
-    }
-    else
-    {
-        parts.host = hostPort;
-        parts.port = 80;
-    }
-
-    return parts;
-}
-
-Task<HttpClientResponse> HttpClient::sendRequest(const std::string & method, const UrlParts & url, const std::string & body)
+Task<HttpClientResponse> HttpClient::sendRequest(const std::string & method, const net::Url & url, const std::string & body)
 {
     // Resolve hostname
-    auto addresses = co_await net::resolve(url.host);
+    auto addresses = co_await net::resolve(url.host());
     if (addresses.empty())
         throw std::runtime_error("DNS resolution returned no addresses");
 
     // Try to connect to first address
     auto addr = addresses[0];
-    auto conn = co_await net::TcpConnection::connect(addr.toIp().c_str(), url.port);
+    auto conn = co_await net::TcpConnection::connect(addr.toIp().c_str(), url.port());
 
     // Build request
     std::ostringstream oss;
-    oss << method << " " << url.path << " HTTP/1.1\r\n";
-    oss << "Host: " << url.host << "\r\n";
+    oss << method << " " << url.path() << " HTTP/1.1\r\n";
+    oss << "Host: " << url.host() << "\r\n";
     oss << "Connection: close\r\n";
 
     if (!body.empty())

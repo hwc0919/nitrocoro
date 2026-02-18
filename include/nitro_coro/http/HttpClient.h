@@ -8,6 +8,7 @@
 #include <nitro_coro/http/HttpHeader.h>
 #include <nitro_coro/http/HttpRequest.h>
 #include <nitro_coro/net/TcpConnection.h>
+#include <nitro_coro/net/Url.h>
 #include <string>
 
 namespace nitro_coro::http
@@ -44,15 +45,7 @@ public:
     Task<HttpClientResponse> request(const std::string & method, const std::string & url, const std::string & body = "");
 
 private:
-    struct UrlParts
-    {
-        std::string host;
-        uint16_t port;
-        std::string path;
-    };
-
-    UrlParts parseUrl(const std::string & url);
-    Task<HttpClientResponse> sendRequest(const std::string & method, const UrlParts & url, const std::string & body);
+    Task<HttpClientResponse> sendRequest(const std::string & method, const net::Url & url, const std::string & body);
     Task<HttpClientResponse> readResponse(net::TcpConnectionPtr conn);
 };
 

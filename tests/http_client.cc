@@ -1,5 +1,5 @@
 /**
- * @file http_client_test.cc
+ * @file http_client.cc
  * @brief HTTP client test
  */
 #include <nitro_coro/core/Scheduler.h>
@@ -13,10 +13,16 @@ Task<> client_main(const char * url)
     HttpClient client;
 
     printf("GET %s\n", url);
-    auto resp = co_await client.get(url);
-
-    printf("Status: %d %s\n", resp.statusCode(), resp.statusReason().c_str());
-    printf("Body:\n%s\n", resp.body().c_str());
+    try
+    {
+        auto resp = co_await client.get(url);
+        printf("Status: %d %s\n", resp.statusCode(), resp.statusReason().c_str());
+        printf("Body:\n%s\n", resp.body().c_str());
+    }
+    catch (const std::exception & e)
+    {
+        printf("Error: %s\n", e.what());
+    }
 }
 
 int main(int argc, char * argv[])

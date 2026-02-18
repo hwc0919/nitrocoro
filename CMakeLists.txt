@@ -25,6 +25,7 @@ add_library(nitro_coro STATIC
     src/InetAddress.cc
     src/DnsResolver.cc
     src/Dns.cc
+    src/Url.cpp
 )
 
 target_include_directories(nitro_coro PUBLIC
