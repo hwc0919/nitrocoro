@@ -154,7 +154,7 @@ Task<> TcpConnection::write(const void * buf, size_t len)
 
 Task<> TcpConnection::close()
 {
-    co_await ioChannelPtr_->scheduler()->run_here();
+    co_await ioChannelPtr_->scheduler()->switch_to();
     if (fd_ < 0)
         co_return;
     ioChannelPtr_->disableAll();

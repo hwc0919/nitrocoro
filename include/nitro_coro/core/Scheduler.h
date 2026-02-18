@@ -34,7 +34,6 @@ struct [[nodiscard]] TimerAwaiter
 
     bool await_ready() const noexcept { return false; }
     void await_suspend(std::coroutine_handle<> h) noexcept;
-
     void await_resume() noexcept {}
 
 private:
@@ -83,14 +82,14 @@ public:
 
     TimerAwaiter sleep_for(double seconds);
     TimerAwaiter sleep_until(TimePoint when);
-    SchedulerAwaiter run_here() noexcept;
+    SchedulerAwaiter switch_to() noexcept;
 
     void schedule(std::coroutine_handle<> handle);
     void schedule_at(TimePoint when, std::coroutine_handle<> handle);
     template <typename Func>
     void schedule(Func && func)
     {
-        ready_queue_.push(std::forward<Func>(func));
+        readyQueue_.push(std::forward<Func>(func));
         if (!isInOwnThread())
         {
             wakeup();
@@ -106,7 +105,7 @@ public:
         }
         else
         {
-            ready_queue_.push(std::forward<Func>(func));
+            readyQueue_.push(std::forward<Func>(func));
             wakeup();
         }
     }
@@ -149,16 +148,6 @@ public:
     }
 
 private:
-    static thread_local Scheduler * current_;
-
-    std::thread::id thread_id_;
-
-    int epoll_fd_{ -1 };
-    int wakeup_fd_{ -1 };
-    std::atomic<bool> running_{ false };
-
-    MpscQueue<std::function<void()>> ready_queue_;
-
     struct Timer
     {
         TimePoint when;
@@ -169,8 +158,6 @@ private:
             return when > other.when;
         }
     };
-    std::priority_queue<Timer, std::vector<Timer>, std::greater<>> timers_;
-    MpscQueue<Timer> pending_timers_;
 
     int64_t get_next_timeout();
     void process_ready_queue();
@@ -178,9 +165,18 @@ private:
     void process_io_events(int timeout_ms);
     void wakeup();
 
-    std::unordered_map<uint64_t, IoChannelContext> ioChannels_;
+    inline static thread_local Scheduler * current_{ nullptr };
 
+    std::thread::id threadId_;
+    int epollFd_{ -1 };
+    int wakeupFd_{ -1 };
+    std::atomic<bool> running_{ false };
     std::shared_ptr<io::IoChannel> wakeupChannel_;
+
+    std::unordered_map<uint64_t, IoChannelContext> ioChannels_;
+    MpscQueue<std::function<void()>> readyQueue_;
+    MpscQueue<Timer> pendingTimers_;
+    std::priority_queue<Timer, std::vector<Timer>, std::greater<>> timers_;
 };
 
 } // namespace nitro_coro

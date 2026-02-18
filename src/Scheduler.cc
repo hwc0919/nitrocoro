@@ -21,8 +21,6 @@ namespace nitro_coro
 
 static constexpr int64_t kDefaultTimeoutMs = 10000;
 
-thread_local Scheduler * Scheduler::current_ = nullptr;
-
 Scheduler::Scheduler()
 {
     if (current_ != nullptr)
@@ -31,15 +29,15 @@ Scheduler::Scheduler()
     }
 
     signal(SIGPIPE, SIG_IGN);
-    epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
-    if (epoll_fd_ < 0)
+    epollFd_ = epoll_create1(EPOLL_CLOEXEC);
+    if (epollFd_ < 0)
     {
         throw std::runtime_error("Failed to create epoll");
     }
-    wakeup_fd_ = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-    if (wakeup_fd_ < 0)
+    wakeupFd_ = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    if (wakeupFd_ < 0)
     {
-        close(epoll_fd_);
+        close(epollFd_);
         throw std::runtime_error("Failed to create wakeup fd");
     }
     current_ = this;
@@ -49,10 +47,10 @@ Scheduler::~Scheduler()
 {
     if (current_ == this)
         current_ = nullptr;
-    if (wakeup_fd_ >= 0)
-        close(wakeup_fd_);
-    if (epoll_fd_ >= 0)
-        close(epoll_fd_);
+    if (wakeupFd_ >= 0)
+        close(wakeupFd_);
+    if (epollFd_ >= 0)
+        close(epollFd_);
 }
 
 Scheduler * Scheduler::current() noexcept
@@ -62,8 +60,8 @@ Scheduler * Scheduler::current() noexcept
 
 void Scheduler::run()
 {
-    thread_id_ = std::this_thread::get_id();
-    wakeupChannel_ = io::IoChannel::create(wakeup_fd_, this);
+    threadId_ = std::this_thread::get_id();
+    wakeupChannel_ = io::IoChannel::create(wakeupFd_, this);
     wakeupChannel_->enableReading();
 
     running_.store(true, std::memory_order_release);
@@ -94,26 +92,26 @@ TimerAwaiter Scheduler::sleep_until(TimePoint when)
     return TimerAwaiter{ this, when };
 }
 
-SchedulerAwaiter Scheduler::run_here() noexcept
+SchedulerAwaiter Scheduler::switch_to() noexcept
 {
     return SchedulerAwaiter{ this };
 }
 
 void Scheduler::schedule(std::coroutine_handle<> handle)
 {
-    ready_queue_.push([handle]() { handle.resume(); });
+    readyQueue_.push([handle]() { handle.resume(); });
     wakeup();
 }
 
 void Scheduler::schedule_at(TimePoint when, std::coroutine_handle<> handle)
 {
-    pending_timers_.push(Timer{ when, handle });
+    pendingTimers_.push(Timer{ when, handle });
     wakeup();
 }
 
 void Scheduler::process_ready_queue()
 {
-    while (auto func = ready_queue_.pop())
+    while (auto func = readyQueue_.pop())
     {
         (*func)();
     }
@@ -123,7 +121,7 @@ void Scheduler::process_io_events(int timeout_ms)
 {
     epoll_event events[128];
     // TODO: abstract poller
-    int n = epoll_wait(epoll_fd_, events, 128, timeout_ms);
+    int n = epoll_wait(epollFd_, events, 128, timeout_ms);
 
     for (int i = 0; i < n; ++i)
     {
@@ -132,7 +130,7 @@ void Scheduler::process_io_events(int timeout_ms)
         if (channelId == wakeupChannel_->id())
         {
             uint64_t dummy;
-            ssize_t ret = read(wakeup_fd_, &dummy, sizeof(dummy));
+            ssize_t ret = read(wakeupFd_, &dummy, sizeof(dummy));
             if (ret < 0)
                 NITRO_ERROR("wakeup read error: %s\n", strerror(errno));
             continue;
@@ -160,7 +158,7 @@ void Scheduler::process_io_events(int timeout_ms)
 
 int64_t Scheduler::get_next_timeout()
 {
-    while (auto timer = pending_timers_.pop())
+    while (auto timer = pendingTimers_.pop())
     {
         timers_.push(std::move(*timer));
     }
@@ -189,14 +187,14 @@ void Scheduler::process_timers()
     {
         auto timer = std::move(timers_.top());
         timers_.pop();
-        ready_queue_.push([handle = timer.handle]() { handle.resume(); });
+        readyQueue_.push([handle = timer.handle]() { handle.resume(); });
     }
 }
 
 void Scheduler::wakeup()
 {
     uint64_t val = 1;
-    write(wakeup_fd_, &val, sizeof(val));
+    write(wakeupFd_, &val, sizeof(val));
 }
 
 void Scheduler::setIoChannelHandler(const std::shared_ptr<io::IoChannel> & channel, Scheduler::IoEventHandler handler)
@@ -243,7 +241,7 @@ void Scheduler::updateIoChannel(const io::IoChannel * channel)
         if (ctx->addedToEpoll)
         {
             epoll_event ev{};
-            if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, &ev) < 0)
+            if (::epoll_ctl(epollFd_, EPOLL_CTL_DEL, fd, &ev) < 0)
             {
                 perror("epoll_ctl error");
                 throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
@@ -258,7 +256,7 @@ void Scheduler::updateIoChannel(const io::IoChannel * channel)
     ev.data.u64 = id;
 
     int op = ctx->addedToEpoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
-    if (::epoll_ctl(epoll_fd_, op, fd, &ev) < 0)
+    if (::epoll_ctl(epollFd_, op, fd, &ev) < 0)
     {
         NITRO_ERROR("epoll_ctl %s fd %d ev %d error: %s\n",
                     ctx->addedToEpoll ? "MOD" : "ADD", fd, events, strerror(errno));
@@ -283,16 +281,16 @@ void Scheduler::removeIoChannel(uint64_t id)
     epoll_event ev{};
     ev.events = 0;
     ev.data.u64 = id;
-    if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, ctx.fd, &ev) < 0)
+    if (::epoll_ctl(epollFd_, EPOLL_CTL_DEL, ctx.fd, &ev) < 0)
     {
-        NITRO_ERROR("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epoll_fd_, ctx.fd, errno);
+        NITRO_ERROR("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epollFd_, ctx.fd, errno);
         // throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
     }
 }
 
 bool Scheduler::isInOwnThread() const noexcept
 {
-    return std::this_thread::get_id() == thread_id_;
+    return std::this_thread::get_id() == threadId_;
 }
 
 void TimerAwaiter::await_suspend(std::coroutine_handle<> h) noexcept

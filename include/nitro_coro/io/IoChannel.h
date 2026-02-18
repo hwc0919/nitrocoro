@@ -133,7 +133,7 @@ private:
     template <typename T>
     Task<> performReadImpl(T && funcOrReader)
     {
-        co_await scheduler_->run_here();
+        co_await scheduler_->switch_to();
         while (true)
         {
             if (!readable_)
@@ -176,7 +176,7 @@ private:
     template <typename T>
     Task<> performWriteImpl(T && funcOrWriter)
     {
-        co_await scheduler_->run_here();
+        co_await scheduler_->switch_to();
         while (true)
         {
             if (!writable_)

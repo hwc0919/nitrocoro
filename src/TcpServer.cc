@@ -103,7 +103,7 @@ private:
 
 Task<> TcpServer::start(ConnectionHandler handler)
 {
-    co_await scheduler_->run_here();
+    co_await scheduler_->switch_to();
     if (started_.exchange(true))
     {
         throw std::logic_error("TcpServer already started");
@@ -150,7 +150,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
             {
                 NITRO_ERROR("Exception escaped from TcpServer handler\n");
             }
-            co_await scheduler->run_here();
+            co_await scheduler->switch_to();
             if (auto connSetPtr = weakConnSet.lock())
             {
                 connSetPtr->erase(connPtr);
@@ -170,7 +170,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
 
 Task<> TcpServer::stop()
 {
-    co_await scheduler_->run_here();
+    co_await scheduler_->switch_to();
     if (stopped_.exchange(true))
         co_return;
 
