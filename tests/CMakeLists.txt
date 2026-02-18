@@ -45,3 +45,9 @@ add_executable(generator_test
 )
 
 target_link_libraries(generator_test PRIVATE nitro_coro)
+
+add_executable(http_stream_test
+    http_stream_test.cc
+)
+
+target_link_libraries(http_stream_test PRIVATE nitro_coro)

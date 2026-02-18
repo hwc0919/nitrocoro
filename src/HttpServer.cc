@@ -42,7 +42,7 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
 
     try
     {
-        HttpIncomingStream request;
+        HttpIncomingStream<HttpRequest> request;
 
         // Parse until headers are complete
         while (!request.isHeaderComplete())
@@ -57,9 +57,9 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
         // Set connection for streaming body reads
         request.conn_ = conn;
 
-        HttpOutgoingStream response(conn);
+        HttpOutgoingStream<HttpResponse> response(conn);
 
-        auto key = std::make_pair(request.getMethod(), request.getUrl());
+        auto key = std::make_pair(request.method(), request.path());
         auto it = routes_.find(key);
 
         if (it != routes_.end())

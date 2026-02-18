@@ -8,8 +8,7 @@
 #include <map>
 #include <memory>
 #include <nitro_coro/core/Task.h>
-#include <nitro_coro/http/HttpIncomingStream.h>
-#include <nitro_coro/http/HttpOutgoingStream.h>
+#include <nitro_coro/http/HttpStream.h>
 #include <nitro_coro/net/TcpServer.h>
 #include <string>
 
@@ -19,7 +18,7 @@ namespace nitro_coro::http
 class HttpServer
 {
 public:
-    using Handler = std::function<Task<>(HttpIncomingStream &, HttpOutgoingStream &)>;
+    using Handler = std::function<Task<>(HttpIncomingStream<HttpRequest> &, HttpOutgoingStream<HttpResponse> &)>;
 
     explicit HttpServer(uint16_t port);
 

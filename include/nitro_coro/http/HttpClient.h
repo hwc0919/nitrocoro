@@ -5,6 +5,8 @@
 #pragma once
 
 #include <nitro_coro/core/Task.h>
+#include <nitro_coro/core/Future.h>
+#include <nitro_coro/http/HttpStream.h>
 #include <nitro_coro/http/HttpHeader.h>
 #include <nitro_coro/net/TcpConnection.h>
 #include <nitro_coro/net/Url.h>
@@ -36,14 +38,24 @@ private:
     std::string body_;
 };
 
+struct HttpClientSession
+{
+    HttpOutgoingStream<HttpRequest> request;
+    Future<HttpIncomingStream<HttpResponse>> response;
+};
+
 class HttpClient
 {
 public:
     HttpClient() = default;
 
+    // Simple API
     Task<HttpClientResponse> get(const std::string & url);
     Task<HttpClientResponse> post(const std::string & url, const std::string & body);
     Task<HttpClientResponse> request(const std::string & method, const std::string & url, const std::string & body = "");
+
+    // Stream API
+    Task<HttpClientSession> stream(const std::string & method, const std::string & url);
 
 private:
     Task<HttpClientResponse> sendRequest(const std::string & method, const net::Url & url, const std::string & body);

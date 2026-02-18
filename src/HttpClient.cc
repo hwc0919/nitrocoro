@@ -2,6 +2,8 @@
  * @file HttpClient.cc
  * @brief HTTP client implementation
  */
+#include <nitro_coro/core/Future.h>
+#include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/http/HttpClient.h>
 #include <nitro_coro/net/Dns.h>
 #include <nitro_coro/net/Url.h>
@@ -184,6 +186,64 @@ Task<HttpClientResponse> HttpClient::readResponse(net::TcpConnectionPtr conn)
     }
 
     co_return response;
+}
+
+Task<HttpClientSession> HttpClient::stream(const std::string & method, const std::string & url)
+{
+    net::Url parsedUrl(url);
+    if (!parsedUrl.isValid())
+        throw std::invalid_argument("Invalid URL");
+
+    // Resolve and connect
+    auto addresses = co_await net::resolve(parsedUrl.host());
+    if (addresses.empty())
+        throw std::runtime_error("DNS resolution failed");
+
+    auto conn = co_await net::TcpConnection::connect(addresses[0].toIp().c_str(), parsedUrl.port());
+
+    // Build request line
+    std::ostringstream oss;
+    oss << method << " " << parsedUrl.path() << " HTTP/1.1\r\n";
+    oss << "Host: " << parsedUrl.host() << "\r\n";
+    std::string requestLine = oss.str();
+    co_await conn->write(requestLine.c_str(), requestLine.size());
+
+    // Create outgoing stream for request body
+    HttpOutgoingStream<HttpRequest> requestStream(conn);
+    requestStream.setMethod(method);
+    requestStream.setPath(parsedUrl.path());
+
+    // Create promise/future for response
+    Promise<HttpIncomingStream<HttpResponse>> promise(Scheduler::current());
+    auto responseFuture = promise.get_future();
+
+    // Spawn background task to receive response
+    Scheduler::current()->spawn([conn, promise = std::move(promise)]() mutable -> Task<> {
+        try
+        {
+            char buf[4096];
+            HttpIncomingStream<HttpResponse> response;
+
+            // Parse headers
+            while (!response.isHeaderComplete())
+            {
+                size_t n = co_await conn->read(buf, sizeof(buf));
+                if (n <= 0)
+                    throw std::runtime_error("Connection closed");
+                response.parse(buf, n);
+            }
+
+            // Set connection for body streaming
+            response.conn_ = conn;
+            promise.set_value(std::move(response));
+        }
+        catch (...)
+        {
+            promise.set_exception(std::current_exception());
+        }
+    });
+
+    co_return HttpClientSession{ std::move(requestStream), std::move(responseFuture) };
 }
 
 } // namespace nitro_coro::http

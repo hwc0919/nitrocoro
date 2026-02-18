@@ -17,8 +17,7 @@ add_library(nitro_coro STATIC
     src/TcpServer.cc
     src/TcpConnection.cc
     src/IoChannel.cc
-    src/HttpIncomingStream.cc
-    src/HttpOutgoingStream.cc
+    src/HttpStream.cc
     src/HttpServer.cc
     src/HttpClient.cc
     src/HttpHeader.cc
