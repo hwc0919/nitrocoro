@@ -3,6 +3,7 @@
  * @brief HTTP client implementation
  */
 #include <nitro_coro/http/HttpClient.h>
+#include <nitro_coro/net/Dns.h>
 #include <sstream>
 #include <stdexcept>
 
@@ -65,7 +66,14 @@ HttpClient::UrlParts HttpClient::parseUrl(const std::string & url)
 
 Task<HttpClientResponse> HttpClient::sendRequest(const std::string & method, const UrlParts & url, const std::string & body)
 {
-    auto conn = co_await net::TcpConnection::connect(url.host.c_str(), url.port);
+    // Resolve hostname
+    auto addresses = co_await net::resolve(url.host);
+    if (addresses.empty())
+        throw std::runtime_error("DNS resolution returned no addresses");
+
+    // Try to connect to first address
+    auto addr = addresses[0];
+    auto conn = co_await net::TcpConnection::connect(addr.toIp().c_str(), url.port);
 
     // Build request
     std::ostringstream oss;

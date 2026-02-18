@@ -23,6 +23,7 @@ add_library(nitro_coro STATIC
     src/HttpClient.cc
     src/InetAddress.cc
     src/DnsResolver.cc
+    src/Dns.cc
 )
 
 target_include_directories(nitro_coro PUBLIC

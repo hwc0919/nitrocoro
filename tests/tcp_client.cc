@@ -4,11 +4,11 @@
  */
 #include <cstdlib>
 #include <fcntl.h>
-#include <iostream>
 #include <nitro_coro/core/Future.h>
 #include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/io/IoChannel.h>
 #include <nitro_coro/io/adapters/BufferReader.h>
+#include <nitro_coro/net/Dns.h>
 #include <nitro_coro/net/TcpConnection.h>
 #include <nitro_coro/utils/Debug.h>
 #include <unistd.h>
@@ -29,8 +29,8 @@ Task<> receive_messages(const TcpConnectionPtr & connPtr)
         {
             ssize_t n = co_await connPtr->read(buf, sizeof(buf) - 1);
             buf[n] = '\0';
-            std::cout << buf;
-            std::cout.flush();
+            printf("%s", buf);
+            fflush(stdout);
         }
         catch (const std::exception & e)
         {
@@ -85,7 +85,18 @@ Task<> client_main(const char * host, int port)
     bool quit{ false };
     while (!quit)
     {
-        auto connPtr = co_await TcpConnection::connect(host, port);
+        // Resolve hostname
+        NITRO_INFO("Resolving %s...\n", host);
+        auto addresses = co_await net::resolve(host);
+        if (addresses.empty())
+        {
+            NITRO_ERROR("Failed to resolve %s\n", host);
+            co_return;
+        }
+        NITRO_INFO("Resolved to %s\n", addresses[0].toIp().c_str());
+
+        // Connect using resolved IP
+        auto connPtr = co_await TcpConnection::connect(addresses[0].toIp().c_str(), port);
         NITRO_INFO("Connected to %s:%hu\n", host, port);
 
         Promise<> closePromise(Scheduler::current());
@@ -111,13 +122,13 @@ int main(int argc, char * argv[])
     int port = (argc >= 2) ? atoi(argv[1]) : 8888;
     const char * host = (argc >= 3) ? argv[2] : "127.0.0.1";
 
-    std::cout << "=== TCP Client ===\n";
-    std::cout << "Type 'q' to quit\n";
+    printf("=== TCP Client ===\n");
+    printf("Type 'q' to quit\n");
 
     Scheduler scheduler;
     scheduler.spawn([host, port]() -> Task<> { co_await client_main(host, port); });
     scheduler.run();
 
-    std::cout << "=== Done ===\n";
+    printf("=== Done ===\n");
     return 0;
 }
