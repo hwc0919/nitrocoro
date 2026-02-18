@@ -33,3 +33,9 @@ add_executable(http_client
 )
 
 target_link_libraries(http_client PRIVATE nitro_coro)
+
+add_executable(dns_resolver_test
+    dns_resolver_test.cc
+)
+
+target_link_libraries(dns_resolver_test PRIVATE nitro_coro)

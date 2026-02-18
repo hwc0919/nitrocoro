@@ -21,11 +21,17 @@ add_library(nitro_coro STATIC
     src/HttpResponse.cc
     src/HttpServer.cc
     src/HttpClient.cc
+    src/InetAddress.cc
+    src/DnsResolver.cc
 )
 
 target_include_directories(nitro_coro PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+# Link pthread for threading support
+find_package(Threads REQUIRED)
+target_link_libraries(nitro_coro PUBLIC Threads::Threads)
 
 # Build tests
 add_subdirectory(tests)

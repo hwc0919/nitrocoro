@@ -2,7 +2,6 @@ BasedOnStyle: LLVM                                              # 基础格式, 
 AccessModifierOffset: -4                                        # public, private 修饰符的缩进
 ConstructorInitializerIndentWidth: 4                            # 构造函数初始化列表缩进
 AlignTrailingComments: true                                     # 对齐行尾注释
-#AlignConsecutiveAssignments: AcrossEmptyLinesAndComments
 AlignConsecutiveMacros: AcrossEmptyLinesAndComments
 AllowAllParametersOfDeclarationOnNextLine: true
 AllowShortIfStatementsOnASingleLine: false

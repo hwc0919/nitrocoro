@@ -7,6 +7,7 @@
 #include <nitro_coro/core/Scheduler.h>
 
 #include <coroutine>
+#include <exception>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -28,6 +29,7 @@ struct FutureState
     bool ready_{ false };
     std::vector<std::coroutine_handle<>> waiters_;
     std::optional<T> value_;
+    std::exception_ptr exception_;
 };
 
 template <>
@@ -36,6 +38,7 @@ struct FutureState<void>
     std::mutex mutex_;
     bool ready_{ false };
     std::vector<std::coroutine_handle<>> waiters_;
+    std::exception_ptr exception_;
 };
 
 template <typename T = void>
@@ -68,8 +71,10 @@ public:
             return true;
         }
 
-        T await_resume() noexcept
+        T await_resume()
         {
+            if (state_->exception_)
+                std::rethrow_exception(state_->exception_);
             if constexpr (!std::is_void_v<T>)
                 return std::move(*state_->value_);
         }
@@ -126,8 +131,10 @@ public:
             return true;
         }
 
-        void await_resume() noexcept
+        void await_resume()
         {
+            if (state_->exception_)
+                std::rethrow_exception(state_->exception_);
         }
     };
 
@@ -182,7 +189,12 @@ public:
             return true;
         }
 
-        const T & await_resume() const noexcept { return *state_->value_; }
+        const T & await_resume() const
+        {
+            if (state_->exception_)
+                std::rethrow_exception(state_->exception_);
+            return *state_->value_;
+        }
     };
 
     [[nodiscard]] Awaiter get() const noexcept { return Awaiter{ state_ }; }
@@ -229,8 +241,10 @@ public:
             return true;
         }
 
-        void await_resume() const noexcept
+        void await_resume() const
         {
+            if (state_->exception_)
+                std::rethrow_exception(state_->exception_);
         }
     };
 
@@ -285,9 +299,36 @@ public:
             state_->ready_ = true;
             waiters = std::move(state_->waiters_);
         }
-        for (auto h : waiters)
+        if (scheduler_)
         {
-            scheduler_->schedule(h);
+            for (auto h : waiters)
+                scheduler_->schedule(h);
+        }
+        else
+        {
+            for (auto h : waiters)
+                h.resume();
+        }
+    }
+
+    void set_exception(std::exception_ptr ex)
+    {
+        std::vector<std::coroutine_handle<>> waiters;
+        {
+            std::lock_guard lock(state_->mutex_);
+            state_->exception_ = std::move(ex);
+            state_->ready_ = true;
+            waiters = std::move(state_->waiters_);
+        }
+        if (scheduler_)
+        {
+            for (auto h : waiters)
+                scheduler_->schedule(h);
+        }
+        else
+        {
+            for (auto h : waiters)
+                h.resume();
         }
     }
 
@@ -321,9 +362,36 @@ public:
             state_->ready_ = true;
             waiters = std::move(state_->waiters_);
         }
-        for (auto h : waiters)
+        if (scheduler_)
         {
-            scheduler_->schedule(h);
+            for (auto h : waiters)
+                scheduler_->schedule(h);
+        }
+        else
+        {
+            for (auto h : waiters)
+                h.resume();
+        }
+    }
+
+    void set_exception(std::exception_ptr ex)
+    {
+        std::vector<std::coroutine_handle<>> waiters;
+        {
+            std::lock_guard lock(state_->mutex_);
+            state_->exception_ = std::move(ex);
+            state_->ready_ = true;
+            waiters = std::move(state_->waiters_);
+        }
+        if (scheduler_)
+        {
+            for (auto h : waiters)
+                scheduler_->schedule(h);
+        }
+        else
+        {
+            for (auto h : waiters)
+                h.resume();
         }
     }
 
