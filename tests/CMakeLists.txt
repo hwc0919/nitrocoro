@@ -4,14 +4,20 @@ add_executable(coro_test
 
 target_link_libraries(coro_test PRIVATE nitro_coro)
 
-add_executable(tcp_echo_test
-    tcp_echo_test.cc
+add_executable(tcp_echo_server
+    tcp_echo_server.cc
 )
 
-target_link_libraries(tcp_echo_test PRIVATE nitro_coro)
+target_link_libraries(tcp_echo_server PRIVATE nitro_coro)
 
-add_executable(tcp_chat_test
-    tcp_chat_test.cc
+add_executable(tcp_chat_server
+    tcp_chat_server.cc
 )
 
-target_link_libraries(tcp_chat_test PRIVATE nitro_coro)
+target_link_libraries(tcp_chat_server PRIVATE nitro_coro)
+
+add_executable(tcp_client
+    tcp_client.cc
+)
+
+target_link_libraries(tcp_client PRIVATE nitro_coro)
