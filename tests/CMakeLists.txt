@@ -39,3 +39,9 @@ add_executable(dns_resolver_test
 )
 
 target_link_libraries(dns_resolver_test PRIVATE nitro_coro)
+
+add_executable(generator_test
+    generator_test.cc
+)
+
+target_link_libraries(generator_test PRIVATE nitro_coro)
