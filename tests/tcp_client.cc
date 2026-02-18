@@ -20,7 +20,7 @@ using nitro_coro::io::adapters::BufferReader;
 
 #define BUFFER_SIZE 1024
 
-Task<> receive_messages(const TcpConnectionPtr & connPtr, Promise<> & closePromise)
+Task<> receive_messages(const TcpConnectionPtr & connPtr)
 {
     char buf[BUFFER_SIZE];
     while (true)
@@ -34,18 +34,26 @@ Task<> receive_messages(const TcpConnectionPtr & connPtr, Promise<> & closePromi
         }
         catch (const std::exception & e)
         {
-            closePromise.set_value();
             break;
         }
     }
 }
 
-Task<> send_messages(const TcpConnectionPtr & connPtr, Promise<> & closePromise)
+static std::shared_ptr<IoChannel> getStdinChannel()
 {
-    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-    fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-    auto stdinChannel = IoChannel::create(STDIN_FILENO, Scheduler::current());
-    stdinChannel->enableReading();
+    static auto channel = []() {
+        int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+        fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+        auto stdinChannel = IoChannel::create(STDIN_FILENO, Scheduler::current());
+        stdinChannel->enableReading();
+        return stdinChannel;
+    }();
+    return channel;
+}
+
+Task<> send_messages(const TcpConnectionPtr & connPtr)
+{
+    auto stdinChannel = getStdinChannel();
 
     char buf[BUFFER_SIZE];
     std::string line;
@@ -65,7 +73,6 @@ Task<> send_messages(const TcpConnectionPtr & connPtr, Promise<> & closePromise)
 
             if (msg == "q\n")
             {
-                closePromise.set_value();
                 co_return;
             }
             co_await connPtr->write(msg.c_str(), msg.size());
@@ -75,16 +82,27 @@ Task<> send_messages(const TcpConnectionPtr & connPtr, Promise<> & closePromise)
 
 Task<> client_main(const char * host, int port)
 {
-    auto connPtr = co_await TcpConnection::connect(host, port);
-    NITRO_INFO("Connected to %s:%hu\n", host, port);
+    bool quit{ false };
+    while (!quit)
+    {
+        auto connPtr = co_await TcpConnection::connect(host, port);
+        NITRO_INFO("Connected to %s:%hu\n", host, port);
 
-    Promise<> closePromise(Scheduler::current());
-    auto closeFuture = closePromise.get_future();
+        Promise<> closePromise(Scheduler::current());
+        auto closeFuture = closePromise.get_future();
 
-    Scheduler::current()->spawn([connPtr, &closePromise]() -> Task<> { co_await receive_messages(connPtr, closePromise); });
-    Scheduler::current()->spawn([connPtr, &closePromise]() -> Task<> { co_await send_messages(connPtr, closePromise); });
+        Scheduler::current()->spawn([connPtr, &closePromise]() -> Task<> {
+            co_await receive_messages(connPtr);
+            closePromise.set_value();
+        });
+        Scheduler::current()->spawn([connPtr, &quit]() -> Task<> {
+            co_await send_messages(connPtr);
+            co_await connPtr->close();
+            quit = true;
+        });
+        co_await closeFuture.get();
+    }
 
-    co_await closeFuture.get();
     Scheduler::current()->stop();
 }
 

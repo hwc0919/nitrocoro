@@ -148,11 +148,11 @@ void Scheduler::process_io_events(int timeout_ms)
         int fd = ctx->fd;
 
         NITRO_TRACE("fd %d event %d: IN: %d, OUT: %d, ERR: %d\n",
-               fd,
-               ev,
-               ev & EPOLLIN,
-               ev & EPOLLOUT,
-               ev & (EPOLLERR | EPOLLHUP));
+                    fd,
+                    ev,
+                    ev & EPOLLIN,
+                    ev & EPOLLOUT,
+                    ev & (EPOLLERR | EPOLLHUP));
 
         ctx->handler(fd, ev);
     }
@@ -260,6 +260,8 @@ void Scheduler::updateIoChannel(const io::IoChannel * channel)
     int op = ctx->addedToEpoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
     if (::epoll_ctl(epoll_fd_, op, fd, &ev) < 0)
     {
+        NITRO_ERROR("epoll_ctl %s fd %d ev %d error: %s\n",
+                    ctx->addedToEpoll ? "MOD" : "ADD", fd, events, strerror(errno));
         throw std::runtime_error(ctx->addedToEpoll ? "Failed to call EPOLL_CTL_MOD on epoll" : "Failed to call EPOLL_CTL_ADD on epoll");
     }
 
