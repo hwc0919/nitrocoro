@@ -16,7 +16,14 @@ void HttpResponse::setStatus(int code, const std::string & reason)
 
 void HttpResponse::setHeader(const std::string & name, const std::string & value)
 {
-    headers_[name] = value;
+    HttpHeader header(name, value);
+    headers_.insert_or_assign(header.name(), std::move(header));
+}
+
+void HttpResponse::setCookie(const std::string & name, const std::string & value)
+{
+    // TODO: Support cookie attributes (path, domain, expires, httponly, secure, etc.)
+    cookies_.emplace_back(name, value);
 }
 
 Task<> HttpResponse::writeHeaders()
@@ -27,10 +34,17 @@ Task<> HttpResponse::writeHeaders()
     std::ostringstream oss;
     oss << "HTTP/1.1 " << statusCode_ << " " << statusReason_ << "\r\n";
 
-    for (const auto & [name, value] : headers_)
+    for (const auto & [_, h] : headers_)
     {
-        oss << name << ": " << value << "\r\n";
+        oss << h.serialize();
     }
+    
+    // Write Set-Cookie headers
+    for (const auto & [name, value] : cookies_)
+    {
+        oss << "Set-Cookie: " << name << "=" << value << "\r\n";
+    }
+    
     oss << "\r\n";
 
     std::string headers = oss.str();

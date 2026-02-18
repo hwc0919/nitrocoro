@@ -32,10 +32,10 @@ int HttpRequest::parse(const char * data, size_t len)
             else if (line.empty())
             {
                 // Empty line marks end of headers
-                auto it = headers_.find("Content-Length");
+                auto it = headers_.find("content-length");
                 if (it != headers_.end())
                 {
-                    contentLength_ = std::stoul(it->second);
+                    contentLength_ = std::stoul(it->second.value());
                     state_ = State::Body;
                 }
                 else
@@ -105,12 +105,18 @@ void HttpRequest::parseHeader(std::string_view line)
     std::string name(line.substr(0, pos));
     std::string value(line.substr(pos + 1));
 
-    // Trim leading spaces from value
-    size_t start = value.find_first_not_of(' ');
-    if (start != std::string::npos)
-        value = value.substr(start);
-
-    headers_[name] = value;
+    HttpHeader header(std::move(name), std::move(value));
+    
+    // Special handling for Cookie header
+    if (header.name() == "cookie")
+    {
+        parseCookies(header.value());
+    }
+    else
+    {
+        // Only add non-cookie headers to headers map
+        headers_.emplace(header.name(), std::move(header));
+    }
 }
 
 void HttpRequest::parseQueryString()
@@ -136,14 +142,30 @@ void HttpRequest::parseQueryString()
 
 std::string_view HttpRequest::header(const std::string & name) const
 {
-    auto it = headers_.find(name);
-    return it != headers_.end() ? std::string_view(it->second) : std::string_view();
+    std::string lowerName = name;
+    std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    
+    auto it = headers_.find(lowerName);
+    return it != headers_.end() ? std::string_view(it->second.value()) : std::string_view();
 }
 
 std::string_view HttpRequest::query(const std::string & name) const
 {
     auto it = queries_.find(name);
     return it != queries_.end() ? std::string_view(it->second) : std::string_view();
+}
+
+std::string_view HttpRequest::cookie(const std::string & name) const
+{
+    auto it = cookies_.find(name);
+    return it != cookies_.end() ? std::string_view(it->second) : std::string_view();
+}
+
+void HttpRequest::parseCookies(const std::string & cookieHeader)
+{
+    // TODO: Implement cookie parsing
+    // Format: name1=value1; name2=value2; name3=value3
 }
 
 } // namespace nitro_coro::http

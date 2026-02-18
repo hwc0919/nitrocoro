@@ -5,6 +5,7 @@
 #pragma once
 
 #include <nitro_coro/core/Task.h>
+#include <nitro_coro/http/HttpHeader.h>
 #include <nitro_coro/http/HttpRequest.h>
 #include <nitro_coro/net/TcpConnection.h>
 #include <string>
@@ -19,13 +20,17 @@ public:
     const std::string & statusReason() const { return statusReason_; }
     const std::string & body() const { return body_; }
     std::string_view header(const std::string & name) const;
+    const std::map<std::string, HttpHeader> & headers() const { return headers_; }
+    std::string_view cookie(const std::string & name) const;
+    const std::map<std::string, std::string> & cookies() const { return cookies_; }
 
 private:
     friend class HttpClient;
 
     int statusCode_ = 0;
     std::string statusReason_;
-    std::map<std::string, std::string> headers_;
+    std::map<std::string, HttpHeader> headers_;
+    std::map<std::string, std::string> cookies_;
     std::string body_;
 };
 

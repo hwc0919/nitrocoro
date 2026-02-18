@@ -5,8 +5,10 @@
 #pragma once
 
 #include <map>
+#include <nitro_coro/http/HttpHeader.h>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace nitro_coro::http
 {
@@ -27,7 +29,10 @@ public:
     const std::string & body() const { return body_; }
 
     std::string_view header(const std::string & name) const;
-    const std::map<std::string, std::string> & headers() const { return headers_; }
+    const std::map<std::string, HttpHeader> & headers() const { return headers_; }
+
+    std::string_view cookie(const std::string & name) const;
+    const std::map<std::string, std::string> & cookies() const { return cookies_; }
 
     std::string_view query(const std::string & name) const;
 
@@ -43,6 +48,7 @@ private:
     void parseRequestLine(std::string_view line);
     void parseHeader(std::string_view line);
     void parseQueryString();
+    void parseCookies(const std::string & cookieHeader);
 
     State state_ = State::RequestLine;
     bool complete_ = false;
@@ -50,7 +56,8 @@ private:
     std::string method_;
     std::string path_;
     std::string version_;
-    std::map<std::string, std::string> headers_;
+    std::map<std::string, HttpHeader> headers_;
+    std::map<std::string, std::string> cookies_;
     std::map<std::string, std::string> queries_;
     std::string body_;
 

@@ -12,8 +12,18 @@ namespace nitro_coro::http
 
 std::string_view HttpClientResponse::header(const std::string & name) const
 {
-    auto it = headers_.find(name);
-    return it != headers_.end() ? std::string_view(it->second) : std::string_view();
+    std::string lowerName = name;
+    std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+
+    auto it = headers_.find(lowerName);
+    return it != headers_.end() ? std::string_view(it->second.value()) : std::string_view();
+}
+
+std::string_view HttpClientResponse::cookie(const std::string & name) const
+{
+    auto it = cookies_.find(name);
+    return it != cookies_.end() ? std::string_view(it->second) : std::string_view();
 }
 
 Task<HttpClientResponse> HttpClient::get(const std::string & url)
@@ -144,10 +154,10 @@ Task<HttpClientResponse> HttpClient::readResponse(net::TcpConnectionPtr conn)
             else if (line.empty())
             {
                 // End of headers
-                auto it = response.headers_.find("Content-Length");
+                auto it = response.headers_.find("content-length");
                 if (it != response.headers_.end())
                 {
-                    contentLength = std::stoul(it->second);
+                    contentLength = std::stoul(it->second.value());
                     hasContentLength = true;
                 }
                 state = State::Body;
@@ -160,10 +170,30 @@ Task<HttpClientResponse> HttpClient::readResponse(net::TcpConnectionPtr conn)
                 {
                     std::string name = line.substr(0, colonPos);
                     std::string value = line.substr(colonPos + 1);
-                    size_t start = value.find_first_not_of(' ');
-                    if (start != std::string::npos)
-                        value = value.substr(start);
-                    response.headers_[name] = value;
+
+                    HttpHeader header(std::move(name), std::move(value));
+
+                    // Special handling for Set-Cookie header
+                    if (header.name() == "set-cookie")
+                    {
+                        // TODO: Parse Set-Cookie header properly
+                        // For now, just extract name=value
+                        size_t eqPos = header.value().find('=');
+                        if (eqPos != std::string::npos)
+                        {
+                            size_t endPos = header.value().find(';');
+                            std::string cookieName = header.value().substr(0, eqPos);
+                            std::string cookieValue = (endPos != std::string::npos)
+                                                          ? header.value().substr(eqPos + 1, endPos - eqPos - 1)
+                                                          : header.value().substr(eqPos + 1);
+                            response.cookies_[cookieName] = cookieValue;
+                        }
+                    }
+                    else
+                    {
+                        // Only add non-cookie headers to headers map
+                        response.headers_.emplace(header.name(), std::move(header));
+                    }
                 }
             }
         }
