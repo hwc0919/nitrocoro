@@ -21,3 +21,9 @@ add_executable(tcp_client
 )
 
 target_link_libraries(tcp_client PRIVATE nitro_coro)
+
+add_executable(http_server
+    http_server.cc
+)
+
+target_link_libraries(http_server PRIVATE nitro_coro)

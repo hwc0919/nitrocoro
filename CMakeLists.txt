@@ -11,6 +11,9 @@ add_library(nitro_coro STATIC
     src/TcpServer.cc
     src/TcpConnection.cc
     src/IoChannel.cc
+    src/HttpRequest.cc
+    src/HttpResponse.cc
+    src/HttpServer.cc
 )
 
 target_include_directories(nitro_coro PUBLIC
