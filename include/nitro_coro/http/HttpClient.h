@@ -6,9 +6,10 @@
 
 #include <nitro_coro/core/Task.h>
 #include <nitro_coro/http/HttpHeader.h>
-#include <nitro_coro/http/HttpRequest.h>
 #include <nitro_coro/net/TcpConnection.h>
 #include <nitro_coro/net/Url.h>
+
+#include <map>
 #include <string>
 
 namespace nitro_coro::http

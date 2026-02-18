@@ -42,8 +42,10 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
 
     try
     {
-        HttpRequest request;
-        while (!request.isComplete())
+        HttpIncomingStream request;
+
+        // Parse until headers are complete
+        while (!request.isHeaderComplete())
         {
             size_t n = co_await conn->read(buf, sizeof(buf));
             if (n <= 0)
@@ -52,9 +54,12 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
             request.parse(buf, n);
         }
 
-        HttpResponse response(conn);
+        // Set connection for streaming body reads
+        request.conn_ = conn;
 
-        auto key = std::make_pair(request.method(), request.path());
+        HttpOutgoingStream response(conn);
+
+        auto key = std::make_pair(request.getMethod(), request.getUrl());
         auto it = routes_.find(key);
 
         if (it != routes_.end())
@@ -64,7 +69,7 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
         else
         {
             response.setStatus(404);
-            co_await response.write("Not Found");
+            co_await response.end("Not Found");
         }
     }
     catch (const std::exception & e)

@@ -13,34 +13,35 @@ Task<> server_main(uint16_t port)
 {
     HttpServer server(port);
 
-    server.route("GET", "/", [](HttpRequest & req, HttpResponse & resp) -> Task<> {
+    server.route("GET", "/", [](HttpIncomingStream & req, HttpOutgoingStream & resp) -> Task<> {
         resp.setStatus(200);
         resp.setHeader("Content-Type", "text/html; charset=utf-8");
-        co_await resp.write("<h1>Hello, World!</h1>");
+        co_await resp.end("<h1>Hello, World!</h1>");
     });
 
-    server.route("GET", "/large", [](HttpRequest & req, HttpResponse & resp) -> Task<> {
+    server.route("GET", "/large", [](HttpIncomingStream & req, HttpOutgoingStream & resp) -> Task<> {
         resp.setStatus(200);
         resp.setHeader("Content-Type", "text/html; charset=utf-8");
         std::string largeBody(1024 * 1024, 'a');
-        co_await resp.write(largeBody);
+        co_await resp.end(largeBody);
     });
 
-    server.route("GET", "/hello", [](HttpRequest & req, HttpResponse & resp) -> Task<> {
-        auto name = req.query("name");
+    server.route("GET", "/hello", [](HttpIncomingStream & req, HttpOutgoingStream & resp) -> Task<> {
+        auto name = req.getQuery("name");
         std::string body = "Hello, ";
         body += name.empty() ? "Guest" : name;
         body += "!";
 
         resp.setStatus(200);
         resp.setHeader("Content-Type", "text/plain");
-        co_await resp.write(body);
+        co_await resp.end(body);
     });
 
-    server.route("POST", "/echo", [](HttpRequest & req, HttpResponse & resp) -> Task<> {
+    server.route("POST", "/echo", [](HttpIncomingStream & req, HttpOutgoingStream & resp) -> Task<> {
+        auto body = co_await req.readAll();
         resp.setStatus(200);
         resp.setHeader("Content-Type", "text/plain");
-        co_await resp.write(req.body());
+        co_await resp.end(body);
     });
 
     co_await server.start();

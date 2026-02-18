@@ -1,15 +1,16 @@
 /**
- * @file HttpRequest.cc
- * @brief HTTP request parser implementation
+ * @file HttpIncomingStream.cc
+ * @brief HTTP incoming stream implementation
  */
 #include <algorithm>
-#include <nitro_coro/http/HttpRequest.h>
+#include <cstring>
+#include <nitro_coro/http/HttpIncomingStream.h>
 #include <sstream>
 
 namespace nitro_coro::http
 {
 
-int HttpRequest::parse(const char * data, size_t len)
+int HttpIncomingStream::parse(const char * data, size_t len)
 {
     buffer_.append(data, len);
 
@@ -19,7 +20,7 @@ int HttpRequest::parse(const char * data, size_t len)
         {
             size_t pos = buffer_.find("\r\n");
             if (pos == std::string::npos)
-                return len; // Need more data
+                return len;
 
             std::string line = buffer_.substr(0, pos);
             buffer_.erase(0, pos + 2);
@@ -35,7 +36,6 @@ int HttpRequest::parse(const char * data, size_t len)
             }
             else
             {
-                // Empty line marks end of headers
                 static const std::string contentLengthKey{ HttpHeader::codeToName(HttpHeader::NameCode::ContentLength) };
                 auto it = headers_.find(contentLengthKey);
                 if (it != headers_.end())
@@ -52,30 +52,15 @@ int HttpRequest::parse(const char * data, size_t len)
         }
         else if (state_ == State::Body)
         {
-            size_t needed = contentLength_ - bodyBytesRead_;
-            size_t available = buffer_.size();
-            size_t toRead = std::min(needed, available);
-
-            body_.append(buffer_.data(), toRead);
-            buffer_.erase(0, toRead);
-            bodyBytesRead_ += toRead;
-
-            if (bodyBytesRead_ >= contentLength_)
-            {
-                state_ = State::Complete;
-                complete_ = true;
-            }
-            else
-            {
-                return len; // Need more data
-            }
+            // Body data in buffer, keep it for streaming reads
+            return len;
         }
     }
 
     return len;
 }
 
-void HttpRequest::parseRequestLine(std::string_view line)
+void HttpIncomingStream::parseRequestLine(std::string_view line)
 {
     size_t pos1 = line.find(' ');
     size_t pos2 = line.find(' ', pos1 + 1);
@@ -84,7 +69,6 @@ void HttpRequest::parseRequestLine(std::string_view line)
     std::string fullPath(line.substr(pos1 + 1, pos2 - pos1 - 1));
     version_ = line.substr(pos2 + 1);
 
-    // Split path and query string
     size_t qpos = fullPath.find('?');
     if (qpos != std::string::npos)
     {
@@ -97,7 +81,7 @@ void HttpRequest::parseRequestLine(std::string_view line)
     }
 }
 
-void HttpRequest::parseHeader(std::string_view line)
+void HttpIncomingStream::parseHeader(std::string_view line)
 {
     size_t pos = line.find(':');
     if (pos == std::string::npos)
@@ -108,19 +92,17 @@ void HttpRequest::parseHeader(std::string_view line)
 
     HttpHeader header(std::move(name), std::move(value));
 
-    // Special handling for Cookie header
     if (header.name() == "cookie")
     {
         parseCookies(header.value());
     }
     else
     {
-        // Only add non-cookie headers to headers map
         headers_.emplace(header.name(), std::move(header));
     }
 }
 
-void HttpRequest::parseQueryString()
+void HttpIncomingStream::parseQueryString()
 {
     size_t qpos = path_.find('?');
     if (qpos == std::string::npos)
@@ -141,7 +123,7 @@ void HttpRequest::parseQueryString()
     }
 }
 
-std::string_view HttpRequest::header(const std::string & name) const
+std::string_view HttpIncomingStream::getHeader(const std::string & name) const
 {
     std::string lowerName = name;
     std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(),
@@ -151,22 +133,111 @@ std::string_view HttpRequest::header(const std::string & name) const
     return it != headers_.end() ? std::string_view(it->second.value()) : std::string_view();
 }
 
-std::string_view HttpRequest::query(const std::string & name) const
+std::string_view HttpIncomingStream::getQuery(const std::string & name) const
 {
     auto it = queries_.find(name);
     return it != queries_.end() ? std::string_view(it->second) : std::string_view();
 }
 
-std::string_view HttpRequest::cookie(const std::string & name) const
+std::string_view HttpIncomingStream::getCookie(const std::string & name) const
 {
     auto it = cookies_.find(name);
     return it != cookies_.end() ? std::string_view(it->second) : std::string_view();
 }
 
-void HttpRequest::parseCookies(const std::string & cookieHeader)
+void HttpIncomingStream::parseCookies(const std::string & cookieHeader)
 {
     // TODO: Implement cookie parsing
-    // Format: name1=value1; name2=value2; name3=value3
+}
+
+Task<std::string_view> HttpIncomingStream::read(size_t maxSize)
+{
+    if (bodyBytesRead_ >= contentLength_)
+    {
+        co_return std::string_view();
+    }
+
+    size_t oldSize = buffer_.size();
+    size_t toRead = std::min(maxSize, contentLength_ - bodyBytesRead_);
+
+    buffer_.reserve(oldSize + toRead);
+    size_t n = co_await conn_->read(buffer_.data() + oldSize, toRead);
+    buffer_.resize(oldSize + n);
+
+    bodyBytesRead_ += n;
+    if (bodyBytesRead_ >= contentLength_)
+    {
+        complete_ = true;
+    }
+
+    co_return std::string_view(buffer_.data() + oldSize, n);
+}
+
+Task<size_t> HttpIncomingStream::readTo(char * buf, size_t len)
+{
+    // First, consume from buffer
+    if (!buffer_.empty())
+    {
+        size_t toRead = std::min(len, buffer_.size());
+        std::memcpy(buf, buffer_.data(), toRead);
+        buffer_.erase(0, toRead);
+        bodyBytesRead_ += toRead;
+
+        if (bodyBytesRead_ >= contentLength_)
+        {
+            complete_ = true;
+        }
+
+        co_return toRead;
+    }
+
+    // Then read from connection
+    if (conn_ && bodyBytesRead_ < contentLength_)
+    {
+        size_t remaining = contentLength_ - bodyBytesRead_;
+        size_t toRead = std::min(len, remaining);
+        size_t n = co_await conn_->read(buf, toRead);
+
+        bodyBytesRead_ += n;
+        if (bodyBytesRead_ >= contentLength_)
+        {
+            complete_ = true;
+        }
+
+        co_return n;
+    }
+
+    co_return 0;
+}
+
+Task<std::string_view> HttpIncomingStream::readAll()
+{
+    if (bodyBytesRead_ >= contentLength_)
+    {
+        co_return std::string_view(buffer_);
+    }
+
+    size_t oldSize = buffer_.size();
+
+    while (bodyBytesRead_ < contentLength_)
+    {
+        constexpr size_t CHUNK_SIZE = 4096;
+        size_t currentSize = buffer_.size();
+        size_t toRead = std::min(CHUNK_SIZE, contentLength_ - bodyBytesRead_);
+
+        buffer_.reserve(currentSize + toRead);
+        size_t n = co_await conn_->read(buffer_.data() + currentSize, toRead);
+        buffer_.resize(currentSize + n);
+
+        bodyBytesRead_ += n;
+    }
+
+    if (bodyBytesRead_ >= contentLength_)
+    {
+        complete_ = true;
+    }
+
+    co_return std::string_view(buffer_.data() + oldSize, buffer_.size() - oldSize);
 }
 
 } // namespace nitro_coro::http

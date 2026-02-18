@@ -194,7 +194,11 @@ void Scheduler::process_timers()
 void Scheduler::wakeup()
 {
     uint64_t val = 1;
-    write(wakeupFd_, &val, sizeof(val));
+    ssize_t result = write(wakeupFd_, &val, sizeof(val));
+    if (result < 0)
+    {
+        NITRO_ERROR("wakeup write error: %s\n", strerror(errno));
+    }
 }
 
 void Scheduler::setIoChannelHandler(const std::shared_ptr<io::IoChannel> & channel, Scheduler::IoEventHandler handler)
