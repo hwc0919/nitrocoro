@@ -20,6 +20,7 @@ add_library(nitro_coro STATIC
     src/HttpRequest.cc
     src/HttpResponse.cc
     src/HttpServer.cc
+    src/HttpClient.cc
 )
 
 target_include_directories(nitro_coro PUBLIC
