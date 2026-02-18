@@ -45,7 +45,7 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
         HttpRequest request;
         while (!request.isComplete())
         {
-            ssize_t n = co_await conn->read(buf, sizeof(buf));
+            size_t n = co_await conn->read(buf, sizeof(buf));
             if (n <= 0)
                 co_return;
 

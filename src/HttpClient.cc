@@ -151,18 +151,7 @@ Task<HttpClientResponse> HttpClient::readResponse(net::TcpConnectionPtr conn)
                 response.statusReason_ = line.substr(sp2 + 1);
                 state = State::Headers;
             }
-            else if (line.empty())
-            {
-                // End of headers
-                auto it = response.headers_.find("content-length");
-                if (it != response.headers_.end())
-                {
-                    contentLength = std::stoul(it->second.value());
-                    hasContentLength = true;
-                }
-                state = State::Body;
-            }
-            else
+            else if (!line.empty())
             {
                 // Parse header
                 size_t colonPos = line.find(':');
@@ -195,6 +184,18 @@ Task<HttpClientResponse> HttpClient::readResponse(net::TcpConnectionPtr conn)
                         response.headers_.emplace(header.name(), std::move(header));
                     }
                 }
+            }
+            else
+            {
+                // End of headers
+                static const std::string contentLengthKey{ HttpHeader::codeToName(HttpHeader::NameCode::ContentLength) };
+                auto it = response.headers_.find(contentLengthKey);
+                if (it != response.headers_.end())
+                {
+                    contentLength = std::stoul(it->second.value());
+                    hasContentLength = true;
+                }
+                state = State::Body;
             }
         }
 

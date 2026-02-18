@@ -2,8 +2,8 @@
  * @file HttpRequest.cc
  * @brief HTTP request parser implementation
  */
-#include <nitro_coro/http/HttpRequest.h>
 #include <algorithm>
+#include <nitro_coro/http/HttpRequest.h>
 #include <sstream>
 
 namespace nitro_coro::http
@@ -29,10 +29,15 @@ int HttpRequest::parse(const char * data, size_t len)
                 parseRequestLine(line);
                 state_ = State::Headers;
             }
-            else if (line.empty())
+            else if (!line.empty())
+            {
+                parseHeader(line);
+            }
+            else
             {
                 // Empty line marks end of headers
-                auto it = headers_.find("content-length");
+                static const std::string contentLengthKey{ HttpHeader::codeToName(HttpHeader::NameCode::ContentLength) };
+                auto it = headers_.find(contentLengthKey);
                 if (it != headers_.end())
                 {
                     contentLength_ = std::stoul(it->second.value());
@@ -43,10 +48,6 @@ int HttpRequest::parse(const char * data, size_t len)
                     state_ = State::Complete;
                     complete_ = true;
                 }
-            }
-            else
-            {
-                parseHeader(line);
             }
         }
         else if (state_ == State::Body)
@@ -106,7 +107,7 @@ void HttpRequest::parseHeader(std::string_view line)
     std::string value(line.substr(pos + 1));
 
     HttpHeader header(std::move(name), std::move(value));
-    
+
     // Special handling for Cookie header
     if (header.name() == "cookie")
     {
@@ -145,7 +146,7 @@ std::string_view HttpRequest::header(const std::string & name) const
     std::string lowerName = name;
     std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(),
                    [](unsigned char c) { return std::tolower(c); });
-    
+
     auto it = headers_.find(lowerName);
     return it != headers_.end() ? std::string_view(it->second.value()) : std::string_view();
 }
