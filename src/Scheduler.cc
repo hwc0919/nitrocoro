@@ -7,6 +7,7 @@
 #include <cstring>
 #include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/io/IoChannel.h>
+#include <nitro_coro/utils/Debug.h>
 #include <stdexcept>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
@@ -133,26 +134,25 @@ void Scheduler::process_io_events(int timeout_ms)
             uint64_t dummy;
             ssize_t ret = read(wakeup_fd_, &dummy, sizeof(dummy));
             if (ret < 0)
-                fprintf(stderr, "wakeup read error: %s\n", strerror(errno));
+                NITRO_ERROR("wakeup read error: %s\n", strerror(errno));
             continue;
         }
 
         auto iter = ioChannels_.find(channelId);
         if (iter == ioChannels_.end())
         {
-            printf("channel with id %ld not found!!!\n", channelId);
+            NITRO_ERROR("channel with id %ld not found!!!\n", channelId);
             continue;
         }
         auto * ctx = &iter->second;
         int fd = ctx->fd;
 
-        printf("fd %d event %d: IN: %d, OUT: %d, ERR: %d\n",
+        NITRO_TRACE("fd %d event %d: IN: %d, OUT: %d, ERR: %d\n",
                fd,
                ev,
                ev & EPOLLIN,
                ev & EPOLLOUT,
                ev & (EPOLLERR | EPOLLHUP));
-        fflush(stdout);
 
         ctx->handler(fd, ev);
     }
@@ -283,7 +283,7 @@ void Scheduler::removeIoChannel(uint64_t id)
     ev.data.u64 = id;
     if (::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, ctx.fd, &ev) < 0)
     {
-        printf("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epoll_fd_, ctx.fd, errno);
+        NITRO_ERROR("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epoll_fd_, ctx.fd, errno);
         // throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
     }
 }

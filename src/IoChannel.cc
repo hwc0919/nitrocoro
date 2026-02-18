@@ -6,6 +6,7 @@
 #include <cstring>
 #include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/io/IoChannel.h>
+#include <nitro_coro/utils/Debug.h>
 #include <sys/epoll.h>
 
 namespace nitro_coro::io
@@ -47,26 +48,26 @@ void IoChannel::handleIoEvents(uint32_t ev)
     if ((ev & EPOLLHUP) && !(ev & EPOLLIN))
     {
         // peer closed, and no more bytes to read
-        printf("Peer closed, fd %d\n", fd_);
+        NITRO_TRACE("Peer closed, fd %d\n", fd_);
         // TODO: handle close
     }
 
     if (ev & EPOLLERR) // (POLLNVAL | POLLERR)
     {
-        printf("Channel error for fd %d\n", fd_);
+        NITRO_ERROR("Channel error for fd %d\n", fd_);
         int error = 0;
         socklen_t len = sizeof(error);
         if (getsockopt(fd_, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
         {
-            printf("getsockopt failed: %s\n", strerror(errno));
+            NITRO_ERROR("getsockopt failed: %s\n", strerror(errno));
         }
         if (error == 0)
         {
-            printf("EPOLLERR but no error\n");
+            NITRO_DEBUG("EPOLLERR but no error\n");
         }
         else
         {
-            printf("socket %d error %d: %s\n", fd_, error, strerror(error));
+            NITRO_ERROR("socket %d error %d: %s\n", fd_, error, strerror(error));
         }
         // TODO: mark error
     }
@@ -83,7 +84,7 @@ void IoChannel::handleIoEvents(uint32_t ev)
     }
     if (ev & EPOLLOUT) // WIN32: if ((ev & POLLOUT) && !(ev & POLLHUP))
     {
-        printf("Handle write fd %d writable = %d\n", fd_, writable_);
+        NITRO_DEBUG("Handle write fd %d writable = %d\n", fd_, writable_);
         writable_ = true;
         if (writableWaiter_)
         {

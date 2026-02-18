@@ -3,6 +3,7 @@
  * @brief HTTP server implementation
  */
 #include <nitro_coro/http/HttpServer.h>
+#include <nitro_coro/utils/Debug.h>
 
 namespace nitro_coro::http
 {
@@ -20,7 +21,7 @@ void HttpServer::route(const std::string & method, const std::string & path, Han
 Task<> HttpServer::start()
 {
     server_ = std::make_unique<net::TcpServer>(port_, scheduler_);
-    printf("HTTP server listening on port %hu\n", port_);
+    NITRO_INFO("HTTP server listening on port %hu\n", port_);
 
     co_await server_->start([this](net::TcpConnectionPtr conn) -> Task<> {
         co_await handleConnection(std::move(conn));
@@ -68,7 +69,7 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
     }
     catch (const std::exception & e)
     {
-        printf("Error handling request: %s\n", e.what());
+        NITRO_ERROR("Error handling request: %s\n", e.what());
     }
 }
 

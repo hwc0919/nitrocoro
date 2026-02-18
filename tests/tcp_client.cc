@@ -10,6 +10,7 @@
 #include <nitro_coro/io/IoChannel.h>
 #include <nitro_coro/io/adapters/BufferReader.h>
 #include <nitro_coro/net/TcpConnection.h>
+#include <nitro_coro/utils/Debug.h>
 #include <unistd.h>
 
 using namespace nitro_coro;
@@ -75,7 +76,7 @@ Task<> send_messages(const TcpConnectionPtr & connPtr, Promise<> & closePromise)
 Task<> client_main(const char * host, int port)
 {
     auto connPtr = co_await TcpConnection::connect(host, port);
-    printf("Connected to %s:%hu\n", host, port);
+    NITRO_INFO("Connected to %s:%hu\n", host, port);
 
     Promise<> closePromise(Scheduler::current());
     auto closeFuture = closePromise.get_future();

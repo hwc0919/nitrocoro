@@ -5,6 +5,7 @@
 #include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/net/TcpConnection.h>
 #include <nitro_coro/net/TcpServer.h>
+#include <nitro_coro/utils/Debug.h>
 
 #include <cstring>
 #include <fcntl.h>
@@ -114,7 +115,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
         stopPromise_.set_value();
         throw std::runtime_error(std::string("Failed to listen on socket: ") + strerror(errno));
     }
-    printf("TcpServer listening on port %hu\n", port_);
+    NITRO_INFO("TcpServer listening on port %hu\n", port_);
 
     auto handlerPtr = std::make_shared<ConnectionHandler>(std::move(handler));
     listenChannel_ = IoChannel::create(listenFd_, scheduler_, TriggerMode::LevelTriggered);
@@ -130,11 +131,11 @@ Task<> TcpServer::start(ConnectionHandler handler)
         {
             if (acceptor.clientFd() >= 0)
                 ::close(acceptor.clientFd());
-            printf("Accept error: %s\n", e.what());
+            NITRO_ERROR("Accept error: %s\n", e.what());
             break;
         }
 
-        printf("Accepted connection: fd = %d\n", acceptor.clientFd());
+        NITRO_DEBUG("Accepted connection: fd = %d\n", acceptor.clientFd());
         auto ioChannelPtr = IoChannel::create(acceptor.clientFd(), scheduler_, TriggerMode::EdgeTriggered);
         ioChannelPtr->enableReading();
         auto connPtr = std::make_shared<TcpConnection>(std::move(ioChannelPtr));
@@ -147,7 +148,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
             }
             catch (...)
             {
-                printf("Exception escaped from TcpServer handler\n");
+                NITRO_ERROR("Exception escaped from TcpServer handler\n");
             }
             co_await scheduler->run_here();
             if (auto connSetPtr = weakConnSet.lock())
@@ -164,7 +165,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
         listenFd_ = -1;
     }
     stopPromise_.set_value();
-    printf("TcpServer::start() quit\n");
+    NITRO_INFO("TcpServer::start() quit\n");
 }
 
 Task<> TcpServer::stop()
@@ -181,7 +182,7 @@ Task<> TcpServer::stop()
     {
         co_await c->close();
     }
-    printf("TcpServer::stop() requested\n");
+    NITRO_INFO("TcpServer::stop() requested\n");
     co_await stopFuture_.get();
 }
 
