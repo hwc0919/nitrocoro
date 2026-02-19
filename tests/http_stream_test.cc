@@ -19,7 +19,7 @@ Task<> echo_server(uint16_t port)
         NITRO_INFO("[Server] Receive new request\n");
         resp.setStatus(200);
         resp.setHeader("Content-Type", "text/plain");
-        auto ctl = req.header(HttpHeader::NameCode::ContentLength);
+        auto ctl = req.getHeader(HttpHeader::NameCode::ContentLength);
         resp.setHeader({ HttpHeader::NameCode::ContentLength, std::string{ ctl } });
         NITRO_INFO("[Server] sending headers\n");
         co_await resp.write({});

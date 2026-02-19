@@ -23,9 +23,12 @@ public:
     int statusCode() const { return statusCode_; }
     const std::string & statusReason() const { return statusReason_; }
     const std::string & body() const { return body_; }
-    std::string_view header(const std::string & name) const;
+    
+    std::string_view getHeader(const std::string & name) const;
+    std::string_view getHeader(HttpHeader::NameCode code) const;
+    
     const std::map<std::string, HttpHeader> & headers() const { return headers_; }
-    std::string_view cookie(const std::string & name) const;
+    std::string_view getCookie(const std::string & name) const;
     const std::map<std::string, std::string> & cookies() const { return cookies_; }
 
 private:

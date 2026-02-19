@@ -13,7 +13,7 @@
 namespace nitro_coro::http
 {
 
-std::string_view HttpClientResponse::header(const std::string & name) const
+std::string_view HttpClientResponse::getHeader(const std::string & name) const
 {
     std::string lowerName = name;
     std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(),
@@ -23,7 +23,14 @@ std::string_view HttpClientResponse::header(const std::string & name) const
     return it != headers_.end() ? std::string_view(it->second.value()) : std::string_view();
 }
 
-std::string_view HttpClientResponse::cookie(const std::string & name) const
+std::string_view HttpClientResponse::getHeader(HttpHeader::NameCode code) const
+{
+    auto name = HttpHeader::codeToName(code);
+    auto it = headers_.find(std::string(name));
+    return it != headers_.end() ? std::string_view(it->second.value()) : std::string_view();
+}
+
+std::string_view HttpClientResponse::getCookie(const std::string & name) const
 {
     auto it = cookies_.find(name);
     return it != cookies_.end() ? std::string_view(it->second) : std::string_view();
@@ -222,7 +229,7 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
         try
         {
             char buf[4096];
-            HttpIncomingStream<HttpResponse> response;
+            HttpIncomingStream<HttpResponse> response(conn);
 
             // Parse headers
             while (!response.isHeaderComplete())
@@ -234,7 +241,6 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
             }
 
             // Set connection for body streaming
-            response.conn_ = conn;
             promise.set_value(std::move(response));
         }
         catch (...)
