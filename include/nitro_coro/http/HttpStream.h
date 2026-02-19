@@ -44,6 +44,7 @@ public:
     std::string_view query(const std::string & name) const;
 
     // Common accessors
+    std::string_view header(HttpHeader::NameCode code) const;
     std::string_view header(const std::string & name) const;
     const std::map<std::string, HttpHeader> & headers() const { return data_.headers; }
     std::string_view cookie(const std::string & name) const;
@@ -173,6 +174,7 @@ public:
     void setVersion(const std::string & version) { data_.version = version; }
 
     // Common setters
+    void setHeader(HttpHeader header);
     void setHeader(const std::string & name, const std::string & value);
     void setCookie(const std::string & name, const std::string & value);
 

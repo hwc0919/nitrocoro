@@ -121,6 +121,13 @@ void HttpIncomingStream<HttpRequest>::parseCookies(const std::string & cookieHea
     // TODO: Implement cookie parsing
 }
 
+std::string_view HttpIncomingStream<HttpRequest>::header(HttpHeader::NameCode code) const
+{
+    auto name = HttpHeader::codeToName(code);
+    auto it = data_.headers.find(std::string(name));
+    return it != data_.headers.end() ? std::string_view(it->second.value()) : std::string_view();
+}
+
 std::string_view HttpIncomingStream<HttpRequest>::header(const std::string & name) const
 {
     std::string lowerName = name;
@@ -149,9 +156,18 @@ Task<std::string_view> HttpIncomingStream<HttpRequest>::read(size_t maxSize)
         co_return std::string_view();
 
     size_t oldSize = buffer_.size();
+    if (bodyBytesRead_ == 0 && oldSize > 0)
+    {
+        size_t n = std::min(oldSize, contentLength_);
+        bodyBytesRead_ += n;
+        if (bodyBytesRead_ >= contentLength_)
+            complete_ = true;
+        co_return std::string_view(buffer_.data(), n);
+    }
+
     size_t toRead = std::min(maxSize, contentLength_ - bodyBytesRead_);
 
-    buffer_.reserve(oldSize + toRead);
+    buffer_.resize(oldSize + toRead);
     size_t n = co_await conn_->read(buffer_.data() + oldSize, toRead);
     buffer_.resize(oldSize + n);
 
@@ -331,9 +347,18 @@ Task<std::string_view> HttpIncomingStream<HttpResponse>::read(size_t maxSize)
         co_return std::string_view();
 
     size_t oldSize = buffer_.size();
+    if (bodyBytesRead_ == 0 && oldSize > 0)
+    {
+        size_t n = std::min(oldSize, contentLength_);
+        bodyBytesRead_ += n;
+        if (bodyBytesRead_ >= contentLength_)
+            complete_ = true;
+        co_return std::string_view(buffer_.data(), n);
+    }
+
     size_t toRead = std::min(maxSize, contentLength_ - bodyBytesRead_);
 
-    buffer_.reserve(oldSize + toRead);
+    buffer_.resize(oldSize + toRead);
     size_t n = co_await conn_->read(buffer_.data() + oldSize, toRead);
     buffer_.resize(oldSize + n);
 
@@ -470,6 +495,11 @@ void HttpOutgoingStream<HttpResponse>::setStatus(int code, const std::string & r
 {
     data_.statusCode = code;
     data_.statusReason = reason.empty() ? getDefaultReason(code) : reason;
+}
+
+void HttpOutgoingStream<HttpResponse>::setHeader(HttpHeader header)
+{
+    data_.headers.insert_or_assign(header.name(), std::move(header));
 }
 
 void HttpOutgoingStream<HttpResponse>::setHeader(const std::string & name, const std::string & value)
