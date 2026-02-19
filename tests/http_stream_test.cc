@@ -53,11 +53,13 @@ Task<> test_client(uint16_t port)
 
     HttpClient client;
 
-    NITRO_INFO("\n=== Test 1: Streaming Upload ===\n");
+    NITRO_INFO("\n=== Test streaming echo ===\n");
     auto session = co_await client.stream("POST", "http://127.0.0.1:" + std::to_string(port) + "/stream-echo");
 
+    std::vector<std::string> reqChunks, respChunks;
+
     Promise<> respFinishPromise{ Scheduler::current() };
-    Scheduler::current()->spawn([&session, &respFinishPromise]() -> Task<> {
+    Scheduler::current()->spawn([&session, &respFinishPromise, &respChunks]() -> Task<> {
         // Read response
         auto response = co_await session.response.get();
         NITRO_INFO("[Client] Response status: %d\n", response.statusCode());
@@ -69,6 +71,7 @@ Task<> test_client(uint16_t port)
                 auto chunk = co_await response.read(1024);
                 if (chunk.empty())
                     break;
+                respChunks.push_back(std::string{ chunk });
                 NITRO_INFO("[Client] Recv chunk: %.*s\n", (int)chunk.size(), chunk.data());
             }
             catch (...)
@@ -93,6 +96,7 @@ Task<> test_client(uint16_t port)
 
         co_await Scheduler::current()->sleep_for(0.5);
         co_await session.request.write(chunk);
+        reqChunks.push_back(chunk);
         NITRO_INFO("[Client] Sent chunk: %s\n", chunk.c_str());
         pos += len;
     }
@@ -101,6 +105,42 @@ Task<> test_client(uint16_t port)
     NITRO_INFO("[Client] Request completed\n");
 
     co_await respFinishPromise.get_future().get();
+
+    // Verify chunks
+    NITRO_INFO("\n=== Verification ===\n");
+    NITRO_INFO("Sent %zu chunks, received %zu chunks\n", reqChunks.size(), respChunks.size());
+
+    if (reqChunks.size() != respChunks.size())
+    {
+        NITRO_ERROR("[FAIL] Chunk count mismatch\n");
+    }
+    else
+    {
+        bool allMatch = true;
+        for (size_t i = 0; i < reqChunks.size(); ++i)
+        {
+            NITRO_INFO("Comparing chunk %zu: sent='%s', recv='%s' ", i, reqChunks[i].c_str(), respChunks[i].c_str());
+            if (reqChunks[i] == respChunks[i])
+            {
+                NITRO_INFO("[OK]\n");
+            }
+            else
+            {
+                NITRO_ERROR("[FAIL]\n");
+                allMatch = false;
+            }
+        }
+        NITRO_INFO("\n");
+        if (allMatch)
+        {
+            NITRO_INFO("[PASS] All %zu chunks matched\n", reqChunks.size());
+        }
+        else
+        {
+            NITRO_ERROR("[FAIL] Some chunks mismatched\n");
+        }
+    }
+
     Scheduler::current()->stop();
 }
 
