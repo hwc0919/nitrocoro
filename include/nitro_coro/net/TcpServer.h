@@ -43,7 +43,7 @@ private:
     std::atomic_bool stopped_{ false };
     Promise<> stopPromise_;
     SharedFuture<> stopFuture_;
-    std::shared_ptr<IoChannel> listenChannel_;
+    std::unique_ptr<IoChannel> listenChannel_;
 
     using ConnectionSet = std::unordered_set<TcpConnectionPtr>;
     std::shared_ptr<ConnectionSet> connSetPtr_{ std::make_shared<ConnectionSet>() };

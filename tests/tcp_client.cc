@@ -44,7 +44,7 @@ static std::shared_ptr<IoChannel> getStdinChannel()
     static auto channel = []() {
         int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
         fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-        auto stdinChannel = IoChannel::create(STDIN_FILENO, Scheduler::current());
+        auto stdinChannel = std::make_shared<IoChannel>(STDIN_FILENO);
         stdinChannel->enableReading();
         return stdinChannel;
     }();

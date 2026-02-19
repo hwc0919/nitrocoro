@@ -6,6 +6,7 @@
 
 #include <nitro_coro/core/CoroTraits.h>
 #include <nitro_coro/core/MpscQueue.h>
+#include <nitro_coro/core/Types.h>
 
 #include <atomic>
 #include <chrono>
@@ -54,11 +55,12 @@ class Scheduler
 {
 public:
     using IoEventHandler = std::function<void(int, uint32_t)>;
-    struct IoChannelContext
+
+    struct IoContext
     {
         uint64_t id;
         int fd;
-        std::weak_ptr<io::IoChannel> weakChannel;
+        // std::weak_ptr<io::IoChannel> weakChannel;
         IoEventHandler handler;
         bool addedToEpoll = false;
     };
@@ -76,9 +78,15 @@ public:
 
     bool isInOwnThread() const noexcept;
 
-    void setIoChannelHandler(const std::shared_ptr<io::IoChannel> & channel, IoEventHandler handler);
-    void updateIoChannel(const io::IoChannel * channel);
-    void removeIoChannel(uint64_t id);
+    static uint64_t nextIoId()
+    {
+        static std::atomic_uint64_t seq{ 0 };
+        uint64_t id{ ++seq };
+        return id;
+    }
+    void setIoHandler(uint64_t id, int fd, Scheduler::IoEventHandler handler);
+    void updateIo(uint64_t id, int fd, uint32_t events, TriggerMode mode);
+    void removeIo(uint64_t id);
 
     TimerAwaiter sleep_for(double seconds);
     TimerAwaiter sleep_until(TimePoint when);
@@ -171,9 +179,9 @@ private:
     int epollFd_{ -1 };
     int wakeupFd_{ -1 };
     std::atomic<bool> running_{ false };
-    std::shared_ptr<io::IoChannel> wakeupChannel_;
+    std::unique_ptr<io::IoChannel> wakeupChannel_;
 
-    std::unordered_map<uint64_t, IoChannelContext> ioChannels_;
+    std::unordered_map<uint64_t, IoContext> ioContexts_;
     MpscQueue<std::function<void()>> readyQueue_;
     MpscQueue<Timer> pendingTimers_;
     std::priority_queue<Timer, std::vector<Timer>, std::greater<>> timers_;

@@ -17,10 +17,7 @@
 
 namespace nitro_coro::net
 {
-using nitro_coro::Scheduler;
-using nitro_coro::Task;
-using nitro_coro::io::IoChannel;
-using nitro_coro::io::TriggerMode;
+using io::IoChannel;
 
 TcpServer::TcpServer(uint16_t port, Scheduler * scheduler)
     : port_(port)
@@ -118,7 +115,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
     NITRO_INFO("TcpServer listening on port %hu\n", port_);
 
     auto handlerPtr = std::make_shared<ConnectionHandler>(std::move(handler));
-    listenChannel_ = IoChannel::create(listenFd_, scheduler_, TriggerMode::LevelTriggered);
+    listenChannel_ = std::make_unique<IoChannel>(listenFd_, TriggerMode::LevelTriggered, scheduler_);
     listenChannel_->enableReading();
     while (!stopped_.load())
     {
@@ -136,8 +133,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
         }
 
         NITRO_DEBUG("Accepted connection: fd = %d\n", acceptor.clientFd());
-        auto ioChannelPtr = IoChannel::create(acceptor.clientFd(), scheduler_, TriggerMode::EdgeTriggered);
-        ioChannelPtr->enableReading();
+        auto ioChannelPtr = std::make_unique<IoChannel>(acceptor.clientFd(), TriggerMode::EdgeTriggered, scheduler_);
         auto connPtr = std::make_shared<TcpConnection>(std::move(ioChannelPtr));
         connSetPtr_->insert(connPtr);
         std::weak_ptr<ConnectionSet> weakConnSet{ connSetPtr_ };

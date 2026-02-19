@@ -96,7 +96,7 @@ Task<TcpConnectionPtr> TcpConnection::connect(const sockaddr * addr, socklen_t a
     int flags = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 
-    auto channelPtr = IoChannel::create(fd, Scheduler::current());
+    auto channelPtr = std::make_unique<IoChannel>(fd);
     Connector connector(addr, addrLen);
     co_await channelPtr->performWrite(&connector);
 
@@ -129,7 +129,7 @@ Task<TcpConnectionPtr> TcpConnection::connect(const char * ip, uint16_t port, Tc
     }
 }
 
-TcpConnection::TcpConnection(std::shared_ptr<IoChannel> channelPtr)
+TcpConnection::TcpConnection(std::unique_ptr<IoChannel> channelPtr)
     : fd_(channelPtr->fd())
     , ioChannelPtr_(std::move(channelPtr))
 {

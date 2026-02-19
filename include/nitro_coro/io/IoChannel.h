@@ -19,6 +19,7 @@
 #include <memory>
 #include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/core/Task.h>
+#include <nitro_coro/core/Types.h>
 
 namespace nitro_coro::io
 {
@@ -26,20 +27,14 @@ namespace nitro_coro::io
 using nitro_coro::Scheduler;
 using nitro_coro::Task;
 
-enum class TriggerMode
-{
-    EdgeTriggered,
-    LevelTriggered
-};
-
 class IoChannel;
 using IoChannelPtr = std::shared_ptr<IoChannel>;
 
 class IoChannel
 {
 public:
-    static IoChannelPtr create(int fd, Scheduler * scheduler, TriggerMode mode = TriggerMode::EdgeTriggered);
-    ~IoChannel();
+    explicit IoChannel(int fd, TriggerMode mode = TriggerMode::EdgeTriggered, Scheduler * scheduler = Scheduler::current());
+    ~IoChannel() noexcept;
 
     IoChannel(const IoChannel &) = delete;
     IoChannel & operator=(const IoChannel &) = delete;
@@ -107,14 +102,23 @@ public:
     void cancelAll();
 
 private:
-    IoChannel(int fd, Scheduler * scheduler, TriggerMode mode);
+    struct IoState
+    {
+        int fd{ -1 };
+        bool readable{ false };
+        bool writable{ true };
+        std::coroutine_handle<> readableWaiter;
+        std::coroutine_handle<> writableWaiter;
+        bool readCanceled{ false };
+        bool writeCanceled{ false };
+    };
 
     // Called by Scheduler::process_io_events() when epoll reports events
-    void handleIoEvents(uint32_t ev);
+    static void handleIoEvents(Scheduler * scheduler, IoState * state, uint32_t ev);
 
     struct [[nodiscard]] ReadableAwaiter
     {
-        IoChannel * channel_;
+        IoState * state_;
 
         bool await_ready() noexcept;
         bool await_suspend(std::coroutine_handle<> h) noexcept;
@@ -123,7 +127,7 @@ private:
 
     struct [[nodiscard]] WritableAwaiter
     {
-        IoChannel * channel_;
+        IoState * state_;
 
         bool await_ready() noexcept;
         bool await_suspend(std::coroutine_handle<> h) noexcept;
@@ -136,9 +140,9 @@ private:
         co_await scheduler_->switch_to();
         while (true)
         {
-            if (!readable_)
+            if (!state_->readable)
             {
-                co_await ReadableAwaiter{ this };
+                co_await ReadableAwaiter{ state_.get() };
             }
 
             IoResult result;
@@ -152,12 +156,12 @@ private:
                 case IoResult::Success:
                     if (triggerMode_ == TriggerMode::LevelTriggered)
                     {
-                        readable_ = false;
+                        state_->readable = false;
                     }
                     co_return;
 
                 case IoResult::WouldBlock:
-                    readable_ = false;
+                    state_->readable = false;
                     break;
 
                 case IoResult::Retry:
@@ -179,9 +183,9 @@ private:
         co_await scheduler_->switch_to();
         while (true)
         {
-            if (!writable_)
+            if (!state_->writable)
             {
-                co_await WritableAwaiter{ this };
+                co_await WritableAwaiter{ state_.get() };
             }
 
             IoResult result;
@@ -196,7 +200,7 @@ private:
                     co_return;
 
                 case IoResult::WouldBlock:
-                    writable_ = false;
+                    state_->writable = false;
                     break;
 
                 case IoResult::Retry:
@@ -212,9 +216,7 @@ private:
         }
     }
 
-    inline static std::atomic_uint64_t idSeq_{ 0 };
-    const uint64_t id_{ ++idSeq_ };
-
+    const uint64_t id_;
     int fd_{ -1 };
     Scheduler * scheduler_{ nullptr };
     TriggerMode triggerMode_{ TriggerMode::EdgeTriggered };
@@ -222,12 +224,7 @@ private:
     // All members below are accessed only within Scheduler's single thread.
     // No synchronization primitives needed due to serialized execution model.
     uint32_t events_{ 0 };
-    bool readable_{ false };
-    bool writable_{ true };
-    std::coroutine_handle<> readableWaiter_;
-    std::coroutine_handle<> writableWaiter_;
-    bool readCanceled_{ false };
-    bool writeCanceled_{ false };
+    std::shared_ptr<IoState> state_;
 };
 
 } // namespace nitro_coro::io

@@ -61,7 +61,7 @@ Scheduler * Scheduler::current() noexcept
 void Scheduler::run()
 {
     threadId_ = std::this_thread::get_id();
-    wakeupChannel_ = io::IoChannel::create(wakeupFd_, this);
+    wakeupChannel_ = std::make_unique<io::IoChannel>(wakeupFd_, TriggerMode::LevelTriggered, this);
     wakeupChannel_->enableReading();
 
     running_.store(true, std::memory_order_release);
@@ -136,8 +136,8 @@ void Scheduler::process_io_events(int timeout_ms)
             continue;
         }
 
-        auto iter = ioChannels_.find(channelId);
-        if (iter == ioChannels_.end())
+        auto iter = ioContexts_.find(channelId);
+        if (iter == ioContexts_.end())
         {
             NITRO_ERROR("channel with id %ld not found!!!\n", channelId);
             continue;
@@ -201,45 +201,40 @@ void Scheduler::wakeup()
     }
 }
 
-void Scheduler::setIoChannelHandler(const std::shared_ptr<io::IoChannel> & channel, Scheduler::IoEventHandler handler)
+void Scheduler::setIoHandler(uint64_t id, int fd, Scheduler::IoEventHandler handler)
 {
     NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
-    uint64_t id = channel->id();
-    int fd = channel->fd();
-    auto iter = ioChannels_.find(id);
-    if (iter != ioChannels_.end())
+    auto iter = ioContexts_.find(id);
+    if (iter != ioContexts_.end())
     {
         assert(iter->second.handler == nullptr);
-        assert(!iter->second.weakChannel.lock());
-        iter->second.weakChannel = channel;
+        // assert(!iter->second.weakChannel.lock());
+        // iter->second.weakChannel = channel;
         iter->second.handler = std::move(handler);
     }
     else
     {
-        ioChannels_.emplace(id, IoChannelContext{ id, fd, { channel }, std::move(handler) });
+        ioContexts_.emplace(id, IoContext{ id, fd, std::move(handler) });
     }
 }
 
-void Scheduler::updateIoChannel(const io::IoChannel * channel)
+void Scheduler::updateIo(uint64_t id, int fd, uint32_t events, TriggerMode mode)
 {
     NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
-    uint64_t id = channel->id();
-    int fd = channel->fd();
-    IoChannelContext * ctx;
-    auto iter = ioChannels_.find(id);
-    if (iter != ioChannels_.end())
+    IoContext * ctx;
+    auto iter = ioContexts_.find(id);
+    if (iter != ioContexts_.end())
     {
         ctx = &iter->second;
-        assert(ctx->weakChannel.lock().get() == channel);
+        // assert(ctx->weakChannel.lock().get() == channel);
     }
     else
     {
-        ctx = &ioChannels_.emplace(id, IoChannelContext{ id, fd, {}, IoEventHandler{} }).first->second;
+        ctx = &ioContexts_.emplace(id, IoContext{ id, fd, {} }).first->second;
     }
 
-    uint32_t events = channel->events();
     if (events == 0)
     {
         if (ctx->addedToEpoll)
@@ -256,7 +251,7 @@ void Scheduler::updateIoChannel(const io::IoChannel * channel)
     }
 
     epoll_event ev{};
-    ev.events = events | (channel->triggerMode() == io::TriggerMode::EdgeTriggered ? EPOLLET : 0);
+    ev.events = events | (mode == TriggerMode::EdgeTriggered ? EPOLLET : 0);
     ev.data.u64 = id;
 
     int op = ctx->addedToEpoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
@@ -270,13 +265,13 @@ void Scheduler::updateIoChannel(const io::IoChannel * channel)
     ctx->addedToEpoll = true;
 }
 
-void Scheduler::removeIoChannel(uint64_t id)
+void Scheduler::removeIo(uint64_t id)
 {
     NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
-    assert(ioChannels_.contains(id));
-    auto ctx = std::move(ioChannels_.at(id));
-    ioChannels_.erase(id);
+    assert(ioContexts_.contains(id));
+    auto ctx = std::move(ioContexts_.at(id));
+    ioContexts_.erase(id);
 
     if (!ctx.addedToEpoll)
     {

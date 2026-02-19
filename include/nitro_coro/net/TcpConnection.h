@@ -30,7 +30,7 @@ public:
     static Task<TcpConnectionPtr> connect(const sockaddr * addr, socklen_t addrLen);
     static Task<TcpConnectionPtr> connect(const char * ip, uint16_t port, IpVersion v = IpVersion::Ipv4);
 
-    explicit TcpConnection(std::shared_ptr<IoChannel>);
+    explicit TcpConnection(std::unique_ptr<IoChannel>);
     ~TcpConnection();
 
     TcpConnection(const TcpConnection &) = delete;
@@ -46,7 +46,7 @@ public:
 
 private:
     int fd_;
-    std::shared_ptr<IoChannel> ioChannelPtr_;
+    std::unique_ptr<IoChannel> ioChannelPtr_;
     Mutex writeMutex_;
 };
 
