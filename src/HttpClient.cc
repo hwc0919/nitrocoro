@@ -234,9 +234,9 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
             // Parse headers
             while (!response.isHeaderComplete())
             {
+                // TODO: read directly into request
                 size_t n = co_await conn->read(buf, sizeof(buf));
-                if (n <= 0)
-                    throw std::runtime_error("Connection closed");
+                assert(n > 0);
                 response.parse(buf, n);
             }
 

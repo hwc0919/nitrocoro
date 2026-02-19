@@ -21,12 +21,9 @@ template <>
 class HttpIncomingStream<HttpRequest>
     : public HttpIncomingStreamBase<HttpIncomingStream<HttpRequest>, HttpRequest>
 {
-    using Base = HttpIncomingStreamBase<HttpIncomingStream<HttpRequest>, HttpRequest>;
-
 public:
-    HttpIncomingStream() = default;
     explicit HttpIncomingStream(net::TcpConnectionPtr conn)
-        : Base(std::move(conn)) {}
+        : HttpIncomingStreamBase(std::move(conn)) {}
 
     // Parse from buffer
     int parse(const char * data, size_t len);
@@ -38,8 +35,6 @@ public:
     std::string_view query(const std::string & name) const;
 
 private:
-    friend class HttpServer;
-
     void parseRequestLine(std::string_view line);
     void parseHeader(std::string_view line);
     void parseQueryString();
@@ -54,11 +49,9 @@ template <>
 class HttpIncomingStream<HttpResponse>
     : public HttpIncomingStreamBase<HttpIncomingStream<HttpResponse>, HttpResponse>
 {
-    using Base = HttpIncomingStreamBase<HttpIncomingStream<HttpResponse>, HttpResponse>;
-
 public:
     explicit HttpIncomingStream(net::TcpConnectionPtr conn)
-        : Base(std::move(conn)) {}
+        : HttpIncomingStreamBase(std::move(conn)) {}
 
     // Parse from buffer
     int parse(const char * data, size_t len);

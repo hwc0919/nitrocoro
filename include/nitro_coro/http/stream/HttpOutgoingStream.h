@@ -21,11 +21,9 @@ template <>
 class HttpOutgoingStream<HttpRequest>
     : public HttpOutgoingStreamBase<HttpOutgoingStream<HttpRequest>, HttpRequest>
 {
-    using Base = HttpOutgoingStreamBase<HttpOutgoingStream<HttpRequest>, HttpRequest>;
-
 public:
     explicit HttpOutgoingStream(net::TcpConnectionPtr conn)
-        : Base(std::move(conn)) {}
+        : HttpOutgoingStreamBase(std::move(conn)) {}
 
     // Request-specific setters
     void setMethod(const std::string & method) { data_.method = method; }
@@ -43,11 +41,9 @@ template <>
 class HttpOutgoingStream<HttpResponse>
     : public HttpOutgoingStreamBase<HttpOutgoingStream<HttpResponse>, HttpResponse>
 {
-    using Base = HttpOutgoingStreamBase<HttpOutgoingStream<HttpResponse>, HttpResponse>;
-
 public:
     explicit HttpOutgoingStream(net::TcpConnectionPtr conn)
-        : Base(std::move(conn)) {}
+        : HttpOutgoingStreamBase(std::move(conn)) {}
 
     // Response-specific setters
     void setStatus(int code, const std::string & reason = "");

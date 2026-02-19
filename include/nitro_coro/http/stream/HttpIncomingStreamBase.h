@@ -27,7 +27,6 @@ protected:
     size_t contentLength_ = 0;
     size_t bodyBytesRead_ = 0;
 
-    HttpIncomingStreamBase() = default;
     explicit HttpIncomingStreamBase(net::TcpConnectionPtr conn)
         : conn_(std::move(conn)) {}
 
