@@ -12,20 +12,25 @@
 namespace nitro_coro::http
 {
 
-class HttpCompleteRequest : protected HttpRequest, public HttpRequestAccessor<HttpCompleteRequest>
+class HttpCompleteRequest : public HttpRequestAccessor<HttpCompleteRequest>
 {
     template <typename, typename>
     friend class HttpDataAccessor;
 
 public:
-    const std::string & getBody() const { return body_; }
+    HttpCompleteRequest() = default;
+    HttpCompleteRequest(HttpRequest && req, std::string && b)
+        : request_(std::move(req)), body_(std::move(b)) {}
+
+    const std::string & body() const { return body_; }
 
 protected:
+    HttpRequest request_;
     std::string body_;
-    const HttpRequest & getData() const { return *this; }
+    const HttpRequest & getData() const { return request_; }
 };
 
-class HttpCompleteResponse : protected HttpResponse, public HttpResponseAccessor<HttpCompleteResponse>
+class HttpCompleteResponse : public HttpResponseAccessor<HttpCompleteResponse>
 {
     template <typename, typename>
     friend class HttpDataAccessor;
@@ -33,13 +38,14 @@ class HttpCompleteResponse : protected HttpResponse, public HttpResponseAccessor
 public:
     HttpCompleteResponse() = default;
     HttpCompleteResponse(HttpResponse && resp, std::string && b)
-        : HttpResponse(std::move(resp)), body_(std::move(b)) {}
+        : response_(std::move(resp)), body_(std::move(b)) {}
 
-    const std::string & getBody() const { return body_; }
+    const std::string & body() const { return body_; }
 
 protected:
+    HttpResponse response_;
     std::string body_;
-    const HttpResponse & getData() const { return *this; }
+    const HttpResponse & getData() const { return response_; }
 };
 
 } // namespace nitro_coro::http

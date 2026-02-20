@@ -104,12 +104,18 @@ public:
             co_return std::string_view(buffer_);
 
         size_t oldSize = buffer_.size();
+        if (bodyBytesRead_ == 0 && oldSize > 0)
+        {
+            bodyBytesRead_ += std::min(oldSize, contentLength_);
+            oldSize = 0;
+        }
+
         while (bodyBytesRead_ < contentLength_)
         {
             constexpr size_t CHUNK_SIZE = 4096;
             size_t currentSize = buffer_.size();
             size_t toRead = std::min(CHUNK_SIZE, contentLength_ - bodyBytesRead_);
-            buffer_.reserve(currentSize + toRead);
+            buffer_.resize(currentSize + toRead);
             size_t n = co_await conn_->read(buffer_.data() + currentSize, toRead);
             buffer_.resize(currentSize + n);
             bodyBytesRead_ += n;
