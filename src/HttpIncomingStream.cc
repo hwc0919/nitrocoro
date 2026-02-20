@@ -124,12 +124,6 @@ void HttpIncomingStream<HttpRequest>::parseCookies(const std::string & cookieHea
     // TODO: Implement cookie parsing
 }
 
-std::string_view HttpIncomingStream<HttpRequest>::query(const std::string & name) const
-{
-    auto it = data_.queries.find(name);
-    return it != data_.queries.end() ? std::string_view(it->second) : std::string_view();
-}
-
 // ============================================================================
 // HttpIncomingStream<HttpResponse> Implementation
 // ============================================================================

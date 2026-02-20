@@ -18,6 +18,9 @@ namespace nitro_coro::http
 template <typename Derived, typename DataType>
 class HttpIncomingStreamBase
 {
+    template <typename, typename>
+    friend class HttpDataAccessor;
+
 protected:
     static constexpr size_t MAX_HEADER_LINE_LENGTH = 1024 * 1024;
     static constexpr size_t MAX_REQUEST_LINE_LENGTH = 1024 * 1024;
@@ -33,35 +36,13 @@ protected:
     explicit HttpIncomingStreamBase(net::TcpConnectionPtr conn)
         : conn_(std::move(conn)) {}
 
+    const DataType & getData() const { return data_; }
+
 public:
     bool isHeaderComplete() const { return headerComplete_; }
     bool isComplete() const { return complete_; }
     bool hasBody() const { return contentLength_ > 0; }
     size_t contentLength() const { return contentLength_; }
-    const std::map<std::string, HttpHeader> & headers() const { return data_.headers; }
-    const std::map<std::string, std::string> & cookies() const { return data_.cookies; }
-
-    std::string_view getHeader(const std::string & name) const
-    {
-        std::string lowerName = name;
-        std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
-        auto it = data_.headers.find(lowerName);
-        return it != data_.headers.end() ? std::string_view(it->second.value()) : std::string_view();
-    }
-
-    std::string_view getHeader(HttpHeader::NameCode code) const
-    {
-        auto name = HttpHeader::codeToName(code);
-        auto it = data_.headers.find(std::string(name));
-        return it != data_.headers.end() ? std::string_view(it->second.value()) : std::string_view();
-    }
-
-    std::string_view getCookie(const std::string & name) const
-    {
-        auto it = data_.cookies.find(name);
-        return it != data_.cookies.end() ? std::string_view(it->second) : std::string_view();
-    }
 
     Task<std::string_view> read(size_t maxSize = 4096)
     {

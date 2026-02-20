@@ -4,6 +4,8 @@
  */
 #pragma once
 
+#include <nitro_coro/http/HttpRequestAccessor.h>
+#include <nitro_coro/http/HttpResponseAccessor.h>
 #include <nitro_coro/http/stream/HttpOutgoingStreamBase.h>
 
 namespace nitro_coro::http
@@ -25,7 +27,6 @@ public:
     explicit HttpOutgoingStream(net::TcpConnectionPtr conn)
         : HttpOutgoingStreamBase(std::move(conn)) {}
 
-    // Request-specific setters
     void setMethod(const std::string & method) { data_.method = method; }
     void setPath(const std::string & path) { data_.path = path; }
     void setVersion(const std::string & version) { data_.version = version; }
@@ -45,7 +46,6 @@ public:
     explicit HttpOutgoingStream(net::TcpConnectionPtr conn)
         : HttpOutgoingStreamBase(std::move(conn)) {}
 
-    // Response-specific setters
     void setStatus(int code, const std::string & reason = "");
     void setVersion(const std::string & version) { data_.version = version; }
 
