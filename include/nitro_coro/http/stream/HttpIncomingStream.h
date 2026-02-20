@@ -25,8 +25,8 @@ public:
     explicit HttpIncomingStream(net::TcpConnectionPtr conn)
         : HttpIncomingStreamBase(std::move(conn)) {}
 
-    // Parse from buffer
-    int parse(const char * data, size_t len);
+    // Read from connection and parse
+    Task<> readAndParse();
 
     // Request-specific accessors
     const std::string & method() const { return data_.method; }
@@ -53,8 +53,8 @@ public:
     explicit HttpIncomingStream(net::TcpConnectionPtr conn)
         : HttpIncomingStreamBase(std::move(conn)) {}
 
-    // Parse from buffer
-    int parse(const char * data, size_t len);
+    // Read from connection and parse
+    Task<> readAndParse();
 
     // Response-specific accessors
     int statusCode() const { return data_.statusCode; }

@@ -168,8 +168,7 @@ Task<HttpClientResponse> HttpClient::readResponse(net::TcpConnectionPtr conn)
             else
             {
                 // End of headers
-                static const std::string contentLengthKey{ HttpHeader::codeToName(HttpHeader::NameCode::ContentLength) };
-                auto it = response.headers_.find(contentLengthKey);
+                auto it = response.headers_.find(std::string{ HttpHeader::Name::ContentLength_L });
                 if (it != response.headers_.end())
                 {
                     contentLength = std::stoul(it->second.value());
@@ -228,17 +227,8 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
     Scheduler::current()->spawn([conn, promise = std::move(promise)]() mutable -> Task<> {
         try
         {
-            char buf[4096];
             HttpIncomingStream<HttpResponse> response(conn);
-
-            // Parse headers
-            while (!response.isHeaderComplete())
-            {
-                // TODO: read directly into request
-                size_t n = co_await conn->read(buf, sizeof(buf));
-                assert(n > 0);
-                response.parse(buf, n);
-            }
+            co_await response.readAndParse();
 
             // Set connection for body streaming
             promise.set_value(std::move(response));

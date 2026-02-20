@@ -38,20 +38,10 @@ Task<> HttpServer::stop()
 
 Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
 {
-    char buf[4096];
-
     try
     {
         HttpIncomingStream<HttpRequest> request(conn);
-
-        // Parse until headers are complete
-        while (!request.isHeaderComplete())
-        {
-            // TODO: read directly into request
-            size_t n = co_await conn->read(buf, sizeof(buf));
-            assert(n > 0);
-            request.parse(buf, n);
-        }
+        co_await request.readAndParse();
 
         HttpOutgoingStream<HttpResponse> response(conn);
         auto key = std::make_pair(request.method(), request.path());

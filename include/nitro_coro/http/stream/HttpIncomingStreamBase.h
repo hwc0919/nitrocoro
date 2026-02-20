@@ -19,6 +19,9 @@ template <typename Derived, typename DataType>
 class HttpIncomingStreamBase
 {
 protected:
+    static constexpr size_t MAX_HEADER_LINE_LENGTH = 1024 * 1024;
+    static constexpr size_t MAX_REQUEST_LINE_LENGTH = 1024 * 1024;
+
     DataType data_;
     net::TcpConnectionPtr conn_;
     std::string buffer_;

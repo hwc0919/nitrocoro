@@ -2,8 +2,8 @@
  * @file HttpIncomingStream.cc
  * @brief HTTP incoming stream implementations
  */
-#include <nitro_coro/http/stream/HttpIncomingStream.h>
 #include <algorithm>
+#include <nitro_coro/http/stream/HttpIncomingStream.h>
 #include <sstream>
 
 namespace nitro_coro::http
@@ -13,15 +13,21 @@ namespace nitro_coro::http
 // HttpIncomingStream<HttpRequest> Implementation
 // ============================================================================
 
-int HttpIncomingStream<HttpRequest>::parse(const char * data, size_t len)
+Task<> HttpIncomingStream<HttpRequest>::readAndParse()
 {
-    buffer_.append(data, len);
-
     while (!headerComplete_)
     {
         size_t pos = buffer_.find("\r\n");
         if (pos == std::string::npos)
-            return len;
+        {
+            size_t oldSize = buffer_.size();
+            buffer_.resize(oldSize + 4096);
+            size_t n = co_await conn_->read(buffer_.data() + oldSize, 4096);
+            buffer_.resize(oldSize + n);
+            if (n == 0)
+                co_return;
+            continue;
+        }
 
         std::string line = buffer_.substr(0, pos);
         buffer_.erase(0, pos + 2);
@@ -48,8 +54,6 @@ int HttpIncomingStream<HttpRequest>::parse(const char * data, size_t len)
                 complete_ = true;
         }
     }
-
-    return len;
 }
 
 void HttpIncomingStream<HttpRequest>::parseRequestLine(std::string_view line)
@@ -130,15 +134,27 @@ std::string_view HttpIncomingStream<HttpRequest>::query(const std::string & name
 // HttpIncomingStream<HttpResponse> Implementation
 // ============================================================================
 
-int HttpIncomingStream<HttpResponse>::parse(const char * data, size_t len)
+Task<> HttpIncomingStream<HttpResponse>::readAndParse()
 {
-    buffer_.append(data, len);
-
     while (!headerComplete_)
     {
         size_t pos = buffer_.find("\r\n");
         if (pos == std::string::npos)
-            return len;
+        {
+            if (buffer_.size() >= MAX_HEADER_LINE_LENGTH)
+            {
+                // TODO: respond and shutdown
+                throw std::runtime_error("Bad data, request line too long");
+            }
+
+            size_t oldSize = buffer_.size();
+            buffer_.resize(oldSize + 4096);
+            size_t n = co_await conn_->read(buffer_.data() + oldSize, 4096);
+            buffer_.resize(oldSize + n);
+            if (n == 0) // TODO
+                co_return;
+            continue;
+        }
 
         std::string line = buffer_.substr(0, pos);
         buffer_.erase(0, pos + 2);
@@ -154,8 +170,7 @@ int HttpIncomingStream<HttpResponse>::parse(const char * data, size_t len)
         else
         {
             // End of headers
-            static const std::string contentLengthKey{ HttpHeader::codeToName(HttpHeader::NameCode::ContentLength) };
-            auto it = data_.headers.find(contentLengthKey);
+            auto it = data_.headers.find(std::string{ HttpHeader::Name::ContentLength_L });
             if (it != data_.headers.end())
             {
                 contentLength_ = std::stoul(it->second.value());
@@ -165,8 +180,6 @@ int HttpIncomingStream<HttpResponse>::parse(const char * data, size_t len)
                 complete_ = true;
         }
     }
-
-    return len;
 }
 
 void HttpIncomingStream<HttpResponse>::parseStatusLine(std::string_view line)
