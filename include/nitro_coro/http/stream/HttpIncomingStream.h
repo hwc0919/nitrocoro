@@ -3,9 +3,8 @@
  * @brief HTTP incoming stream for reading requests and responses
  */
 #pragma once
-
-#include <nitro_coro/http/HttpRequestAccessor.h>
-#include <nitro_coro/http/HttpResponseAccessor.h>
+#include <nitro_coro/http/HttpDataAccessor.h>
+#include <nitro_coro/http/HttpMessage.h>
 #include <nitro_coro/http/stream/HttpIncomingStreamBase.h>
 
 namespace nitro_coro::http
@@ -23,8 +22,7 @@ class HttpCompleteResponse;
 
 template <>
 class HttpIncomingStream<HttpRequest>
-    : public HttpRequestAccessor<HttpIncomingStream<HttpRequest>>
-    , public HttpIncomingStreamBase<HttpIncomingStream<HttpRequest>, HttpRequest>
+    : public HttpRequestAccessor<HttpIncomingStream<HttpRequest>>, public HttpIncomingStreamBase<HttpIncomingStream<HttpRequest>, HttpRequest>
 {
 public:
     explicit HttpIncomingStream(net::TcpConnectionPtr conn)
@@ -45,8 +43,7 @@ private:
 
 template <>
 class HttpIncomingStream<HttpResponse>
-    : public HttpResponseAccessor<HttpIncomingStream<HttpResponse>>
-    , public HttpIncomingStreamBase<HttpIncomingStream<HttpResponse>, HttpResponse>
+    : public HttpResponseAccessor<HttpIncomingStream<HttpResponse>>, public HttpIncomingStreamBase<HttpIncomingStream<HttpResponse>, HttpResponse>
 {
 public:
     explicit HttpIncomingStream(net::TcpConnectionPtr conn)

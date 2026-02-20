@@ -4,10 +4,10 @@
  */
 #pragma once
 
-#include <nitro_coro/core/Task.h>
 #include <nitro_coro/core/Future.h>
+#include <nitro_coro/core/Task.h>
+#include <nitro_coro/http/HttpMessage.h>
 #include <nitro_coro/http/HttpStream.h>
-#include <nitro_coro/http/HttpCompleteMessage.h>
 #include <nitro_coro/net/TcpConnection.h>
 #include <nitro_coro/net/Url.h>
 

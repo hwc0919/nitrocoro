@@ -9,6 +9,58 @@ namespace nitro_coro::http
 {
 
 // ============================================================================
+// HttpOutgoingStreamBase Implementation
+// ============================================================================
+
+template <typename Derived, typename DataType>
+void HttpOutgoingStreamBase<Derived, DataType>::setHeader(const std::string & name, const std::string & value)
+{
+    HttpHeader header(name, value);
+    data_.headers.insert_or_assign(header.name(), std::move(header));
+}
+
+template <typename Derived, typename DataType>
+void HttpOutgoingStreamBase<Derived, DataType>::setHeader(HttpHeader header)
+{
+    data_.headers.insert_or_assign(header.name(), std::move(header));
+}
+
+template <typename Derived, typename DataType>
+void HttpOutgoingStreamBase<Derived, DataType>::setCookie(const std::string & name, const std::string & value)
+{
+    data_.cookies[name] = value;
+}
+
+template <typename Derived, typename DataType>
+Task<> HttpOutgoingStreamBase<Derived, DataType>::write(const char * data, size_t len)
+{
+    co_await static_cast<Derived *>(this)->writeHeaders();
+    co_await conn_->write(data, len);
+}
+
+template <typename Derived, typename DataType>
+Task<> HttpOutgoingStreamBase<Derived, DataType>::write(std::string_view data)
+{
+    co_await write(data.data(), data.size());
+}
+
+template <typename Derived, typename DataType>
+Task<> HttpOutgoingStreamBase<Derived, DataType>::end()
+{
+    co_await static_cast<Derived *>(this)->writeHeaders();
+}
+
+template <typename Derived, typename DataType>
+Task<> HttpOutgoingStreamBase<Derived, DataType>::end(std::string_view data)
+{
+    co_await write(data);
+}
+
+// Explicit instantiations
+template class HttpOutgoingStreamBase<HttpOutgoingStream<HttpRequest>, HttpRequest>;
+template class HttpOutgoingStreamBase<HttpOutgoingStream<HttpResponse>, HttpResponse>;
+
+// ============================================================================
 // HttpOutgoingStream<HttpRequest> Implementation
 // ============================================================================
 

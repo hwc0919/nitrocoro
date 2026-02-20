@@ -3,12 +3,9 @@
  * @brief CRTP base class for HTTP incoming streams
  */
 #pragma once
-
-#include <algorithm>
-#include <cstring>
 #include <nitro_coro/core/Task.h>
-#include <nitro_coro/http/HttpMessage.h>
 #include <nitro_coro/net/TcpConnection.h>
+
 #include <string>
 #include <string_view>
 
@@ -44,88 +41,9 @@ public:
     bool hasBody() const { return contentLength_ > 0; }
     size_t contentLength() const { return contentLength_; }
 
-    Task<std::string_view> read(size_t maxSize = 4096)
-    {
-        if (bodyBytesRead_ >= contentLength_)
-            co_return std::string_view();
-
-        size_t oldSize = buffer_.size();
-        if (bodyBytesRead_ == 0 && oldSize > 0)
-        {
-            size_t n = std::min(oldSize, contentLength_);
-            bodyBytesRead_ += n;
-            if (bodyBytesRead_ >= contentLength_)
-                complete_ = true;
-            co_return std::string_view(buffer_.data(), n);
-        }
-
-        size_t toRead = std::min(maxSize, contentLength_ - bodyBytesRead_);
-        buffer_.resize(oldSize + toRead);
-        size_t n = co_await conn_->read(buffer_.data() + oldSize, toRead);
-        buffer_.resize(oldSize + n);
-
-        bodyBytesRead_ += n;
-        if (bodyBytesRead_ >= contentLength_)
-            complete_ = true;
-
-        co_return std::string_view(buffer_.data() + oldSize, n);
-    }
-
-    Task<size_t> readTo(char * buf, size_t len)
-    {
-        if (!buffer_.empty())
-        {
-            size_t toRead = std::min(len, buffer_.size());
-            std::memcpy(buf, buffer_.data(), toRead);
-            buffer_.erase(0, toRead);
-            bodyBytesRead_ += toRead;
-            if (bodyBytesRead_ >= contentLength_)
-                complete_ = true;
-            co_return toRead;
-        }
-
-        if (conn_ && bodyBytesRead_ < contentLength_)
-        {
-            size_t remaining = contentLength_ - bodyBytesRead_;
-            size_t toRead = std::min(len, remaining);
-            size_t n = co_await conn_->read(buf, toRead);
-            bodyBytesRead_ += n;
-            if (bodyBytesRead_ >= contentLength_)
-                complete_ = true;
-            co_return n;
-        }
-
-        co_return 0;
-    }
-
-    Task<std::string_view> readAll()
-    {
-        if (bodyBytesRead_ >= contentLength_)
-            co_return std::string_view(buffer_);
-
-        size_t oldSize = buffer_.size();
-        if (bodyBytesRead_ == 0 && oldSize > 0)
-        {
-            bodyBytesRead_ += std::min(oldSize, contentLength_);
-            oldSize = 0;
-        }
-
-        while (bodyBytesRead_ < contentLength_)
-        {
-            constexpr size_t CHUNK_SIZE = 4096;
-            size_t currentSize = buffer_.size();
-            size_t toRead = std::min(CHUNK_SIZE, contentLength_ - bodyBytesRead_);
-            buffer_.resize(currentSize + toRead);
-            size_t n = co_await conn_->read(buffer_.data() + currentSize, toRead);
-            buffer_.resize(currentSize + n);
-            bodyBytesRead_ += n;
-        }
-
-        if (bodyBytesRead_ >= contentLength_)
-            complete_ = true;
-
-        co_return std::string_view(buffer_.data() + oldSize, buffer_.size() - oldSize);
-    }
+    Task<std::string_view> read(size_t maxSize = 4096);
+    Task<size_t> readTo(char * buf, size_t len);
+    Task<std::string_view> readAll();
 };
 
 } // namespace nitro_coro::http

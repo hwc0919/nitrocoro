@@ -3,9 +3,7 @@
  * @brief HTTP outgoing stream for writing requests and responses
  */
 #pragma once
-
-#include <nitro_coro/http/HttpRequestAccessor.h>
-#include <nitro_coro/http/HttpResponseAccessor.h>
+#include <nitro_coro/http/HttpMessage.h>
 #include <nitro_coro/http/stream/HttpOutgoingStreamBase.h>
 
 namespace nitro_coro::http

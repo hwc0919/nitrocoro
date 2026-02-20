@@ -27,7 +27,7 @@ Task<> server_main(uint16_t port)
     });
 
     server.route("GET", "/hello", [](HttpIncomingStream<HttpRequest> & req, HttpOutgoingStream<HttpResponse> & resp) -> Task<> {
-        auto name = req.query("name");
+        auto name = req.getQuery("name");
         std::string body = "Hello, ";
         body += name.empty() ? "Guest" : name;
         body += "!";

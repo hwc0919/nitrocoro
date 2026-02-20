@@ -2,13 +2,109 @@
  * @file HttpIncomingStream.cc
  * @brief HTTP incoming stream implementations
  */
-#include <algorithm>
+#include <nitro_coro/http/HttpMessage.h>
 #include <nitro_coro/http/stream/HttpIncomingStream.h>
-#include <nitro_coro/http/HttpCompleteMessage.h>
+
+#include <algorithm>
+#include <cstring>
 #include <sstream>
 
 namespace nitro_coro::http
 {
+
+// ============================================================================
+// HttpIncomingStreamBase Implementation
+// ============================================================================
+
+template <typename Derived, typename DataType>
+Task<std::string_view> HttpIncomingStreamBase<Derived, DataType>::read(size_t maxSize)
+{
+    if (bodyBytesRead_ >= contentLength_)
+        co_return std::string_view();
+
+    size_t oldSize = buffer_.size();
+    if (bodyBytesRead_ == 0 && oldSize > 0)
+    {
+        size_t n = std::min(oldSize, contentLength_);
+        bodyBytesRead_ += n;
+        if (bodyBytesRead_ >= contentLength_)
+            complete_ = true;
+        co_return std::string_view(buffer_.data(), n);
+    }
+
+    size_t toRead = std::min(maxSize, contentLength_ - bodyBytesRead_);
+    buffer_.resize(oldSize + toRead);
+    size_t n = co_await conn_->read(buffer_.data() + oldSize, toRead);
+    buffer_.resize(oldSize + n);
+
+    bodyBytesRead_ += n;
+    if (bodyBytesRead_ >= contentLength_)
+        complete_ = true;
+
+    co_return std::string_view(buffer_.data() + oldSize, n);
+}
+
+template <typename Derived, typename DataType>
+Task<size_t> HttpIncomingStreamBase<Derived, DataType>::readTo(char * buf, size_t len)
+{
+    if (!buffer_.empty())
+    {
+        size_t toRead = std::min(len, buffer_.size());
+        std::memcpy(buf, buffer_.data(), toRead);
+        buffer_.erase(0, toRead);
+        bodyBytesRead_ += toRead;
+        if (bodyBytesRead_ >= contentLength_)
+            complete_ = true;
+        co_return toRead;
+    }
+
+    if (conn_ && bodyBytesRead_ < contentLength_)
+    {
+        size_t remaining = contentLength_ - bodyBytesRead_;
+        size_t toRead = std::min(len, remaining);
+        size_t n = co_await conn_->read(buf, toRead);
+        bodyBytesRead_ += n;
+        if (bodyBytesRead_ >= contentLength_)
+            complete_ = true;
+        co_return n;
+    }
+
+    co_return 0;
+}
+
+template <typename Derived, typename DataType>
+Task<std::string_view> HttpIncomingStreamBase<Derived, DataType>::readAll()
+{
+    if (bodyBytesRead_ >= contentLength_)
+        co_return std::string_view(buffer_);
+
+    size_t oldSize = buffer_.size();
+    if (bodyBytesRead_ == 0 && oldSize > 0)
+    {
+        bodyBytesRead_ += std::min(oldSize, contentLength_);
+        oldSize = 0;
+    }
+
+    while (bodyBytesRead_ < contentLength_)
+    {
+        constexpr size_t CHUNK_SIZE = 4096;
+        size_t currentSize = buffer_.size();
+        size_t toRead = std::min(CHUNK_SIZE, contentLength_ - bodyBytesRead_);
+        buffer_.resize(currentSize + toRead);
+        size_t n = co_await conn_->read(buffer_.data() + currentSize, toRead);
+        buffer_.resize(currentSize + n);
+        bodyBytesRead_ += n;
+    }
+
+    if (bodyBytesRead_ >= contentLength_)
+        complete_ = true;
+
+    co_return std::string_view(buffer_.data() + oldSize, buffer_.size() - oldSize);
+}
+
+// Explicit instantiations
+template class HttpIncomingStreamBase<HttpIncomingStream<HttpRequest>, HttpRequest>;
+template class HttpIncomingStreamBase<HttpIncomingStream<HttpResponse>, HttpResponse>;
 
 // ============================================================================
 // HttpIncomingStream<HttpRequest> Implementation

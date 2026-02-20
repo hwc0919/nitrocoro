@@ -5,7 +5,7 @@
 #include <nitro_coro/core/Future.h>
 #include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/http/HttpClient.h>
-#include <nitro_coro/http/HttpCompleteMessage.h>
+#include <nitro_coro/http/HttpMessage.h>
 #include <nitro_coro/net/Dns.h>
 #include <nitro_coro/net/Url.h>
 #include <sstream>
