@@ -18,11 +18,10 @@ class HttpCompleteRequest : protected HttpRequest, public HttpRequestAccessor<Ht
     friend class HttpDataAccessor;
 
 public:
-    std::string body;
-
-    const std::string & getBody() const { return body; }
+    const std::string & getBody() const { return body_; }
 
 protected:
+    std::string body_;
     const HttpRequest & getData() const { return *this; }
 };
 
@@ -32,11 +31,14 @@ class HttpCompleteResponse : protected HttpResponse, public HttpResponseAccessor
     friend class HttpDataAccessor;
 
 public:
-    std::string body;
+    HttpCompleteResponse() = default;
+    HttpCompleteResponse(HttpResponse && resp, std::string && b)
+        : HttpResponse(std::move(resp)), body_(std::move(b)) {}
 
-    const std::string & getBody() const { return body; }
+    const std::string & getBody() const { return body_; }
 
 protected:
+    std::string body_;
     const HttpResponse & getData() const { return *this; }
 };
 

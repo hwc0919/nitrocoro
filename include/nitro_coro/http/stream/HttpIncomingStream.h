@@ -15,6 +15,8 @@ namespace nitro_coro::http
 template <typename T>
 class HttpIncomingStream;
 
+class HttpCompleteResponse;
+
 // ============================================================================
 // HttpIncomingStream<HttpRequest> - Read HTTP Request
 // ============================================================================
@@ -51,6 +53,7 @@ public:
         : HttpIncomingStreamBase(std::move(conn)) {}
 
     Task<> readAndParse();
+    Task<HttpCompleteResponse> toCompleteResponse();
 
 private:
     void parseStatusLine(std::string_view line);

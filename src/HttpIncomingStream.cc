@@ -4,6 +4,7 @@
  */
 #include <algorithm>
 #include <nitro_coro/http/stream/HttpIncomingStream.h>
+#include <nitro_coro/http/HttpCompleteMessage.h>
 #include <sstream>
 
 namespace nitro_coro::http
@@ -221,6 +222,12 @@ void HttpIncomingStream<HttpResponse>::parseCookies(const std::string & cookieHe
                                       : cookieHeader.substr(eqPos + 1);
         data_.cookies[cookieName] = cookieValue;
     }
+}
+
+Task<HttpCompleteResponse> HttpIncomingStream<HttpResponse>::toCompleteResponse()
+{
+    auto bodyView = co_await readAll();
+    co_return HttpCompleteResponse(std::move(data_), std::string(bodyView));
 }
 
 } // namespace nitro_coro::http
