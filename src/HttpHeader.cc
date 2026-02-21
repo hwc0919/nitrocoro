@@ -124,7 +124,7 @@ const std::pair<std::string_view, std::string_view> & HttpHeader::codeToNames(Na
 
     static_assert(std::size(pairs) == static_cast<size_t>(NameCode::Unknown) + 1);
 
-#define NITRO_CORO_HTTP_HEADER_CHECK_PAIR(name)                                             \
+#define NITRO_CORO_HTTP_HEADER_CHECK_PAIR(name)                                        \
     static_assert(pairs[static_cast<size_t>(NameCode::name)].first == Name::name##_L); \
     static_assert(pairs[static_cast<size_t>(NameCode::name)].second == Name::name##_C)
 

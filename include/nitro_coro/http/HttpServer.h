@@ -20,7 +20,9 @@ class HttpServer
 public:
     using Handler = std::function<Task<>(HttpIncomingStream<HttpRequest> &, HttpOutgoingStream<HttpResponse> &)>;
 
-    explicit HttpServer(uint16_t port);
+    explicit HttpServer(uint16_t port, Scheduler * scheduler = Scheduler::current());
+
+    uint16_t listeningPort() const { return port_; }
 
     void route(const std::string & method, const std::string & path, Handler handler);
     Task<> start();

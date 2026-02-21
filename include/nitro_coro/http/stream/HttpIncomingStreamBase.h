@@ -37,11 +37,6 @@ protected:
     const DataType & getData() const { return data_; }
 
 public:
-    bool isHeaderComplete() const { return headerComplete_; }
-    bool isComplete() const { return complete_; }
-    bool hasBody() const { return contentLength_ > 0; }
-    size_t contentLength() const { return contentLength_; }
-
     Task<std::string_view> read(size_t maxSize = 4096);
     Task<size_t> readTo(char * buf, size_t len);
     Task<std::string_view> readAll();

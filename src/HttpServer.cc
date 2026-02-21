@@ -8,8 +8,8 @@
 namespace nitro_coro::http
 {
 
-HttpServer::HttpServer(uint16_t port)
-    : port_(port), scheduler_(Scheduler::current())
+HttpServer::HttpServer(uint16_t port, Scheduler * scheduler)
+    : port_(port), scheduler_(scheduler)
 {
 }
 
