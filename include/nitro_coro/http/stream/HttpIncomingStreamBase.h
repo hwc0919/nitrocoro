@@ -5,6 +5,7 @@
 #pragma once
 #include <nitro_coro/core/Task.h>
 #include <nitro_coro/net/TcpConnection.h>
+#include <nitro_coro/utils/StringBuffer.h>
 
 #include <string>
 #include <string_view>
@@ -24,7 +25,7 @@ protected:
 
     DataType data_;
     net::TcpConnectionPtr conn_;
-    std::string buffer_;
+    utils::StringBuffer buffer_;
     bool headerComplete_ = false;
     bool complete_ = false;
     size_t contentLength_ = 0;

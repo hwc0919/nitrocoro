@@ -22,36 +22,37 @@ Task<std::string_view> HttpIncomingStreamBase<Derived, DataType>::read(size_t ma
     if (bodyBytesRead_ >= contentLength_)
         co_return std::string_view();
 
-    size_t oldSize = buffer_.size();
-    if (bodyBytesRead_ == 0 && oldSize > 0)
+    size_t available = buffer_.remainSize();
+    if (bodyBytesRead_ == 0 && available > 0)
     {
-        size_t n = std::min(oldSize, contentLength_);
+        size_t n = std::min(available, contentLength_);
         bodyBytesRead_ += n;
         if (bodyBytesRead_ >= contentLength_)
             complete_ = true;
-        co_return std::string_view(buffer_.data(), n);
+        co_return buffer_.consumeView(n);
     }
 
     size_t toRead = std::min(maxSize, contentLength_ - bodyBytesRead_);
-    buffer_.resize(oldSize + toRead);
-    size_t n = co_await conn_->read(buffer_.data() + oldSize, toRead);
-    buffer_.resize(oldSize + n);
+    char * writePtr = buffer_.prepareWrite(toRead);
+    size_t n = co_await conn_->read(writePtr, toRead);
+    buffer_.commitWrite(n);
 
     bodyBytesRead_ += n;
     if (bodyBytesRead_ >= contentLength_)
         complete_ = true;
 
-    co_return std::string_view(buffer_.data() + oldSize, n);
+    co_return buffer_.consumeView(n);
 }
 
 template <typename Derived, typename DataType>
 Task<size_t> HttpIncomingStreamBase<Derived, DataType>::readTo(char * buf, size_t len)
 {
-    if (!buffer_.empty())
+    size_t available = buffer_.remainSize();
+    if (available > 0)
     {
-        size_t toRead = std::min(len, buffer_.size());
-        std::memcpy(buf, buffer_.data(), toRead);
-        buffer_.erase(0, toRead);
+        size_t toRead = std::min(len, available);
+        std::memcpy(buf, buffer_.view().data(), toRead);
+        buffer_.consume(toRead);
         bodyBytesRead_ += toRead;
         if (bodyBytesRead_ >= contentLength_)
             complete_ = true;
@@ -76,30 +77,28 @@ template <typename Derived, typename DataType>
 Task<std::string_view> HttpIncomingStreamBase<Derived, DataType>::readAll()
 {
     if (bodyBytesRead_ >= contentLength_)
-        co_return std::string_view(buffer_);
+        co_return buffer_.view();
 
-    size_t oldSize = buffer_.size();
-    if (bodyBytesRead_ == 0 && oldSize > 0)
+    size_t startSize = buffer_.remainSize();
+    if (bodyBytesRead_ == 0 && startSize > 0)
     {
-        bodyBytesRead_ += std::min(oldSize, contentLength_);
-        oldSize = 0;
+        bodyBytesRead_ += std::min(startSize, contentLength_);
     }
 
     while (bodyBytesRead_ < contentLength_)
     {
         constexpr size_t CHUNK_SIZE = 4096;
-        size_t currentSize = buffer_.size();
         size_t toRead = std::min(CHUNK_SIZE, contentLength_ - bodyBytesRead_);
-        buffer_.resize(currentSize + toRead);
-        size_t n = co_await conn_->read(buffer_.data() + currentSize, toRead);
-        buffer_.resize(currentSize + n);
+        char * writePtr = buffer_.prepareWrite(toRead);
+        size_t n = co_await conn_->read(writePtr, toRead);
+        buffer_.commitWrite(n);
         bodyBytesRead_ += n;
     }
 
     if (bodyBytesRead_ >= contentLength_)
         complete_ = true;
 
-    co_return std::string_view(buffer_.data() + oldSize, buffer_.size() - oldSize);
+    co_return buffer_.view();
 }
 
 // Explicit instantiations
@@ -117,17 +116,17 @@ Task<> HttpIncomingStream<HttpRequest>::readAndParse()
         size_t pos = buffer_.find("\r\n");
         if (pos == std::string::npos)
         {
-            size_t oldSize = buffer_.size();
-            buffer_.resize(oldSize + 4096);
-            size_t n = co_await conn_->read(buffer_.data() + oldSize, 4096);
-            buffer_.resize(oldSize + n);
+            char * writePtr = buffer_.prepareWrite(4096);
+            size_t n = co_await conn_->read(writePtr, 4096);
+            buffer_.commitWrite(n);
             if (n == 0)
+                // TODO
                 co_return;
             continue;
         }
 
-        std::string line = buffer_.substr(0, pos);
-        buffer_.erase(0, pos + 2);
+        std::string_view line = buffer_.view().substr(0, pos);
+        buffer_.consume(pos + 2);
 
         if (data_.method.empty())
         {
@@ -232,23 +231,22 @@ Task<> HttpIncomingStream<HttpResponse>::readAndParse()
         size_t pos = buffer_.find("\r\n");
         if (pos == std::string::npos)
         {
-            if (buffer_.size() >= MAX_HEADER_LINE_LENGTH)
+            if (buffer_.remainSize() >= MAX_HEADER_LINE_LENGTH)
             {
                 // TODO: respond and shutdown
                 throw std::runtime_error("Bad data, request line too long");
             }
 
-            size_t oldSize = buffer_.size();
-            buffer_.resize(oldSize + 4096);
-            size_t n = co_await conn_->read(buffer_.data() + oldSize, 4096);
-            buffer_.resize(oldSize + n);
+            char * writePtr = buffer_.prepareWrite(4096);
+            size_t n = co_await conn_->read(writePtr, 4096);
+            buffer_.commitWrite(n);
             if (n == 0) // TODO
                 co_return;
             continue;
         }
 
-        std::string line = buffer_.substr(0, pos);
-        buffer_.erase(0, pos + 2);
+        std::string_view line = buffer_.view().substr(0, pos);
+        buffer_.consume(pos + 2);
 
         if (data_.statusCode == 0)
         {

@@ -72,7 +72,7 @@ Task<> server_main(uint16_t port)
     server.route("GET", "/", [](HttpRequest& req, HttpResponse& resp) -> Task<> {
         resp.setStatus(200);
         resp.setHeader("Content-Type", "text/html");
-        co_await resp.write("<h1>Hello, World!</h1>");
+        co_await resp.end("<h1>Hello, World!</h1>");
     });
     
     co_await server.start();
