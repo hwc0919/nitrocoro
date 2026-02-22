@@ -44,7 +44,16 @@ bool HttpParser<HttpRequest>::parseLine(std::string_view line)
         if (it != data_.headers.end())
         {
             contentLength_ = std::stoul(it->second.value());
+            transferMode_ = TransferMode::ContentLength;
         }
+        
+        static const std::string transferEncodingKey{ "transfer-encoding" };
+        auto teIt = data_.headers.find(transferEncodingKey);
+        if (teIt != data_.headers.end() && teIt->second.value().find("chunked") != std::string::npos)
+        {
+            transferMode_ = TransferMode::Chunked;
+        }
+        
         headerComplete_ = true;
     }
     return headerComplete_;
@@ -139,7 +148,16 @@ bool HttpParser<HttpResponse>::parseLine(std::string_view line)
         if (it != data_.headers.end())
         {
             contentLength_ = std::stoul(it->second.value());
+            transferMode_ = TransferMode::ContentLength;
         }
+        
+        static const std::string transferEncodingKey{ "transfer-encoding" };
+        auto teIt = data_.headers.find(transferEncodingKey);
+        if (teIt != data_.headers.end() && teIt->second.value().find("chunked") != std::string::npos)
+        {
+            transferMode_ = TransferMode::Chunked;
+        }
+        
         headerComplete_ = true;
     }
     return headerComplete_;

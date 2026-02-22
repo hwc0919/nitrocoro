@@ -17,16 +17,20 @@ add_library(nitro_coro STATIC
     src/TcpServer.cc
     src/TcpConnection.cc
     src/IoChannel.cc
-    src/HttpIncomingStream.cc
-    src/HttpOutgoingStream.cc
-    src/HttpServer.cc
-    src/HttpClient.cc
-    src/HttpHeader.cc
-    src/HttpParser.cc
     src/InetAddress.cc
     src/DnsResolver.cc
     src/Dns.cc
     src/Url.cpp
+    src/http/HttpIncomingStream.cc
+    src/http/HttpOutgoingStream.cc
+    src/http/HttpServer.cc
+    src/http/HttpClient.cc
+    src/http/HttpHeader.cc
+    src/http/HttpParser.cc
+    src/http/BodyReader.cc
+    src/http/body_reader/ContentLengthReader.cc
+    src/http/body_reader/ChunkedReader.cc
+    src/http/body_reader/UntilCloseReader.cc
 )
 
 target_include_directories(nitro_coro PUBLIC

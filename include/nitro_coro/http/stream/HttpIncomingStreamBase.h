@@ -4,10 +4,12 @@
  */
 #pragma once
 #include <nitro_coro/core/Task.h>
+#include <nitro_coro/http/BodyReader.h>
 #include <nitro_coro/http/HttpParser.h>
 #include <nitro_coro/net/TcpConnection.h>
 #include <nitro_coro/utils/StringBuffer.h>
 
+#include <memory>
 #include <string_view>
 
 namespace nitro_coro::http
@@ -35,8 +37,7 @@ protected:
     HttpParser<DataType> parser_;
     net::TcpConnectionPtr conn_;
     utils::StringBuffer buffer_;
-    bool complete_ = false;
-    size_t bodyBytesRead_ = 0;
+    std::unique_ptr<BodyReader> bodyReader_;
 };
 
 } // namespace nitro_coro::http

@@ -10,6 +10,13 @@
 namespace nitro_coro::http
 {
 
+enum class TransferMode
+{
+    ContentLength,
+    Chunked,
+    UntilClose
+};
+
 template <typename DataType>
 class HttpParser;
 
@@ -28,11 +35,13 @@ public:
 
     bool isHeaderComplete() const { return headerComplete_; }
     size_t contentLength() const { return contentLength_; }
+    TransferMode transferMode() const { return transferMode_; }
 
 private:
     HttpRequest & data_;
     bool headerComplete_ = false;
     size_t contentLength_ = 0;
+    TransferMode transferMode_ = TransferMode::UntilClose;
 
     void parseRequestLine(std::string_view line);
     void parseHeader(std::string_view line);
@@ -51,6 +60,7 @@ private:
     HttpResponse & data_;
     bool headerComplete_ = false;
     size_t contentLength_ = 0;
+    TransferMode transferMode_ = TransferMode::UntilClose;
 
     void parseStatusLine(std::string_view line);
     void parseHeader(std::string_view line);
@@ -64,6 +74,7 @@ public:
 
     bool isHeaderComplete() const { return headerComplete_; }
     size_t contentLength() const { return contentLength_; }
+    TransferMode transferMode() const { return transferMode_; }
 };
 
 } // namespace nitro_coro::http
