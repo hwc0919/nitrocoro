@@ -19,7 +19,7 @@ class HttpOutgoingStream;
 
 template <>
 class HttpOutgoingStream<HttpRequest>
-    : public HttpOutgoingStreamBase<HttpOutgoingStream<HttpRequest>, HttpRequest>
+    : public HttpOutgoingStreamBase<HttpRequest>
 {
 public:
     explicit HttpOutgoingStream(net::TcpConnectionPtr conn)
@@ -28,8 +28,6 @@ public:
     void setMethod(const std::string & method) { data_.method = method; }
     void setPath(const std::string & path) { data_.path = path; }
     void setVersion(const std::string & version) { data_.version = version; }
-
-    Task<> writeHeaders();
 };
 
 // ============================================================================
@@ -38,7 +36,7 @@ public:
 
 template <>
 class HttpOutgoingStream<HttpResponse>
-    : public HttpOutgoingStreamBase<HttpOutgoingStream<HttpResponse>, HttpResponse>
+    : public HttpOutgoingStreamBase<HttpResponse>
 {
 public:
     explicit HttpOutgoingStream(net::TcpConnectionPtr conn)
@@ -46,11 +44,6 @@ public:
 
     void setStatus(int code, const std::string & reason = "");
     void setVersion(const std::string & version) { data_.version = version; }
-
-    Task<> writeHeaders();
-
-private:
-    static const char * getDefaultReason(int code);
 };
 
 } // namespace nitro_coro::http

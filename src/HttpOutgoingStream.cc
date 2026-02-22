@@ -12,74 +12,85 @@ namespace nitro_coro::http
 // HttpOutgoingStreamBase Implementation
 // ============================================================================
 
-template <typename Derived, typename DataType>
-void HttpOutgoingStreamBase<Derived, DataType>::setHeader(const std::string & name, const std::string & value)
+template <typename DataType>
+void HttpOutgoingStreamBase<DataType>::setHeader(const std::string & name, const std::string & value)
 {
     HttpHeader header(name, value);
     data_.headers.insert_or_assign(header.name(), std::move(header));
 }
 
-template <typename Derived, typename DataType>
-void HttpOutgoingStreamBase<Derived, DataType>::setHeader(HttpHeader header)
+template <typename DataType>
+void HttpOutgoingStreamBase<DataType>::setHeader(HttpHeader header)
 {
     data_.headers.insert_or_assign(header.name(), std::move(header));
 }
 
-template <typename Derived, typename DataType>
-void HttpOutgoingStreamBase<Derived, DataType>::setCookie(const std::string & name, const std::string & value)
+template <typename DataType>
+void HttpOutgoingStreamBase<DataType>::setCookie(const std::string & name, const std::string & value)
 {
     data_.cookies[name] = value;
 }
 
-template <typename Derived, typename DataType>
-Task<> HttpOutgoingStreamBase<Derived, DataType>::write(const char * data, size_t len)
+template <typename DataType>
+Task<> HttpOutgoingStreamBase<DataType>::write(const char * data, size_t len)
 {
-    co_await static_cast<Derived *>(this)->writeHeaders();
+    co_await writeHeaders();
     co_await conn_->write(data, len);
 }
 
-template <typename Derived, typename DataType>
-Task<> HttpOutgoingStreamBase<Derived, DataType>::write(std::string_view data)
+template <typename DataType>
+Task<> HttpOutgoingStreamBase<DataType>::write(std::string_view data)
 {
     co_await write(data.data(), data.size());
 }
 
-template <typename Derived, typename DataType>
-Task<> HttpOutgoingStreamBase<Derived, DataType>::end()
+template <typename DataType>
+Task<> HttpOutgoingStreamBase<DataType>::end()
 {
-    co_await static_cast<Derived *>(this)->writeHeaders();
+    co_await writeHeaders();
 }
 
-template <typename Derived, typename DataType>
-Task<> HttpOutgoingStreamBase<Derived, DataType>::end(std::string_view data)
+template <typename DataType>
+Task<> HttpOutgoingStreamBase<DataType>::end(std::string_view data)
 {
     co_await write(data);
 }
 
-// Explicit instantiations
-template class HttpOutgoingStreamBase<HttpOutgoingStream<HttpRequest>, HttpRequest>;
-template class HttpOutgoingStreamBase<HttpOutgoingStream<HttpResponse>, HttpResponse>;
-
-// ============================================================================
-// HttpOutgoingStream<HttpRequest> Implementation
-// ============================================================================
-
-Task<> HttpOutgoingStream<HttpRequest>::writeHeaders()
+template <typename DataType>
+Task<> HttpOutgoingStreamBase<DataType>::writeHeaders()
 {
     if (headersSent_)
         co_return;
 
     std::ostringstream oss;
-    oss << data_.method << " " << data_.path << " " << data_.version << "\r\n";
 
-    for (const auto & [name, header] : data_.headers)
+    if constexpr (std::is_same_v<DataType, HttpRequest>)
     {
-        oss << header.name() << ": " << header.value() << "\r\n";
+        oss << data_.method << " " << data_.path << " " << data_.version << "\r\n";
+
+        for (const auto & [name, header] : data_.headers)
+        {
+            oss << header.name() << ": " << header.value() << "\r\n";
+        }
+
+        for (const auto & [name, value] : data_.cookies)
+        {
+            oss << "Cookie: " << name << "=" << value << "\r\n";
+        }
     }
-
-    for (const auto & [name, value] : data_.cookies)
+    else // HttpResponse
     {
-        oss << "Cookie: " << name << "=" << value << "\r\n";
+        oss << data_.version << " " << data_.statusCode << " " << data_.statusReason << "\r\n";
+
+        for (const auto & [name, header] : data_.headers)
+        {
+            oss << header.name() << ": " << header.value() << "\r\n";
+        }
+
+        for (const auto & [name, value] : data_.cookies)
+        {
+            oss << "Set-Cookie: " << name << "=" << value << "\r\n";
+        }
     }
 
     oss << "\r\n";
@@ -89,42 +100,8 @@ Task<> HttpOutgoingStream<HttpRequest>::writeHeaders()
     headersSent_ = true;
 }
 
-// ============================================================================
-// HttpOutgoingStream<HttpResponse> Implementation
-// ============================================================================
-
-void HttpOutgoingStream<HttpResponse>::setStatus(int code, const std::string & reason)
-{
-    data_.statusCode = code;
-    data_.statusReason = reason.empty() ? getDefaultReason(code) : reason;
-}
-
-Task<> HttpOutgoingStream<HttpResponse>::writeHeaders()
-{
-    if (headersSent_)
-        co_return;
-
-    std::ostringstream oss;
-    oss << data_.version << " " << data_.statusCode << " " << data_.statusReason << "\r\n";
-
-    for (const auto & [name, header] : data_.headers)
-    {
-        oss << header.name() << ": " << header.value() << "\r\n";
-    }
-
-    for (const auto & [name, value] : data_.cookies)
-    {
-        oss << "Set-Cookie: " << name << "=" << value << "\r\n";
-    }
-
-    oss << "\r\n";
-
-    std::string headers = oss.str();
-    co_await conn_->write(headers.c_str(), headers.size());
-    headersSent_ = true;
-}
-
-const char * HttpOutgoingStream<HttpResponse>::getDefaultReason(int code)
+template <typename DataType>
+const char * HttpOutgoingStreamBase<DataType>::getDefaultReason(int code)
 {
     switch (code)
     {
@@ -157,6 +134,24 @@ const char * HttpOutgoingStream<HttpResponse>::getDefaultReason(int code)
         default:
             return "";
     }
+}
+
+// Explicit instantiations
+template class HttpOutgoingStreamBase<HttpRequest>;
+template class HttpOutgoingStreamBase<HttpResponse>;
+
+// ============================================================================
+// HttpOutgoingStream<HttpRequest> Implementation
+// ============================================================================
+
+// ============================================================================
+// HttpOutgoingStream<HttpResponse> Implementation
+// ============================================================================
+
+void HttpOutgoingStream<HttpResponse>::setStatus(int code, const std::string & reason)
+{
+    data_.statusCode = code;
+    data_.statusReason = reason.empty() ? getDefaultReason(code) : reason;
 }
 
 } // namespace nitro_coro::http

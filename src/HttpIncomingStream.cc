@@ -14,8 +14,8 @@ namespace nitro_coro::http
 // HttpIncomingStreamBase Implementation
 // ============================================================================
 
-template <typename Derived, typename DataType>
-Task<> HttpIncomingStreamBase<Derived, DataType>::readAndParse()
+template <typename DataType>
+Task<> HttpIncomingStreamBase<DataType>::readAndParse()
 {
     while (!parser_.isHeaderComplete())
     {
@@ -39,8 +39,8 @@ Task<> HttpIncomingStreamBase<Derived, DataType>::readAndParse()
         complete_ = true;
 }
 
-template <typename Derived, typename DataType>
-Task<std::string_view> HttpIncomingStreamBase<Derived, DataType>::read(size_t maxSize)
+template <typename DataType>
+Task<std::string_view> HttpIncomingStreamBase<DataType>::read(size_t maxSize)
 {
     size_t contentLength = parser_.contentLength();
     if (bodyBytesRead_ >= contentLength)
@@ -68,8 +68,8 @@ Task<std::string_view> HttpIncomingStreamBase<Derived, DataType>::read(size_t ma
     co_return buffer_.consumeView(n);
 }
 
-template <typename Derived, typename DataType>
-Task<size_t> HttpIncomingStreamBase<Derived, DataType>::readTo(char * buf, size_t len)
+template <typename DataType>
+Task<size_t> HttpIncomingStreamBase<DataType>::readTo(char * buf, size_t len)
 {
     size_t contentLength = parser_.contentLength();
     size_t available = buffer_.remainSize();
@@ -98,8 +98,8 @@ Task<size_t> HttpIncomingStreamBase<Derived, DataType>::readTo(char * buf, size_
     co_return 0;
 }
 
-template <typename Derived, typename DataType>
-Task<std::string_view> HttpIncomingStreamBase<Derived, DataType>::readAll()
+template <typename DataType>
+Task<std::string_view> HttpIncomingStreamBase<DataType>::readAll()
 {
     size_t contentLength = parser_.contentLength();
     if (bodyBytesRead_ >= contentLength)
@@ -128,8 +128,8 @@ Task<std::string_view> HttpIncomingStreamBase<Derived, DataType>::readAll()
 }
 
 // Explicit instantiations
-template class HttpIncomingStreamBase<HttpIncomingStream<HttpRequest>, HttpRequest>;
-template class HttpIncomingStreamBase<HttpIncomingStream<HttpResponse>, HttpResponse>;
+template class HttpIncomingStreamBase<HttpRequest>;
+template class HttpIncomingStreamBase<HttpResponse>;
 
 // ============================================================================
 // HttpIncomingStream<HttpResponse> Implementation

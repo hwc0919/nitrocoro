@@ -22,7 +22,8 @@ class HttpCompleteResponse;
 
 template <>
 class HttpIncomingStream<HttpRequest>
-    : public HttpRequestAccessor<HttpIncomingStream<HttpRequest>>, public HttpIncomingStreamBase<HttpIncomingStream<HttpRequest>, HttpRequest>
+    : public HttpRequestAccessor<HttpIncomingStream<HttpRequest>>,
+      public HttpIncomingStreamBase<HttpRequest>
 {
 public:
     explicit HttpIncomingStream(net::TcpConnectionPtr conn)
@@ -35,7 +36,8 @@ public:
 
 template <>
 class HttpIncomingStream<HttpResponse>
-    : public HttpResponseAccessor<HttpIncomingStream<HttpResponse>>, public HttpIncomingStreamBase<HttpIncomingStream<HttpResponse>, HttpResponse>
+    : public HttpResponseAccessor<HttpIncomingStream<HttpResponse>>,
+      public HttpIncomingStreamBase<HttpResponse>
 {
 public:
     explicit HttpIncomingStream(net::TcpConnectionPtr conn)

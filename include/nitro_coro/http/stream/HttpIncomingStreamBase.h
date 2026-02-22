@@ -1,6 +1,6 @@
 /**
  * @file HttpIncomingStreamBase.h
- * @brief CRTP base class for HTTP incoming streams
+ * @brief Base class for HTTP incoming streams
  */
 #pragma once
 #include <nitro_coro/core/Task.h>
@@ -13,7 +13,7 @@
 namespace nitro_coro::http
 {
 
-template <typename Derived, typename DataType>
+template <typename DataType>
 class HttpIncomingStreamBase
 {
     template <typename, typename>

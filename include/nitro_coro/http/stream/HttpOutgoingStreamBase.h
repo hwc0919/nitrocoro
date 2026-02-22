@@ -1,6 +1,6 @@
 /**
  * @file HttpOutgoingStreamBase.h
- * @brief CRTP base class for HTTP outgoing streams
+ * @brief Base class for HTTP outgoing streams
  */
 #pragma once
 #include <nitro_coro/core/Task.h>
@@ -12,7 +12,7 @@
 namespace nitro_coro::http
 {
 
-template <typename Derived, typename DataType>
+template <typename DataType>
 class HttpOutgoingStreamBase
 {
 public:
@@ -23,10 +23,13 @@ public:
     Task<> write(std::string_view data);
     Task<> end();
     Task<> end(std::string_view data);
+    Task<> writeHeaders();
 
 protected:
     explicit HttpOutgoingStreamBase(net::TcpConnectionPtr conn)
         : conn_(std::move(conn)) {}
+
+    static const char * getDefaultReason(int code);
 
     DataType data_;
     net::TcpConnectionPtr conn_;
