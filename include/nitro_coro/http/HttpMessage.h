@@ -4,9 +4,11 @@
  */
 #pragma once
 
-#include <map>
 #include <nitro_coro/http/HttpDataAccessor.h>
 #include <nitro_coro/http/HttpHeader.h>
+#include <nitro_coro/http/HttpTypes.h>
+
+#include <map>
 #include <string>
 
 namespace nitro_coro::http
@@ -16,7 +18,7 @@ struct HttpRequest
 {
     std::string method;
     std::string path;
-    std::string version = "HTTP/1.1";
+    Version version = Version::kHttp11;
     std::map<std::string, HttpHeader> headers;
     std::map<std::string, std::string> cookies;
     std::map<std::string, std::string> queries;
@@ -24,9 +26,9 @@ struct HttpRequest
 
 struct HttpResponse
 {
-    int statusCode = 200;
+    StatusCode statusCode = StatusCode::k200OK;
     std::string statusReason;
-    std::string version = "HTTP/1.1";
+    Version version = Version::kHttp11;
     std::map<std::string, HttpHeader> headers;
     std::map<std::string, std::string> cookies;
 };

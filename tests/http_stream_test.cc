@@ -17,7 +17,7 @@ Task<> echo_server(uint16_t port)
     // Echo endpoint - streams back whatever is received
     server.route("POST", "/stream-echo", [](auto & req, auto & resp) -> Task<> {
         NITRO_INFO("[Server] Receive new request\n");
-        resp.setStatus(200);
+        resp.setStatus(StatusCode::k200OK);
         resp.setHeader("Content-Type", "text/plain");
         auto ctl = req.getHeader(HttpHeader::NameCode::ContentLength);
         resp.setHeader({ HttpHeader::NameCode::ContentLength, std::string{ ctl } });
@@ -62,7 +62,7 @@ Task<> test_client(uint16_t port)
     Scheduler::current()->spawn([&session, &respFinishPromise, &respChunks]() -> Task<> {
         // Read response
         auto response = co_await session.response.get();
-        NITRO_INFO("[Client] Response status: %d\n", response.statusCode());
+        NITRO_INFO("[Client] Response status: %d\n", (int)response.statusCode());
 
         while (true)
         {

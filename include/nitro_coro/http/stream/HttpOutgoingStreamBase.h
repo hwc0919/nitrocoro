@@ -29,7 +29,7 @@ protected:
     explicit HttpOutgoingStreamBase(net::TcpConnectionPtr conn)
         : conn_(std::move(conn)) {}
 
-    static const char * getDefaultReason(int code);
+    static const char * getDefaultReason(StatusCode code);
 
     DataType data_;
     net::TcpConnectionPtr conn_;

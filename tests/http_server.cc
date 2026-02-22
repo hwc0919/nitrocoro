@@ -14,13 +14,13 @@ Task<> server_main(uint16_t port)
     HttpServer server(port);
 
     server.route("GET", "/", [](auto & req, auto & resp) -> Task<> {
-        resp.setStatus(200);
+        resp.setStatus(StatusCode::k200OK);
         resp.setHeader("Content-Type", "text/html; charset=utf-8");
         co_await resp.end("<h1>Hello, World!</h1>");
     });
 
     server.route("GET", "/large", [](HttpIncomingStream<HttpRequest> & req, HttpOutgoingStream<HttpResponse> & resp) -> Task<> {
-        resp.setStatus(200);
+        resp.setStatus(StatusCode::k200OK);
         resp.setHeader("Content-Type", "text/html; charset=utf-8");
         std::string largeBody(1024 * 1024, 'a');
         co_await resp.end(largeBody);
@@ -32,14 +32,14 @@ Task<> server_main(uint16_t port)
         body += name.empty() ? "Guest" : name;
         body += "!";
 
-        resp.setStatus(200);
+        resp.setStatus(StatusCode::k200OK);
         resp.setHeader("Content-Type", "text/plain");
         co_await resp.end(body);
     });
 
     server.route("POST", "/echo", [](HttpIncomingStream<HttpRequest> & req, HttpOutgoingStream<HttpResponse> & resp) -> Task<> {
         auto body = co_await req.readAll();
-        resp.setStatus(200);
+        resp.setStatus(StatusCode::k200OK);
         resp.setHeader("Content-Type", "text/plain");
         co_await resp.end(body);
     });

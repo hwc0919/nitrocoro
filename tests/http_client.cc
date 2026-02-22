@@ -16,7 +16,7 @@ Task<> client_main(const char * url)
     try
     {
         auto resp = co_await client.get(url);
-        printf("Status: %d %s\n", resp.statusCode(), resp.statusReason().c_str());
+        printf("Status: %d %s\n", (int)resp.statusCode(), resp.statusReason().c_str());
         printf("Body:\n%s\n", resp.body().c_str());
     }
     catch (const std::exception & e)

@@ -53,7 +53,7 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
         }
         else
         {
-            response.setStatus(404);
+            response.setStatus(StatusCode::k404NotFound);
             co_await response.end("Not Found");
         }
     }

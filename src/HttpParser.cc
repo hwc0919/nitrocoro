@@ -9,6 +9,20 @@
 namespace nitro_coro::http
 {
 
+static Version parseHttpVersion(std::string_view versionStr)
+{
+    if (versionStr == "HTTP/1.0")
+        return Version::kHttp10;
+    if (versionStr == "HTTP/1.1")
+        return Version::kHttp11;
+    return Version::kUnknown;
+}
+
+static StatusCode parseStatusCode(int code)
+{
+    return static_cast<StatusCode>(code);
+}
+
 // ============================================================================
 // HttpParser<HttpRequest> Implementation
 // ============================================================================
@@ -43,7 +57,7 @@ void HttpParser<HttpRequest>::parseRequestLine(std::string_view line)
 
     data_.method = line.substr(0, pos1);
     std::string fullPath(line.substr(pos1 + 1, pos2 - pos1 - 1));
-    data_.version = line.substr(pos2 + 1);
+    data_.version = parseHttpVersion(line.substr(pos2 + 1));
 
     size_t qpos = fullPath.find('?');
     if (qpos != std::string::npos)
@@ -110,7 +124,7 @@ void HttpParser<HttpRequest>::parseCookies(const std::string & cookieHeader)
 
 bool HttpParser<HttpResponse>::parseLine(std::string_view line)
 {
-    if (data_.statusCode == 0)
+    if (data_.statusCode == StatusCode::kUnknown)
     {
         parseStatusLine(line);
     }
@@ -136,8 +150,8 @@ void HttpParser<HttpResponse>::parseStatusLine(std::string_view line)
     size_t sp1 = line.find(' ');
     size_t sp2 = line.find(' ', sp1 + 1);
 
-    data_.version = line.substr(0, sp1);
-    data_.statusCode = std::stoi(std::string(line.substr(sp1 + 1, sp2 - sp1 - 1)));
+    data_.version = parseHttpVersion(line.substr(0, sp1));
+    data_.statusCode = parseStatusCode(std::stoi(std::string(line.substr(sp1 + 1, sp2 - sp1 - 1))));
     data_.statusReason = line.substr(sp2 + 1);
 }
 

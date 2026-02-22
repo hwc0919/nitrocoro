@@ -4,6 +4,7 @@
  */
 #pragma once
 #include <nitro_coro/http/HttpHeader.h>
+#include <nitro_coro/http/HttpTypes.h>
 
 #include <algorithm>
 #include <map>
@@ -69,7 +70,7 @@ template <typename Derived>
 class HttpResponseAccessor : public HttpDataAccessor<Derived, HttpResponse>
 {
 public:
-    int statusCode() const { return this->data().statusCode; }
+    StatusCode statusCode() const { return this->data().statusCode; }
     const std::string & statusReason() const { return this->data().statusReason; }
     const std::string & version() const { return this->data().version; }
 };
