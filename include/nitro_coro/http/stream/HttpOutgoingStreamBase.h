@@ -15,14 +15,6 @@ namespace nitro_coro::http
 template <typename Derived, typename DataType>
 class HttpOutgoingStreamBase
 {
-protected:
-    DataType data_;
-    net::TcpConnectionPtr conn_;
-    bool headersSent_ = false;
-
-    explicit HttpOutgoingStreamBase(net::TcpConnectionPtr conn)
-        : conn_(std::move(conn)) {}
-
 public:
     void setHeader(const std::string & name, const std::string & value);
     void setHeader(HttpHeader header);
@@ -31,6 +23,14 @@ public:
     Task<> write(std::string_view data);
     Task<> end();
     Task<> end(std::string_view data);
+
+protected:
+    explicit HttpOutgoingStreamBase(net::TcpConnectionPtr conn)
+        : conn_(std::move(conn)) {}
+
+    DataType data_;
+    net::TcpConnectionPtr conn_;
+    bool headersSent_ = false;
 };
 
 } // namespace nitro_coro::http

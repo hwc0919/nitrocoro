@@ -27,14 +27,6 @@ class HttpIncomingStream<HttpRequest>
 public:
     explicit HttpIncomingStream(net::TcpConnectionPtr conn)
         : HttpIncomingStreamBase(std::move(conn)) {}
-
-    Task<> readAndParse();
-
-private:
-    void parseRequestLine(std::string_view line);
-    void parseHeader(std::string_view line);
-    void parseQueryString();
-    void parseCookies(const std::string & cookieHeader);
 };
 
 // ============================================================================
@@ -49,13 +41,7 @@ public:
     explicit HttpIncomingStream(net::TcpConnectionPtr conn)
         : HttpIncomingStreamBase(std::move(conn)) {}
 
-    Task<> readAndParse();
     Task<HttpCompleteResponse> toCompleteResponse();
-
-private:
-    void parseStatusLine(std::string_view line);
-    void parseHeader(std::string_view line);
-    void parseCookies(const std::string & cookieHeader);
 };
 
 } // namespace nitro_coro::http

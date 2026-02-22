@@ -22,6 +22,7 @@ add_library(nitro_coro STATIC
     src/HttpServer.cc
     src/HttpClient.cc
     src/HttpHeader.cc
+    src/HttpParser.cc
     src/InetAddress.cc
     src/DnsResolver.cc
     src/Dns.cc

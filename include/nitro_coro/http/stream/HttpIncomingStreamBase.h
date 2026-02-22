@@ -4,10 +4,10 @@
  */
 #pragma once
 #include <nitro_coro/core/Task.h>
+#include <nitro_coro/http/HttpParser.h>
 #include <nitro_coro/net/TcpConnection.h>
 #include <nitro_coro/utils/StringBuffer.h>
 
-#include <string>
 #include <string_view>
 
 namespace nitro_coro::http
@@ -19,27 +19,24 @@ class HttpIncomingStreamBase
     template <typename, typename>
     friend class HttpDataAccessor;
 
-protected:
-    static constexpr size_t MAX_HEADER_LINE_LENGTH = 1024 * 1024;
-    static constexpr size_t MAX_REQUEST_LINE_LENGTH = 1024 * 1024;
-
-    DataType data_;
-    net::TcpConnectionPtr conn_;
-    utils::StringBuffer buffer_;
-    bool headerComplete_ = false;
-    bool complete_ = false;
-    size_t contentLength_ = 0;
-    size_t bodyBytesRead_ = 0;
-
-    explicit HttpIncomingStreamBase(net::TcpConnectionPtr conn)
-        : conn_(std::move(conn)) {}
-
-    const DataType & getData() const { return data_; }
-
 public:
+    Task<> readAndParse();
     Task<std::string_view> read(size_t maxSize = 4096);
     Task<size_t> readTo(char * buf, size_t len);
     Task<std::string_view> readAll();
+
+protected:
+    explicit HttpIncomingStreamBase(net::TcpConnectionPtr conn)
+        : parser_(data_), conn_(std::move(conn)) {}
+
+    const DataType & getData() const { return data_; }
+
+    DataType data_;
+    HttpParser<DataType> parser_;
+    net::TcpConnectionPtr conn_;
+    utils::StringBuffer buffer_;
+    bool complete_ = false;
+    size_t bodyBytesRead_ = 0;
 };
 
 } // namespace nitro_coro::http
