@@ -58,7 +58,7 @@ void HttpOutgoingStreamBase<DataType>::decideTransferMode()
     if (bodyWriter_)
         return;
 
-    auto it = data_.headers.find(std::string{ HttpHeader::Name::ContentLength_L });
+    auto it = data_.headers.find(HttpHeader::Name::ContentLength_L);
     if (it != data_.headers.end())
     {
         size_t contentLength = std::stoull(it->second.value());

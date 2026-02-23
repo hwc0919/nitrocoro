@@ -19,9 +19,9 @@ struct HttpRequest
     std::string method;
     std::string path;
     Version version = Version::kHttp11;
-    std::map<std::string, HttpHeader> headers;
-    std::map<std::string, std::string> cookies;
-    std::map<std::string, std::string> queries;
+    std::map<std::string, HttpHeader, std::less<>> headers;
+    std::map<std::string, std::string, std::less<>> cookies;
+    std::map<std::string, std::string, std::less<>> queries;
 };
 
 struct HttpResponse
@@ -29,8 +29,8 @@ struct HttpResponse
     StatusCode statusCode = StatusCode::k200OK;
     std::string statusReason;
     Version version = Version::kHttp11;
-    std::map<std::string, HttpHeader> headers;
-    std::map<std::string, std::string> cookies;
+    std::map<std::string, HttpHeader, std::less<>> headers;
+    std::map<std::string, std::string, std::less<>> cookies;
 };
 
 class HttpCompleteRequest : public HttpRequestAccessor<HttpCompleteRequest>

@@ -39,21 +39,19 @@ bool HttpParser<HttpRequest>::parseLine(std::string_view line)
     }
     else
     {
-        static const std::string contentLengthKey{ HttpHeader::Name::ContentLength_L };
-        auto it = data_.headers.find(contentLengthKey);
+        auto it = data_.headers.find(HttpHeader::Name::ContentLength_L);
         if (it != data_.headers.end())
         {
             contentLength_ = std::stoul(it->second.value());
             transferMode_ = TransferMode::ContentLength;
         }
-        
-        static const std::string transferEncodingKey{ "transfer-encoding" };
-        auto teIt = data_.headers.find(transferEncodingKey);
-        if (teIt != data_.headers.end() && teIt->second.value().find("chunked") != std::string::npos)
+
+        it = data_.headers.find(HttpHeader::Name::TransferEncoding_L);
+        if (it != data_.headers.end() && it->second.value().find("chunked") != std::string::npos)
         {
             transferMode_ = TransferMode::Chunked;
         }
-        
+
         headerComplete_ = true;
     }
     return headerComplete_;
@@ -143,21 +141,19 @@ bool HttpParser<HttpResponse>::parseLine(std::string_view line)
     }
     else
     {
-        static const std::string contentLengthKey{ HttpHeader::Name::ContentLength_L };
-        auto it = data_.headers.find(contentLengthKey);
+        auto it = data_.headers.find(HttpHeader::Name::ContentLength_L);
         if (it != data_.headers.end())
         {
             contentLength_ = std::stoul(it->second.value());
             transferMode_ = TransferMode::ContentLength;
         }
-        
-        static const std::string transferEncodingKey{ "transfer-encoding" };
-        auto teIt = data_.headers.find(transferEncodingKey);
-        if (teIt != data_.headers.end() && teIt->second.value().find("chunked") != std::string::npos)
+
+        it = data_.headers.find(HttpHeader::Name::TransferEncoding_L);
+        if (it != data_.headers.end() && it->second.value().find("chunked") != std::string::npos)
         {
             transferMode_ = TransferMode::Chunked;
         }
-        
+
         headerComplete_ = true;
     }
     return headerComplete_;
