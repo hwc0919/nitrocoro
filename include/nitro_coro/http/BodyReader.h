@@ -27,7 +27,7 @@ public:
     static std::unique_ptr<BodyReader> create(
         TransferMode mode,
         net::TcpConnectionPtr conn,
-        utils::StringBuffer & buffer,
+        std::shared_ptr<utils::StringBuffer> buffer,
         size_t contentLength);
 };
 

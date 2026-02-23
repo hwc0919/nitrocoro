@@ -14,25 +14,25 @@ Task<bool> ChunkedReader::parseChunkSize()
 
     while (true)
     {
-        size_t pos = buffer_.find("\r\n");
+        size_t pos = buffer_->find("\r\n");
         if (pos == std::string::npos)
         {
-            if (buffer_.remainSize() >= MAX_CHUNK_SIZE_LINE)
+            if (buffer_->remainSize() >= MAX_CHUNK_SIZE_LINE)
                 co_return false;
 
-            char * writePtr = buffer_.prepareWrite(128);
+            char * writePtr = buffer_->prepareWrite(128);
             size_t n = co_await conn_->read(writePtr, 128);
             if (n == 0)
                 co_return false;
-            buffer_.commitWrite(n);
+            buffer_->commitWrite(n);
             continue;
         }
 
         if (pos > MAX_CHUNK_SIZE_LINE)
             co_return false;
 
-        std::string_view line = buffer_.view().substr(0, pos);
-        buffer_.consume(pos + 2);
+        std::string_view line = buffer_->view().substr(0, pos);
+        buffer_->consume(pos + 2);
 
         currentChunkSize_ = std::stoul(std::string(line), nullptr, 16);
         currentChunkRead_ = 0;
@@ -53,15 +53,15 @@ Task<bool> ChunkedReader::parseChunkSize()
 
 Task<> ChunkedReader::skipCRLF()
 {
-    while (buffer_.remainSize() < 2)
+    while (buffer_->remainSize() < 2)
     {
-        char * writePtr = buffer_.prepareWrite(128);
+        char * writePtr = buffer_->prepareWrite(128);
         size_t n = co_await conn_->read(writePtr, 128);
         if (n == 0)
             co_return;
-        buffer_.commitWrite(n);
+        buffer_->commitWrite(n);
     }
-    buffer_.consume(2);
+    buffer_->consume(2);
 }
 
 // TODO: improve read logic
@@ -79,14 +79,14 @@ Task<std::string_view> ChunkedReader::read(size_t maxSize)
             co_return std::string_view();
     }
 
-    size_t available = buffer_.remainSize();
+    size_t available = buffer_->remainSize();
     size_t remaining = currentChunkSize_ - currentChunkRead_;
 
     if (available > 0)
     {
         size_t toRead = std::min({ available, remaining, maxSize });
         currentChunkRead_ += toRead;
-        auto result = buffer_.consumeView(toRead);
+        auto result = buffer_->consumeView(toRead);
 
         if (currentChunkRead_ >= currentChunkSize_)
         {
@@ -98,11 +98,11 @@ Task<std::string_view> ChunkedReader::read(size_t maxSize)
     }
 
     size_t toRead = std::min(maxSize, remaining);
-    char * writePtr = buffer_.prepareWrite(toRead);
+    char * writePtr = buffer_->prepareWrite(toRead);
     size_t n = co_await conn_->read(writePtr, toRead);
-    buffer_.commitWrite(n);
+    buffer_->commitWrite(n);
     currentChunkRead_ += n;
-    auto result = buffer_.consumeView(n);
+    auto result = buffer_->consumeView(n);
 
     if (currentChunkRead_ >= currentChunkSize_)
     {
@@ -126,14 +126,14 @@ Task<size_t> ChunkedReader::readTo(char * buf, size_t len)
             co_return 0;
     }
 
-    size_t available = buffer_.remainSize();
+    size_t available = buffer_->remainSize();
     size_t remaining = currentChunkSize_ - currentChunkRead_;
 
     if (available > 0)
     {
         size_t toRead = std::min({ available, remaining, len });
-        std::memcpy(buf, buffer_.view().data(), toRead);
-        buffer_.consume(toRead);
+        std::memcpy(buf, buffer_->view().data(), toRead);
+        buffer_->consume(toRead);
         currentChunkRead_ += toRead;
 
         if (currentChunkRead_ >= currentChunkSize_)
@@ -172,14 +172,14 @@ Task<std::string_view> ChunkedReader::readAll()
                 break;
         }
 
-        size_t available = buffer_.remainSize();
+        size_t available = buffer_->remainSize();
         size_t remaining = currentChunkSize_ - currentChunkRead_;
 
         if (available > 0)
         {
             size_t toCopy = std::min(available, remaining);
-            allData.append(buffer_.view().data(), toCopy);
-            buffer_.consume(toCopy);
+            allData.append(buffer_->view().data(), toCopy);
+            buffer_->consume(toCopy);
             currentChunkRead_ += toCopy;
             remaining -= toCopy;
         }
@@ -200,11 +200,11 @@ Task<std::string_view> ChunkedReader::readAll()
         }
     }
 
-    buffer_.reset();
-    std::memcpy(buffer_.prepareWrite(allData.size()), allData.data(), allData.size());
-    buffer_.commitWrite(allData.size());
+    buffer_->reset();
+    std::memcpy(buffer_->prepareWrite(allData.size()), allData.data(), allData.size());
+    buffer_->commitWrite(allData.size());
 
-    co_return buffer_.view();
+    co_return buffer_->view();
 }
 
 } // namespace nitro_coro::http

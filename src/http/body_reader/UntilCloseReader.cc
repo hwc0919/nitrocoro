@@ -13,22 +13,22 @@ Task<std::string_view> UntilCloseReader::read(size_t maxSize)
     if (complete_)
         co_return std::string_view();
 
-    size_t available = buffer_.remainSize();
+    size_t available = buffer_->remainSize();
     if (available > 0)
     {
         size_t toRead = std::min(available, maxSize);
-        co_return buffer_.consumeView(toRead);
+        co_return buffer_->consumeView(toRead);
     }
 
-    char * writePtr = buffer_.prepareWrite(maxSize);
+    char * writePtr = buffer_->prepareWrite(maxSize);
     size_t n = co_await conn_->read(writePtr, maxSize);
-    buffer_.commitWrite(n);
+    buffer_->commitWrite(n);
 
     if (n == 0)
         // TODO
         complete_ = true;
 
-    co_return buffer_.consumeView(n);
+    co_return buffer_->consumeView(n);
 }
 
 Task<size_t> UntilCloseReader::readTo(char * buf, size_t len)
@@ -36,12 +36,12 @@ Task<size_t> UntilCloseReader::readTo(char * buf, size_t len)
     if (complete_)
         co_return 0;
 
-    size_t available = buffer_.remainSize();
+    size_t available = buffer_->remainSize();
     if (available > 0)
     {
         size_t toRead = std::min(len, available);
-        std::memcpy(buf, buffer_.view().data(), toRead);
-        buffer_.consume(toRead);
+        std::memcpy(buf, buffer_->view().data(), toRead);
+        buffer_->consume(toRead);
         co_return toRead;
     }
 
@@ -56,9 +56,9 @@ Task<std::string_view> UntilCloseReader::readAll()
 {
     while (!complete_)
     {
-        char * writePtr = buffer_.prepareWrite(4096);
+        char * writePtr = buffer_->prepareWrite(4096);
         size_t n = co_await conn_->read(writePtr, 4096);
-        buffer_.commitWrite(n);
+        buffer_->commitWrite(n);
 
         if (n == 0)
         {
@@ -67,7 +67,7 @@ Task<std::string_view> UntilCloseReader::readAll()
         }
     }
 
-    co_return buffer_.view();
+    co_return buffer_->view();
 }
 
 } // namespace nitro_coro::http

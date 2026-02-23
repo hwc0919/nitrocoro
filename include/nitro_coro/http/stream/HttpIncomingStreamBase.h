@@ -29,14 +29,14 @@ public:
 
 protected:
     explicit HttpIncomingStreamBase(net::TcpConnectionPtr conn)
-        : parser_(data_), conn_(std::move(conn)) {}
+        : parser_(data_), conn_(std::move(conn)), buffer_(std::make_shared<utils::StringBuffer>()) {}
 
     const DataType & getData() const { return data_; }
 
     DataType data_;
     HttpParser<DataType> parser_;
     net::TcpConnectionPtr conn_;
-    utils::StringBuffer buffer_;
+    std::shared_ptr<utils::StringBuffer> buffer_;
     std::unique_ptr<BodyReader> bodyReader_;
 };
 

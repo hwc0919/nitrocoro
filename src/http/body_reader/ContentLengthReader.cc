@@ -13,31 +13,31 @@ Task<std::string_view> ContentLengthReader::read(size_t maxSize)
     if (bytesRead_ >= contentLength_)
         co_return std::string_view();
 
-    size_t available = buffer_.remainSize();
+    size_t available = buffer_->remainSize();
     if (bytesRead_ == 0 && available > 0)
     {
         size_t n = std::min(available, contentLength_);
         bytesRead_ += n;
-        co_return buffer_.consumeView(n);
+        co_return buffer_->consumeView(n);
     }
 
     size_t toRead = std::min(maxSize, contentLength_ - bytesRead_);
-    char * writePtr = buffer_.prepareWrite(toRead);
+    char * writePtr = buffer_->prepareWrite(toRead);
     size_t n = co_await conn_->read(writePtr, toRead);
-    buffer_.commitWrite(n);
+    buffer_->commitWrite(n);
     bytesRead_ += n;
 
-    co_return buffer_.consumeView(n);
+    co_return buffer_->consumeView(n);
 }
 
 Task<size_t> ContentLengthReader::readTo(char * buf, size_t len)
 {
-    size_t available = buffer_.remainSize();
+    size_t available = buffer_->remainSize();
     if (available > 0)
     {
         size_t toRead = std::min(len, available);
-        std::memcpy(buf, buffer_.view().data(), toRead);
-        buffer_.consume(toRead);
+        std::memcpy(buf, buffer_->view().data(), toRead);
+        buffer_->consume(toRead);
         bytesRead_ += toRead;
         co_return toRead;
     }
@@ -57,9 +57,9 @@ Task<size_t> ContentLengthReader::readTo(char * buf, size_t len)
 Task<std::string_view> ContentLengthReader::readAll()
 {
     if (bytesRead_ >= contentLength_)
-        co_return buffer_.view();
+        co_return buffer_->view();
 
-    size_t startSize = buffer_.remainSize();
+    size_t startSize = buffer_->remainSize();
     if (bytesRead_ == 0 && startSize > 0)
         bytesRead_ += std::min(startSize, contentLength_);
 
@@ -67,13 +67,13 @@ Task<std::string_view> ContentLengthReader::readAll()
     {
         constexpr size_t MAX_BATCH_SIZE = 4096;
         size_t toRead = std::min(MAX_BATCH_SIZE, contentLength_ - bytesRead_);
-        char * writePtr = buffer_.prepareWrite(toRead);
+        char * writePtr = buffer_->prepareWrite(toRead);
         size_t n = co_await conn_->read(writePtr, toRead);
-        buffer_.commitWrite(n);
+        buffer_->commitWrite(n);
         bytesRead_ += n;
     }
 
-    co_return buffer_.view();
+    co_return buffer_->view();
 }
 
 } // namespace nitro_coro::http

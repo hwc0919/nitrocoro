@@ -18,19 +18,19 @@ Task<> HttpIncomingStreamBase<DataType>::readAndParse()
 {
     while (!parser_.isHeaderComplete())
     {
-        size_t pos = buffer_.find("\r\n");
+        size_t pos = buffer_->find("\r\n");
         if (pos == std::string::npos)
         {
-            char * writePtr = buffer_.prepareWrite(4096);
+            char * writePtr = buffer_->prepareWrite(4096);
             size_t n = co_await conn_->read(writePtr, 4096);
-            buffer_.commitWrite(n);
+            buffer_->commitWrite(n);
             if (n == 0)
                 co_return;
             continue;
         }
 
-        std::string_view line = buffer_.view().substr(0, pos);
-        buffer_.consume(pos + 2);
+        std::string_view line = buffer_->view().substr(0, pos);
+        buffer_->consume(pos + 2);
         parser_.parseLine(line);
     }
 
