@@ -2,6 +2,7 @@
  * @file HttpOutgoingStream.cc
  * @brief HTTP outgoing stream implementations
  */
+#include <nitro_coro/http/BodyWriter.h>
 #include <nitro_coro/http/stream/HttpOutgoingStream.h>
 #include <sstream>
 
@@ -26,9 +27,16 @@ static const char * toVersionString(Version version)
 // ============================================================================
 
 template <typename DataType>
-void HttpOutgoingStreamBase<DataType>::setHeader(const std::string & name, const std::string & value)
+void HttpOutgoingStreamBase<DataType>::setHeader(std::string_view name, std::string value)
 {
-    HttpHeader header(name, value);
+    HttpHeader header(name, std::move(value));
+    data_.headers.insert_or_assign(header.name(), std::move(header));
+}
+
+template <typename DataType>
+void HttpOutgoingStreamBase<DataType>::setHeader(HttpHeader::NameCode code, std::string value)
+{
+    HttpHeader header(code, std::move(value));
     data_.headers.insert_or_assign(header.name(), std::move(header));
 }
 
@@ -39,16 +47,40 @@ void HttpOutgoingStreamBase<DataType>::setHeader(HttpHeader header)
 }
 
 template <typename DataType>
-void HttpOutgoingStreamBase<DataType>::setCookie(const std::string & name, const std::string & value)
+void HttpOutgoingStreamBase<DataType>::setCookie(const std::string & name, std::string value)
 {
-    data_.cookies[name] = value;
+    data_.cookies[name] = std::move(value);
+}
+
+template <typename DataType>
+void HttpOutgoingStreamBase<DataType>::decideTransferMode()
+{
+    if (bodyWriter_)
+        return;
+
+    auto it = data_.headers.find(std::string{ HttpHeader::Name::ContentLength_L });
+    if (it != data_.headers.end())
+    {
+        size_t contentLength = std::stoull(it->second.value());
+        bodyWriter_ = BodyWriter::create(TransferMode::ContentLength, conn_, contentLength);
+    }
+    else
+    {
+        setHeader(HttpHeader::NameCode::TransferEncoding, "chunked");
+        bodyWriter_ = BodyWriter::create(TransferMode::Chunked, conn_);
+    }
 }
 
 template <typename DataType>
 Task<> HttpOutgoingStreamBase<DataType>::write(const char * data, size_t len)
 {
-    co_await writeHeaders();
-    co_await conn_->write(data, len);
+    if (!headersSent_)
+        co_await writeHeaders();
+
+    if (!bodyWriter_)
+        decideTransferMode();
+
+    co_await bodyWriter_->write(std::string_view(data, len));
 }
 
 template <typename DataType>
@@ -60,13 +92,36 @@ Task<> HttpOutgoingStreamBase<DataType>::write(std::string_view data)
 template <typename DataType>
 Task<> HttpOutgoingStreamBase<DataType>::end()
 {
-    co_await writeHeaders();
+    if (!headersSent_)
+    {
+        setHeader(HttpHeader::NameCode::ContentLength, "0");
+        co_await writeHeaders();
+    }
+
+    if (bodyWriter_)
+        co_await bodyWriter_->end();
 }
 
 template <typename DataType>
 Task<> HttpOutgoingStreamBase<DataType>::end(std::string_view data)
 {
-    co_await write(data);
+    if (data.empty())
+    {
+        co_await end();
+        co_return;
+    }
+
+    if (!headersSent_)
+    {
+        setHeader(HttpHeader::NameCode::ContentLength, std::to_string(data.size()));
+        co_await writeHeaders();
+    }
+
+    if (!bodyWriter_)
+        decideTransferMode();
+
+    co_await bodyWriter_->write(data);
+    co_await bodyWriter_->end();
 }
 
 template <typename DataType>

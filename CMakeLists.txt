@@ -28,9 +28,12 @@ add_library(nitro_coro STATIC
     src/http/HttpHeader.cc
     src/http/HttpParser.cc
     src/http/BodyReader.cc
+    src/Http/BodyWriter.cc
     src/http/body_reader/ContentLengthReader.cc
     src/http/body_reader/ChunkedReader.cc
     src/http/body_reader/UntilCloseReader.cc
+    src/http/body_writer/ContentLengthWriter.cc
+    src/http/body_writer/ChunkedWriter.cc
 )
 
 target_include_directories(nitro_coro PUBLIC

@@ -170,7 +170,7 @@ public:
         Unknown,
     };
 
-    HttpHeader(const std::string & name, std::string value);
+    HttpHeader(std::string_view name, std::string value);
     HttpHeader(NameCode name, std::string value);
 
     const std::string & name() const { return name_; }
@@ -189,8 +189,8 @@ public:
     static NameCode nameToCode(const std::string & lowerName);
     static NameCode nameToCode(std::string_view lowerName);
 
-    static std::string toLower(const std::string & str);
-    static std::string toCanonical(const std::string & str);
+    static std::string toLower(std::string_view str);
+    static std::string toCanonical(std::string_view str);
 
 private:
     std::string name_;

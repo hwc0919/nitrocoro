@@ -9,7 +9,7 @@
 namespace nitro_coro::http
 {
 
-HttpHeader::HttpHeader(const std::string & name, std::string value)
+HttpHeader::HttpHeader(std::string_view name, std::string value)
     : name_(toLower(name))
     , canonicalName_(toCanonical(name))
     , value_(std::move(value))
@@ -44,17 +44,17 @@ std::string HttpHeader::serialize() const
     return canonicalName_ + ": " + value_ + "\r\n";
 }
 
-std::string HttpHeader::toLower(const std::string & str)
+std::string HttpHeader::toLower(std::string_view str)
 {
-    std::string result = str;
+    std::string result{ str };
     std::transform(result.begin(), result.end(), result.begin(),
                    [](unsigned char c) { return std::tolower(c); });
     return result;
 }
 
-std::string HttpHeader::toCanonical(const std::string & str)
+std::string HttpHeader::toCanonical(std::string_view str)
 {
-    std::string result = str;
+    std::string result{ str };
     bool capitalizeNext = true;
 
     for (char & c : result)
