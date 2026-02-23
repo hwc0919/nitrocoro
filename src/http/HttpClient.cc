@@ -87,17 +87,11 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
 
     auto conn = co_await net::TcpConnection::connect(addresses[0].toIp().c_str(), parsedUrl.port());
 
-    // Build request line
-    std::ostringstream oss;
-    oss << method << " " << parsedUrl.path() << " HTTP/1.1\r\n";
-    oss << "Host: " << parsedUrl.host() << "\r\n";
-    std::string requestLine = oss.str();
-    co_await conn->write(requestLine.c_str(), requestLine.size());
-
     // Create outgoing stream for request body
     HttpOutgoingStream<HttpRequest> requestStream(conn);
     requestStream.setMethod(method);
     requestStream.setPath(parsedUrl.path());
+    requestStream.setHeader(HttpHeader::NameCode::Host, parsedUrl.host());
 
     // Create promise/future for response
     Promise<HttpIncomingStream<HttpResponse>> promise(Scheduler::current());
