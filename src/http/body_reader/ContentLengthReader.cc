@@ -26,7 +26,7 @@ Task<std::string_view> ContentLengthReader::read(size_t maxSize)
     size_t n = co_await conn_->read(writePtr, toRead);
     buffer_.commitWrite(n);
     bytesRead_ += n;
-    
+
     co_return buffer_.consumeView(n);
 }
 
@@ -65,7 +65,8 @@ Task<std::string_view> ContentLengthReader::readAll()
 
     while (bytesRead_ < contentLength_)
     {
-        size_t toRead = std::min(size_t(4096), contentLength_ - bytesRead_);
+        constexpr size_t MAX_BATCH_SIZE = 4096;
+        size_t toRead = std::min(MAX_BATCH_SIZE, contentLength_ - bytesRead_);
         char * writePtr = buffer_.prepareWrite(toRead);
         size_t n = co_await conn_->read(writePtr, toRead);
         buffer_.commitWrite(n);

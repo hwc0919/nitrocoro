@@ -22,7 +22,7 @@ public:
 private:
     net::TcpConnectionPtr conn_;
     utils::StringBuffer & buffer_;
-    size_t contentLength_;
+    const size_t contentLength_;
     size_t bytesRead_ = 0;
 };
 

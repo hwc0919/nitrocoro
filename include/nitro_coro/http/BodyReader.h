@@ -18,12 +18,12 @@ class BodyReader
 {
 public:
     virtual ~BodyReader() = default;
-    
+
     virtual Task<std::string_view> read(size_t maxSize) = 0;
     virtual Task<size_t> readTo(char * buf, size_t len) = 0;
     virtual Task<std::string_view> readAll() = 0;
     virtual bool isComplete() const = 0;
-    
+
     static std::unique_ptr<BodyReader> create(
         TransferMode mode,
         net::TcpConnectionPtr conn,
