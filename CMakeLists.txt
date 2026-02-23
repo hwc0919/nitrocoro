@@ -46,3 +46,6 @@ target_link_libraries(nitro_coro PUBLIC Threads::Threads)
 
 # Build tests
 add_subdirectory(tests)
+
+# Build examples
+add_subdirectory(examples)

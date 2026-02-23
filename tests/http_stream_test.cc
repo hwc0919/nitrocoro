@@ -71,7 +71,7 @@ Task<> test_client(uint16_t port)
                 auto chunk = co_await response.read(1024);
                 if (chunk.empty())
                     break;
-                respChunks.push_back(std::string{ chunk });
+                respChunks.emplace_back(chunk);
                 NITRO_INFO("[Client] Recv chunk: %.*s\n", (int)chunk.size(), chunk.data());
             }
             catch (...)

@@ -47,17 +47,17 @@ make
 
 ```bash
 # TCP Echo Server
-./tests/tcp_echo_server 8888
+./examples/tcp_echo_server 8888
 
 # TCP Client
-./tests/tcp_client 8888 127.0.0.1
+./examples/tcp_client 8888 127.0.0.1
 
 # HTTP Server
-./tests/http_server 8080
+./examples/http_server 8080
 # Then visit: curl http://localhost:8080/
 
 # HTTP Client
-./tests/http_client http://example.com/
+./examples/http_client http://example.com/
 ```
 
 ## Example Code
@@ -97,17 +97,17 @@ coro/
 │   ├── io/                # Async I/O
 │   └── utils/             # Utilities
 ├── src/                   # Implementation files
-└── tests/                 # Demo programs
+├── examples/              # Example programs
+└── tests/                 # Unit tests
 ```
 
-## Demo Programs
+## Examples
 
 - `tcp_echo_server`: TCP echo server demo
 - `tcp_client`: TCP client with async DNS resolution
 - `tcp_chat_server`: Simple chat server
 - `http_server`: HTTP server with routing
 - `http_client`: HTTP client demo
-- `dns_resolver_test`: Async DNS resolver test
 
 ## TODO
 

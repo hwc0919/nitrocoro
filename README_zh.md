@@ -47,17 +47,17 @@ make
 
 ```bash
 # TCP Echo 服务器
-./tests/tcp_echo_server 8888
+./examples/tcp_echo_server 8888
 
 # TCP 客户端
-./tests/tcp_client 8888 127.0.0.1
+./examples/tcp_client 8888 127.0.0.1
 
 # HTTP 服务器
-./tests/http_server 8080
+./examples/http_server 8080
 # 然后访问: curl http://localhost:8080/
 
 # HTTP 客户端
-./tests/http_client http://example.com/
+./examples/http_client http://example.com/
 ```
 
 ## 示例代码
@@ -97,17 +97,17 @@ coro/
 │   ├── io/                # 异步 I/O
 │   └── utils/             # 工具类
 ├── src/                   # 实现文件
-└── tests/                 # 演示程序
+├── examples/              # 示例程序
+└── tests/                 # 单元测试
 ```
 
-## 演示程序
+## 示例程序
 
 - `tcp_echo_server`：TCP echo 服务器演示
 - `tcp_client`：带异步 DNS 解析的 TCP 客户端
 - `tcp_chat_server`：简单聊天服务器
 - `http_server`：带路由的 HTTP 服务器
 - `http_client`：HTTP 客户端演示
-- `dns_resolver_test`：异步 DNS 解析器测试
 
 ## TODO
 
