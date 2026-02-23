@@ -17,11 +17,10 @@ namespace nitro_coro::utils
 class StringBuffer
 {
 public:
-    explicit StringBuffer(size_t autoCompactThreshold = 8192)
-        : autoCompactThreshold_(autoCompactThreshold) {}
+    explicit StringBuffer() = default;
 
     // Get view of unconsumed data
-    std::string_view view() const { return std::string_view(buffer_.data() + readOffset_, writeOffset_ - readOffset_); }
+    std::string_view view() const { return { buffer_.data() + readOffset_, writeOffset_ - readOffset_ }; }
 
     // Find pattern in unconsumed data
     size_t find(std::string_view pattern, size_t pos = 0) const
@@ -35,16 +34,12 @@ public:
     void consume(size_t n)
     {
         readOffset_ += n;
-        if (autoCompactThreshold_ > 0 && readOffset_ > autoCompactThreshold_)
-            compact();
     }
 
     // Get view of n bytes and consume them
     std::string_view consumeView(size_t n)
     {
         readOffset_ += n;
-        if (autoCompactThreshold_ > 0 && readOffset_ > autoCompactThreshold_)
-            compact();
         return { buffer_.data() + readOffset_ - n, n };
     }
 
@@ -60,19 +55,6 @@ public:
     // Commit actual written bytes
     void commitWrite(size_t len) { writeOffset_ += len; }
 
-    // Compact buffer by removing consumed data
-    void compact()
-    {
-        if (readOffset_ > 0)
-        {
-            size_t remaining = writeOffset_ - readOffset_;
-            if (remaining > 0)
-                std::memmove(buffer_.data(), buffer_.data() + readOffset_, remaining);
-            writeOffset_ = remaining;
-            readOffset_ = 0;
-        }
-    }
-
     // Get size of unconsumed data
     size_t remainSize() const { return writeOffset_ - readOffset_; }
     bool hasRemaining() const { return readOffset_ < writeOffset_; }
@@ -86,9 +68,8 @@ public:
 
 private:
     std::string buffer_;
-    size_t readOffset_ = 0;       // Start of unconsumed data
-    size_t writeOffset_ = 0;      // End of written data
-    size_t autoCompactThreshold_; // Auto compact when readOffset exceeds this (0 = disabled)
+    size_t readOffset_ = 0;  // Start of unconsumed data
+    size_t writeOffset_ = 0; // End of written data
 };
 
 } // namespace nitro_coro::utils
