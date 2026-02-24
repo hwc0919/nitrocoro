@@ -18,8 +18,8 @@ struct HttpRequest
 {
     std::string method;
     std::string fullPath;
-    std::string_view path;
-    std::string_view query;
+    std::string path;
+    std::string query;
     Version version = Version::kHttp11;
     std::map<std::string, HttpHeader, std::less<>> headers;
     std::map<std::string, std::string, std::less<>> cookies;

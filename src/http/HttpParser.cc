@@ -58,22 +58,46 @@ bool HttpParser<HttpRequest>::parseLine(std::string_view line)
     }
     else
     {
-        auto it = data_.headers.find(HttpHeader::Name::ContentLength_L);
-        if (it != data_.headers.end())
-        {
-            contentLength_ = std::stoul(it->second.value());
-            transferMode_ = TransferMode::ContentLength;
-        }
-
-        it = data_.headers.find(HttpHeader::Name::TransferEncoding_L);
-        if (it != data_.headers.end() && it->second.value().find("chunked") != std::string::npos)
-        {
-            transferMode_ = TransferMode::Chunked;
-        }
-
+        processHeaders();
         headerComplete_ = true;
     }
     return headerComplete_;
+}
+
+void HttpParser<HttpRequest>::processHeaders()
+{
+    // RFC 7230 Section 3.3.3: Message body length determination
+    // 1. Check Transfer-Encoding first (takes precedence over Content-Length)
+    auto it = data_.headers.find(HttpHeader::Name::TransferEncoding_L);
+    if (it != data_.headers.end())
+    {
+        std::string_view value = it->second.value();
+
+        if (value == "chunked")
+        {
+            transferMode_ = TransferMode::Chunked;
+            return; // Ignore Content-Length if Transfer-Encoding is present
+        }
+        if (value != "identity")
+        {
+            throw std::runtime_error("Unsupported Transfer-Encoding: " + std::string(value));
+        }
+        // "identity" means no encoding, continue to check Content-Length
+    }
+
+    // 2. Check Content-Length
+    it = data_.headers.find(HttpHeader::Name::ContentLength_L);
+    if (it != data_.headers.end())
+    {
+        contentLength_ = std::stoul(it->second.value());
+        transferMode_ = TransferMode::ContentLength;
+    }
+    else
+    {
+        // 3. For requests without Transfer-Encoding or Content-Length, body length is 0
+        contentLength_ = 0;
+        transferMode_ = TransferMode::ContentLength;
+    }
 }
 
 void HttpParser<HttpRequest>::parseRequestLine(std::string_view line)
@@ -88,14 +112,14 @@ void HttpParser<HttpRequest>::parseRequestLine(std::string_view line)
     size_t qpos = data_.fullPath.find('?');
     if (qpos != std::string::npos)
     {
-        data_.path = std::string_view(data_.fullPath).substr(0, qpos);
-        data_.query = std::string_view(data_.fullPath).substr(qpos + 1);
+        data_.path = data_.fullPath.substr(0, qpos);
+        data_.query = data_.fullPath.substr(qpos + 1);
         parseQueryString(data_.query);
     }
     else
     {
         data_.path = data_.fullPath;
-        data_.query = std::string_view();
+        data_.query.clear();
     }
 }
 
@@ -182,22 +206,45 @@ bool HttpParser<HttpResponse>::parseLine(std::string_view line)
     }
     else
     {
-        auto it = data_.headers.find(HttpHeader::Name::ContentLength_L);
-        if (it != data_.headers.end())
-        {
-            contentLength_ = std::stoul(it->second.value());
-            transferMode_ = TransferMode::ContentLength;
-        }
-
-        it = data_.headers.find(HttpHeader::Name::TransferEncoding_L);
-        if (it != data_.headers.end() && it->second.value().find("chunked") != std::string::npos)
-        {
-            transferMode_ = TransferMode::Chunked;
-        }
-
+        processHeaders();
         headerComplete_ = true;
     }
     return headerComplete_;
+}
+
+void HttpParser<HttpResponse>::processHeaders()
+{
+    // RFC 7230 Section 3.3.3: Message body length determination
+    // 1. Check Transfer-Encoding first (takes precedence over Content-Length)
+    auto it = data_.headers.find(HttpHeader::Name::TransferEncoding_L);
+    if (it != data_.headers.end())
+    {
+        std::string_view value = it->second.value();
+
+        if (value == "chunked")
+        {
+            transferMode_ = TransferMode::Chunked;
+            return; // Ignore Content-Length if Transfer-Encoding is present
+        }
+        if (value != "identity")
+        {
+            throw std::runtime_error("Unsupported Transfer-Encoding: " + std::string(value));
+        }
+        // "identity" means no encoding, continue to check Content-Length
+    }
+
+    // 2. Check Content-Length
+    it = data_.headers.find(HttpHeader::Name::ContentLength_L);
+    if (it != data_.headers.end())
+    {
+        contentLength_ = std::stoul(it->second.value());
+        transferMode_ = TransferMode::ContentLength;
+    }
+    else
+    {
+        // 3. For responses without Transfer-Encoding or Content-Length, read until connection close
+        transferMode_ = TransferMode::UntilClose;
+    }
 }
 
 void HttpParser<HttpResponse>::parseStatusLine(std::string_view line)

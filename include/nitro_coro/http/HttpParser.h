@@ -47,6 +47,7 @@ private:
     void parseHeader(std::string_view line);
     void parseQueryString(std::string_view queryStr);
     void parseCookies(const std::string & cookieHeader);
+    void processHeaders();
 };
 
 // ============================================================================
@@ -75,6 +76,7 @@ private:
     void parseStatusLine(std::string_view line);
     void parseHeader(std::string_view line);
     void parseCookies(const std::string & cookieHeader);
+    void processHeaders();
 };
 
 } // namespace nitro_coro::http

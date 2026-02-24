@@ -50,7 +50,7 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
             BodyReader::create(conn, buffer, transferMode, contentLength));
         HttpOutgoingStream<HttpResponse> response(conn);
 
-        auto key = std::make_pair(request.method(), request.path());
+        auto key = std::make_pair(std::string{ request.method() }, std::string{ request.path() });
         auto it = routes_.find(key);
 
         if (it != routes_.end())
