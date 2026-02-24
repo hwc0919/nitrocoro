@@ -63,22 +63,28 @@ void HttpOutgoingStreamBase<DataType>::decideTransferMode()
     {
         size_t contentLength = std::stoull(it->second.value());
         bodyWriter_ = BodyWriter::create(TransferMode::ContentLength, conn_, contentLength);
+        return;
     }
-    else
+
+    it = data_.headers.find(HttpHeader::Name::TransferEncoding_L);
+    if (it != data_.headers.end() && it->second.value().find("chunked") != std::string::npos)
     {
-        setHeader(HttpHeader::NameCode::TransferEncoding, "chunked");
         bodyWriter_ = BodyWriter::create(TransferMode::Chunked, conn_);
+        return;
     }
+
+    setHeader(HttpHeader::NameCode::TransferEncoding, "chunked");
+    bodyWriter_ = BodyWriter::create(TransferMode::Chunked, conn_);
 }
 
 template <typename DataType>
 Task<> HttpOutgoingStreamBase<DataType>::write(const char * data, size_t len)
 {
-    if (!headersSent_)
-        co_await writeHeaders();
-
     if (!bodyWriter_)
         decideTransferMode();
+
+    if (!headersSent_)
+        co_await writeHeaders();
 
     co_await bodyWriter_->write(std::string_view(data, len));
 }
@@ -111,14 +117,11 @@ Task<> HttpOutgoingStreamBase<DataType>::end(std::string_view data)
         co_return;
     }
 
-    if (!headersSent_)
-    {
-        setHeader(HttpHeader::NameCode::ContentLength, std::to_string(data.size()));
-        co_await writeHeaders();
-    }
-
     if (!bodyWriter_)
         decideTransferMode();
+
+    if (!headersSent_)
+        co_await writeHeaders();
 
     co_await bodyWriter_->write(data);
     co_await bodyWriter_->end();
