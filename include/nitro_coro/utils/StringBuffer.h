@@ -52,6 +52,12 @@ public:
         return buffer_.data() + writeOffset_;
     }
 
+    // Get write begin position (without growing)
+    char * beginWrite() { return buffer_.data() + writeOffset_; }
+
+    // Get writable size (without growing)
+    size_t writableSize() const { return buffer_.size() - writeOffset_; }
+
     // Commit actual written bytes
     void commitWrite(size_t len) { writeOffset_ += len; }
 

@@ -52,6 +52,27 @@ Task<size_t> UntilCloseReader::readTo(char * buf, size_t len)
     co_return n;
 }
 
+Task<size_t> UntilCloseReader::read1(char* buf, size_t len)
+{
+    if (complete_)
+        co_return 0;
+
+    size_t available = buffer_->remainSize();
+    if (available > 0)
+    {
+        size_t toRead = std::min(len, available);
+        std::memcpy(buf, buffer_->view().data(), toRead);
+        buffer_->consume(toRead);
+        co_return toRead;
+    }
+
+    size_t n = co_await conn_->read(buf, len);
+    if (n == 0)
+        complete_ = true;
+
+    co_return n;
+}
+
 Task<std::string_view> UntilCloseReader::readAll()
 {
     while (!complete_)

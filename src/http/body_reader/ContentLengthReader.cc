@@ -54,6 +54,28 @@ Task<size_t> ContentLengthReader::readTo(char * buf, size_t len)
     co_return 0;
 }
 
+Task<size_t> ContentLengthReader::read1(char* buf, size_t len)
+{
+    if (bytesRead_ >= contentLength_)
+        co_return 0;
+
+    size_t available = buffer_->remainSize();
+    if (available > 0)
+    {
+        size_t toRead = std::min({ len, available, contentLength_ - bytesRead_ });
+        std::memcpy(buf, buffer_->view().data(), toRead);
+        buffer_->consume(toRead);
+        bytesRead_ += toRead;
+        co_return toRead;
+    }
+
+    size_t remaining = contentLength_ - bytesRead_;
+    size_t toRead = std::min(len, remaining);
+    size_t n = co_await conn_->read(buf, toRead);
+    bytesRead_ += n;
+    co_return n;
+}
+
 Task<std::string_view> ContentLengthReader::readAll()
 {
     if (bytesRead_ >= contentLength_)
