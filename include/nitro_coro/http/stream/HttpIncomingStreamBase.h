@@ -23,8 +23,8 @@ class HttpIncomingStreamBase
 
 public:
     Task<> readAndParse();
-    Task<std::string_view> read(size_t maxSize = 4096);
-    Task<size_t> readTo(char * buf, size_t len);
+    Task<size_t> read(char * buf, size_t maxLen);
+    Task<std::string> read(size_t maxLen);
 
     template <utils::ExtendableBuffer T>
     Task<size_t> readToEnd(T & buf)

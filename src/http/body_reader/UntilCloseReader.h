@@ -14,8 +14,7 @@ public:
     UntilCloseReader(net::TcpConnectionPtr conn, std::shared_ptr<utils::StringBuffer> buffer)
         : conn_(std::move(conn)), buffer_(std::move(buffer)) {}
 
-    Task<std::string_view> read(size_t maxSize) override;
-    Task<size_t> readTo(char * buf, size_t len) override;
+    Task<size_t> read(char * buf, size_t len) override;
     bool isComplete() const override { return complete_; }
 
 private:

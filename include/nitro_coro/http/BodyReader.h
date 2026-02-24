@@ -26,8 +26,7 @@ public:
 
     virtual ~BodyReader() = default;
 
-    virtual Task<std::string_view> read(size_t maxSize) = 0;
-    virtual Task<size_t> readTo(char * buf, size_t len) = 0;
+    virtual Task<size_t> read(char * buf, size_t len) = 0;
     virtual bool isComplete() const = 0;
 
     // New interface: read to end with extendable buffer
@@ -55,7 +54,7 @@ Task<size_t> BodyReader::readToEnd(T & buf)
             ptr = buf.beginWrite();
         }
 
-        size_t n = co_await readTo(ptr, available);
+        size_t n = co_await read(ptr, available);
         if (n == 0)
             break;
 

@@ -42,15 +42,19 @@ Task<> HttpIncomingStreamBase<DataType>::readAndParse()
 }
 
 template <typename DataType>
-Task<std::string_view> HttpIncomingStreamBase<DataType>::read(size_t maxSize)
+Task<size_t> HttpIncomingStreamBase<DataType>::read(char * buf, size_t len)
 {
-    co_return co_await bodyReader_->read(maxSize);
+    co_return co_await bodyReader_->read(buf, len);
 }
 
 template <typename DataType>
-Task<size_t> HttpIncomingStreamBase<DataType>::readTo(char * buf, size_t len)
+Task<std::string> HttpIncomingStreamBase<DataType>::read(size_t maxLen)
 {
-    co_return co_await bodyReader_->readTo(buf, len);
+    // TODO: bad implementation
+    std::string result(maxLen, '\0');
+    size_t n = co_await read(result.data(), maxLen);
+    result.resize(n);
+    co_return result;
 }
 
 // Explicit instantiations

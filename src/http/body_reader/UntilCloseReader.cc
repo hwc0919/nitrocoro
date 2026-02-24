@@ -8,30 +8,7 @@
 namespace nitro_coro::http
 {
 
-Task<std::string_view> UntilCloseReader::read(size_t maxSize)
-{
-    if (complete_)
-        co_return std::string_view();
-
-    size_t available = buffer_->remainSize();
-    if (available > 0)
-    {
-        size_t toRead = std::min(available, maxSize);
-        co_return buffer_->consumeView(toRead);
-    }
-
-    char * writePtr = buffer_->prepareWrite(maxSize);
-    size_t n = co_await conn_->read(writePtr, maxSize);
-    buffer_->commitWrite(n);
-
-    if (n == 0)
-        // TODO
-        complete_ = true;
-
-    co_return buffer_->consumeView(n);
-}
-
-Task<size_t> UntilCloseReader::readTo(char * buf, size_t len)
+Task<size_t> UntilCloseReader::read(char * buf, size_t len)
 {
     if (complete_)
         co_return 0;
