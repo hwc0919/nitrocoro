@@ -40,8 +40,8 @@ class HttpCompleteRequest : public HttpRequestAccessor<HttpCompleteRequest>
 
 public:
     HttpCompleteRequest() = default;
-    HttpCompleteRequest(HttpRequest && req, std::string && b)
-        : request_(std::move(req)), body_(std::move(b)) {}
+    HttpCompleteRequest(HttpRequest && req, std::string && body)
+        : request_(std::move(req)), body_(std::move(body)) {}
 
     const std::string & body() const { return body_; }
 
@@ -58,8 +58,8 @@ class HttpCompleteResponse : public HttpResponseAccessor<HttpCompleteResponse>
 
 public:
     HttpCompleteResponse() = default;
-    HttpCompleteResponse(HttpResponse && resp, std::string && b)
-        : response_(std::move(resp)), body_(std::move(b)) {}
+    HttpCompleteResponse(HttpResponse && resp, std::string && body)
+        : response_(std::move(resp)), body_(std::move(body)) {}
 
     const std::string & body() const { return body_; }
 

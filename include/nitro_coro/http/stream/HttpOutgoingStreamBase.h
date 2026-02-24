@@ -19,6 +19,9 @@ template <typename DataType>
 class HttpOutgoingStreamBase
 {
 public:
+    explicit HttpOutgoingStreamBase(net::TcpConnectionPtr conn)
+        : conn_(std::move(conn)) {}
+
     void setHeader(std::string_view name, std::string value);
     void setHeader(HttpHeader::NameCode code, std::string value);
     void setHeader(HttpHeader header);
@@ -29,9 +32,6 @@ public:
     Task<> end(std::string_view data);
 
 protected:
-    explicit HttpOutgoingStreamBase(net::TcpConnectionPtr conn)
-        : conn_(std::move(conn)) {}
-
     static const char * getDefaultReason(StatusCode code);
     Task<> writeHeaders();
     void decideTransferMode();

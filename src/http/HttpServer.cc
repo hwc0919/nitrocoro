@@ -2,6 +2,7 @@
  * @file HttpServer.cc
  * @brief HTTP server implementation
  */
+#include <nitro_coro/http/HttpContext.h>
 #include <nitro_coro/http/HttpServer.h>
 #include <nitro_coro/utils/Debug.h>
 
@@ -40,10 +41,15 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
 {
     try
     {
-        HttpIncomingStream<HttpRequest> request(conn);
-        co_await request.readAndParse();
+        auto buffer = std::make_shared<utils::StringBuffer>();
+        HttpContext<HttpRequest> context(conn, buffer);
+        auto [message, transferMode, contentLength] = co_await context.receiveMessage();
 
+        auto request = HttpIncomingStream<HttpRequest>(
+            std::move(message),
+            BodyReader::create(conn, buffer, transferMode, contentLength));
         HttpOutgoingStream<HttpResponse> response(conn);
+
         auto key = std::make_pair(request.method(), request.path());
         auto it = routes_.find(key);
 

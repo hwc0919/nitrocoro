@@ -28,17 +28,17 @@ template <>
 class HttpParser<HttpRequest>
 {
 public:
-    explicit HttpParser(HttpRequest & data)
-        : data_(data) {}
+    HttpParser() = default;
 
     bool parseLine(std::string_view line);
 
     bool isHeaderComplete() const { return headerComplete_; }
     size_t contentLength() const { return contentLength_; }
     TransferMode transferMode() const { return transferMode_; }
+    HttpRequest && extractMessage() { return std::move(data_); }
 
 private:
-    HttpRequest & data_;
+    HttpRequest data_;
     bool headerComplete_ = false;
     size_t contentLength_ = 0;
     TransferMode transferMode_ = TransferMode::UntilClose;
@@ -56,8 +56,18 @@ private:
 template <>
 class HttpParser<HttpResponse>
 {
+public:
+    HttpParser() = default;
+
+    bool parseLine(std::string_view line);
+
+    bool isHeaderComplete() const { return headerComplete_; }
+    size_t contentLength() const { return contentLength_; }
+    TransferMode transferMode() const { return transferMode_; }
+    HttpResponse && extractMessage() { return std::move(data_); }
+
 private:
-    HttpResponse & data_;
+    HttpResponse data_;
     bool headerComplete_ = false;
     size_t contentLength_ = 0;
     TransferMode transferMode_ = TransferMode::UntilClose;
@@ -65,16 +75,6 @@ private:
     void parseStatusLine(std::string_view line);
     void parseHeader(std::string_view line);
     void parseCookies(const std::string & cookieHeader);
-
-public:
-    explicit HttpParser(HttpResponse & data)
-        : data_(data) {}
-
-    bool parseLine(std::string_view line);
-
-    bool isHeaderComplete() const { return headerComplete_; }
-    size_t contentLength() const { return contentLength_; }
-    TransferMode transferMode() const { return transferMode_; }
 };
 
 } // namespace nitro_coro::http

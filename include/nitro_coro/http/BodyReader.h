@@ -19,9 +19,9 @@ class BodyReader
 {
 public:
     static std::unique_ptr<BodyReader> create(
-        TransferMode mode,
         net::TcpConnectionPtr conn,
         std::shared_ptr<utils::StringBuffer> buffer,
+        TransferMode mode,
         size_t contentLength);
 
     virtual ~BodyReader() = default;

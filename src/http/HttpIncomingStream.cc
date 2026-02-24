@@ -14,34 +14,6 @@ namespace nitro_coro::http
 // ============================================================================
 
 template <typename DataType>
-Task<> HttpIncomingStreamBase<DataType>::readAndParse()
-{
-    while (!parser_.isHeaderComplete())
-    {
-        size_t pos = buffer_->find("\r\n");
-        if (pos == std::string::npos)
-        {
-            char * writePtr = buffer_->prepareWrite(4096);
-            size_t n = co_await conn_->read(writePtr, 4096);
-            buffer_->commitWrite(n);
-            if (n == 0)
-                co_return;
-            continue;
-        }
-
-        std::string_view line = buffer_->view().substr(0, pos);
-        buffer_->consume(pos + 2);
-        parser_.parseLine(line);
-    }
-
-    bodyReader_ = BodyReader::create(
-        parser_.transferMode(),
-        conn_,
-        buffer_,
-        parser_.contentLength());
-}
-
-template <typename DataType>
 Task<size_t> HttpIncomingStreamBase<DataType>::read(char * buf, size_t len)
 {
     co_return co_await bodyReader_->read(buf, len);
@@ -50,7 +22,6 @@ Task<size_t> HttpIncomingStreamBase<DataType>::read(char * buf, size_t len)
 template <typename DataType>
 Task<std::string> HttpIncomingStreamBase<DataType>::read(size_t maxLen)
 {
-    // TODO: bad implementation
     std::string result(maxLen, '\0');
     size_t n = co_await read(result.data(), maxLen);
     result.resize(n);

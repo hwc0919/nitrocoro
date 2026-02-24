@@ -3,6 +3,8 @@
  * @brief HTTP incoming stream for reading requests and responses
  */
 #pragma once
+#include <nitro_coro/http/BodyReader.h>
+#include <nitro_coro/http/HttpContext.h>
 #include <nitro_coro/http/HttpDataAccessor.h>
 #include <nitro_coro/http/HttpMessage.h>
 #include <nitro_coro/http/stream/HttpIncomingStreamBase.h>
@@ -26,8 +28,9 @@ class HttpIncomingStream<HttpRequest>
       public HttpIncomingStreamBase<HttpRequest>
 {
 public:
-    explicit HttpIncomingStream(net::TcpConnectionPtr conn)
-        : HttpIncomingStreamBase(std::move(conn)) {}
+    using HttpIncomingStreamBase::HttpIncomingStreamBase;
+
+    // Task<HttpCompleteRequest> toCompleteRequest();
 };
 
 // ============================================================================
@@ -40,8 +43,7 @@ class HttpIncomingStream<HttpResponse>
       public HttpIncomingStreamBase<HttpResponse>
 {
 public:
-    explicit HttpIncomingStream(net::TcpConnectionPtr conn)
-        : HttpIncomingStreamBase(std::move(conn)) {}
+    using HttpIncomingStreamBase::HttpIncomingStreamBase;
 
     Task<HttpCompleteResponse> toCompleteResponse();
 };

@@ -5,6 +5,7 @@
 #include <nitro_coro/core/Future.h>
 #include <nitro_coro/core/Scheduler.h>
 #include <nitro_coro/http/HttpClient.h>
+#include <nitro_coro/http/HttpContext.h>
 #include <nitro_coro/http/HttpMessage.h>
 #include <nitro_coro/net/Dns.h>
 #include <nitro_coro/net/Url.h>
@@ -69,8 +70,13 @@ Task<HttpCompleteResponse> HttpClient::sendRequest(const std::string & method, c
 
 Task<HttpCompleteResponse> HttpClient::readResponse(net::TcpConnectionPtr conn)
 {
-    HttpIncomingStream<HttpResponse> stream(std::move(conn));
-    co_await stream.readAndParse();
+    auto buffer = std::make_shared<utils::StringBuffer>();
+    HttpContext<HttpResponse> context(std::move(conn), buffer);
+    auto parsed = co_await context.receiveMessage();
+
+    auto stream = HttpIncomingStream<HttpResponse>(
+        std::move(parsed.message),
+        BodyReader::create(context.connection(), buffer, parsed.transferMode, parsed.contentLength));
     co_return co_await stream.toCompleteResponse();
 }
 
@@ -101,10 +107,13 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
     Scheduler::current()->spawn([conn, promise = std::move(promise)]() mutable -> Task<> {
         try
         {
-            HttpIncomingStream<HttpResponse> response(conn);
-            co_await response.readAndParse();
+            auto buffer = std::make_shared<utils::StringBuffer>();
+            HttpContext<HttpResponse> context(conn, buffer);
+            auto [message, transferMode, contentLength] = co_await context.receiveMessage();
 
-            // Set connection for body streaming
+            auto response = HttpIncomingStream<HttpResponse>(
+                std::move(message),
+                BodyReader::create(context.connection(), buffer, transferMode, contentLength));
             promise.set_value(std::move(response));
         }
         catch (...)

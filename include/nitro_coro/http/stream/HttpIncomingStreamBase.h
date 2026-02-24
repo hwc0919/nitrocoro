@@ -18,11 +18,12 @@ namespace nitro_coro::http
 template <typename DataType>
 class HttpIncomingStreamBase
 {
-    template <typename, typename>
-    friend class HttpDataAccessor;
-
 public:
-    Task<> readAndParse();
+    HttpIncomingStreamBase(DataType message, std::unique_ptr<BodyReader> bodyReader)
+        : data_(std::move(message)), bodyReader_(std::move(bodyReader)) {}
+
+    const DataType & getData() const { return data_; }
+
     Task<size_t> read(char * buf, size_t maxLen);
     Task<std::string> read(size_t maxLen);
 
@@ -33,15 +34,7 @@ public:
     }
 
 protected:
-    explicit HttpIncomingStreamBase(net::TcpConnectionPtr conn)
-        : parser_(data_), conn_(std::move(conn)), buffer_(std::make_shared<utils::StringBuffer>()) {}
-
-    const DataType & getData() const { return data_; }
-
     DataType data_;
-    HttpParser<DataType> parser_;
-    net::TcpConnectionPtr conn_;
-    std::shared_ptr<utils::StringBuffer> buffer_;
     std::unique_ptr<BodyReader> bodyReader_;
 };
 

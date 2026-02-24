@@ -40,8 +40,7 @@ class HttpOutgoingStream<HttpResponse>
     : public HttpOutgoingStreamBase<HttpResponse>
 {
 public:
-    explicit HttpOutgoingStream(net::TcpConnectionPtr conn)
-        : HttpOutgoingStreamBase(std::move(conn)) {}
+    using HttpOutgoingStreamBase::HttpOutgoingStreamBase;
 
     void setStatus(StatusCode code, const std::string & reason = "");
     void setVersion(Version version) { data_.version = version; }

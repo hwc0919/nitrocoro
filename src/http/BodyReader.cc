@@ -11,9 +11,9 @@ namespace nitro_coro::http
 {
 
 std::unique_ptr<BodyReader> BodyReader::create(
-    TransferMode mode,
     net::TcpConnectionPtr conn,
     std::shared_ptr<utils::StringBuffer> buffer,
+    TransferMode mode,
     size_t contentLength)
 {
     switch (mode)

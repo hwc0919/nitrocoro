@@ -21,6 +21,7 @@ add_library(nitro_coro STATIC
     src/DnsResolver.cc
     src/Dns.cc
     src/Url.cpp
+    src/http/HttpContext.cc
     src/http/HttpIncomingStream.cc
     src/http/HttpOutgoingStream.cc
     src/http/HttpServer.cc
