@@ -4,6 +4,7 @@
  */
 #include <nitro_coro/http/HttpHeader.h>
 #include <nitro_coro/http/HttpParser.h>
+#include <optional>
 
 namespace nitro_coro::http
 {
@@ -20,6 +21,25 @@ static Version parseHttpVersion(std::string_view versionStr)
 static StatusCode parseStatusCode(int code)
 {
     return static_cast<StatusCode>(code);
+}
+
+static std::optional<HttpHeader> parseHeaderLine(std::string_view line)
+{
+    size_t colonPos = line.find(':');
+    if (colonPos == std::string_view::npos)
+        return std::nullopt;
+
+    size_t nameStart = line.find_first_not_of(' ', 0);
+    size_t nameEnd = line.find_last_not_of(' ', colonPos - 1);
+    size_t valueStart = line.find_first_not_of(' ', colonPos + 1);
+    size_t valueEnd = line.find_last_not_of(' ');
+
+    if (nameStart == std::string_view::npos)
+        return std::nullopt;
+
+    std::string name(line.substr(nameStart, nameEnd - nameStart + 1));
+    std::string value(valueStart == std::string_view::npos ? "" : line.substr(valueStart, valueEnd - valueStart + 1));
+    return HttpHeader(std::move(name), std::move(value));
 }
 
 // ============================================================================
@@ -81,22 +101,17 @@ void HttpParser<HttpRequest>::parseRequestLine(std::string_view line)
 
 void HttpParser<HttpRequest>::parseHeader(std::string_view line)
 {
-    size_t pos = line.find(':');
-    if (pos == std::string::npos)
+    auto header = parseHeaderLine(line);
+    if (!header)
         return;
 
-    std::string name(line.substr(0, pos));
-    std::string value(line.substr(pos + 1));
-
-    HttpHeader header(std::move(name), std::move(value));
-
-    if (header.name() == "cookie")
+    if (header->nameCode() == HttpHeader::NameCode::Cookie)
     {
-        parseCookies(header.value());
+        parseCookies(header->value());
     }
     else
     {
-        data_.headers.emplace(header.name(), std::move(header));
+        data_.headers.emplace(header->name(), std::move(*header));
     }
 }
 
@@ -197,22 +212,17 @@ void HttpParser<HttpResponse>::parseStatusLine(std::string_view line)
 
 void HttpParser<HttpResponse>::parseHeader(std::string_view line)
 {
-    size_t pos = line.find(':');
-    if (pos == std::string::npos)
+    auto header = parseHeaderLine(line);
+    if (!header)
         return;
 
-    std::string name(line.substr(0, pos));
-    std::string value(line.substr(pos + 1));
-
-    HttpHeader header(std::move(name), std::move(value));
-
-    if (header.name() == "set-cookie")
+    if (header->nameCode() == HttpHeader::NameCode::SetCookie)
     {
-        parseCookies(header.value());
+        parseCookies(header->value());
     }
     else
     {
-        data_.headers.emplace(header.name(), std::move(header));
+        data_.headers.emplace(header->name(), std::move(*header));
     }
 }
 
