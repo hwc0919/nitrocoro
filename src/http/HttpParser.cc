@@ -4,7 +4,6 @@
  */
 #include <nitro_coro/http/HttpHeader.h>
 #include <nitro_coro/http/HttpParser.h>
-#include <sstream>
 
 namespace nitro_coro::http
 {
@@ -63,18 +62,20 @@ void HttpParser<HttpRequest>::parseRequestLine(std::string_view line)
     size_t pos2 = line.find(' ', pos1 + 1);
 
     data_.method = line.substr(0, pos1);
-    std::string fullPath(line.substr(pos1 + 1, pos2 - pos1 - 1));
+    data_.fullPath = line.substr(pos1 + 1, pos2 - pos1 - 1);
     data_.version = parseHttpVersion(line.substr(pos2 + 1));
 
-    size_t qpos = fullPath.find('?');
+    size_t qpos = data_.fullPath.find('?');
     if (qpos != std::string::npos)
     {
-        data_.path = fullPath.substr(0, qpos);
-        parseQueryString();
+        data_.path = std::string_view(data_.fullPath).substr(0, qpos);
+        data_.query = std::string_view(data_.fullPath).substr(qpos + 1);
+        parseQueryString(data_.query);
     }
     else
     {
-        data_.path = fullPath;
+        data_.path = data_.fullPath;
+        data_.query = std::string_view();
     }
 }
 
@@ -99,30 +100,55 @@ void HttpParser<HttpRequest>::parseHeader(std::string_view line)
     }
 }
 
-void HttpParser<HttpRequest>::parseQueryString()
+void HttpParser<HttpRequest>::parseQueryString(std::string_view queryStr)
 {
-    size_t qpos = data_.path.find('?');
-    if (qpos == std::string::npos)
-        return;
-
-    std::string queryStr = data_.path.substr(qpos + 1);
-    data_.path = data_.path.substr(0, qpos);
-
-    std::istringstream iss(queryStr);
-    std::string pair;
-    while (std::getline(iss, pair, '&'))
+    // TODO: url decode
+    // TODO: multi-value
+    size_t start = 0;
+    while (start < queryStr.size())
     {
+        size_t ampPos = queryStr.find('&', start);
+        size_t end = (ampPos == std::string_view::npos) ? queryStr.size() : ampPos;
+
+        std::string_view pair = queryStr.substr(start, end - start);
         size_t eqPos = pair.find('=');
-        if (eqPos != std::string::npos)
+        if (eqPos != std::string_view::npos)
         {
-            data_.queries[pair.substr(0, eqPos)] = pair.substr(eqPos + 1);
+            std::string key = std::string(pair.substr(0, eqPos));
+            std::string value = std::string(pair.substr(eqPos + 1));
+            data_.queries.emplace(std::move(key), std::move(value));
         }
+
+        if (ampPos == std::string_view::npos)
+            break;
+        start = ampPos + 1;
     }
 }
 
 void HttpParser<HttpRequest>::parseCookies(const std::string & cookieHeader)
 {
-    // TODO: Implement cookie parsing
+    // TODO: parse cookies correctly
+    std::string_view cookies(cookieHeader);
+    size_t start = 0;
+    while (start < cookies.size())
+    {
+        while (start < cookies.size() && cookies[start] == ' ')
+            ++start;
+
+        size_t semiPos = cookies.find(';', start);
+        size_t end = (semiPos == std::string_view::npos) ? cookies.size() : semiPos;
+
+        std::string_view pair = cookies.substr(start, end - start);
+        size_t eqPos = pair.find('=');
+        if (eqPos != std::string_view::npos)
+        {
+            data_.cookies[std::string(pair.substr(0, eqPos))] = std::string(pair.substr(eqPos + 1));
+        }
+
+        if (semiPos == std::string_view::npos)
+            break;
+        start = semiPos + 1;
+    }
 }
 
 // ============================================================================
@@ -195,12 +221,12 @@ void HttpParser<HttpResponse>::parseCookies(const std::string & cookieHeader)
     size_t eqPos = cookieHeader.find('=');
     if (eqPos != std::string::npos)
     {
-        size_t endPos = cookieHeader.find(';');
-        std::string cookieName = cookieHeader.substr(0, eqPos);
-        std::string cookieValue = (endPos != std::string::npos)
-                                      ? cookieHeader.substr(eqPos + 1, endPos - eqPos - 1)
-                                      : cookieHeader.substr(eqPos + 1);
-        data_.cookies[cookieName] = cookieValue;
+        size_t endPos = cookieHeader.find(';', eqPos);
+        std::string name = cookieHeader.substr(0, eqPos);
+        std::string value = (endPos != std::string::npos)
+                                ? cookieHeader.substr(eqPos + 1, endPos - eqPos - 1)
+                                : cookieHeader.substr(eqPos + 1);
+        data_.cookies.insert_or_assign(std::move(name), std::move(value));
     }
 }
 

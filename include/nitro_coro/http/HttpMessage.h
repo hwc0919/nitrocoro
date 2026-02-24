@@ -17,7 +17,9 @@ namespace nitro_coro::http
 struct HttpRequest
 {
     std::string method;
-    std::string path;
+    std::string fullPath;
+    std::string_view path;
+    std::string_view query;
     Version version = Version::kHttp11;
     std::map<std::string, HttpHeader, std::less<>> headers;
     std::map<std::string, std::string, std::less<>> cookies;

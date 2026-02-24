@@ -45,7 +45,7 @@ private:
 
     void parseRequestLine(std::string_view line);
     void parseHeader(std::string_view line);
-    void parseQueryString();
+    void parseQueryString(std::string_view queryStr);
     void parseCookies(const std::string & cookieHeader);
 };
 
