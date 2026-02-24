@@ -89,6 +89,7 @@ public:
     void removeIo(uint64_t id);
 
     TimerAwaiter sleep_for(double seconds);
+    TimerAwaiter sleep_for(std::chrono::steady_clock::duration dur);
     TimerAwaiter sleep_until(TimePoint when);
     SchedulerAwaiter switch_to() noexcept;
 
@@ -186,5 +187,11 @@ private:
     MpscQueue<Timer> pendingTimers_;
     std::priority_queue<Timer, std::vector<Timer>, std::greater<>> timers_;
 };
+
+// Convenience sleep function for std::chrono::duration
+inline auto sleep(std::chrono::steady_clock::duration dur)
+{
+    return Scheduler::current()->sleep_for(dur);
+}
 
 } // namespace nitro_coro

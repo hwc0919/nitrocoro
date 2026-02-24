@@ -87,6 +87,12 @@ TimerAwaiter Scheduler::sleep_for(double seconds)
     return TimerAwaiter{ this, when };
 }
 
+TimerAwaiter Scheduler::sleep_for(std::chrono::steady_clock::duration dur)
+{
+    auto when = std::chrono::steady_clock::now() + dur;
+    return TimerAwaiter{ this, when };
+}
+
 TimerAwaiter Scheduler::sleep_until(TimePoint when)
 {
     return TimerAwaiter{ this, when };
