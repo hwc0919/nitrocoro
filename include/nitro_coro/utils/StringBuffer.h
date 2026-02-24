@@ -33,12 +33,14 @@ public:
     // Mark n bytes as consumed
     void consume(size_t n)
     {
+        // TODO: check n
         readOffset_ += n;
     }
 
     // Get view of n bytes and consume them
     std::string_view consumeView(size_t n)
     {
+        // TODO: check n
         readOffset_ += n;
         return { buffer_.data() + readOffset_ - n, n };
     }
@@ -70,6 +72,29 @@ public:
     {
         readOffset_ = 0;
         writeOffset_ = 0;
+    }
+
+    // Extract the unconsumed data as string
+    std::string extract()
+    {
+        if (readOffset_ == 0)
+        {
+            // Data starts from beginning, resize and move
+            std::string result = std::move(buffer_);
+            result.resize(writeOffset_);
+            readOffset_ = 0;
+            writeOffset_ = 0;
+            return result;
+        }
+        else
+        {
+            // Extract unconsumed portion (need to copy)
+            std::string result(buffer_.data() + readOffset_, writeOffset_ - readOffset_);
+            buffer_.clear();
+            readOffset_ = 0;
+            writeOffset_ = 0;
+            return result;
+        }
     }
 
 private:

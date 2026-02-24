@@ -53,12 +53,6 @@ Task<size_t> HttpIncomingStreamBase<DataType>::readTo(char * buf, size_t len)
     co_return co_await bodyReader_->readTo(buf, len);
 }
 
-template <typename DataType>
-Task<std::string_view> HttpIncomingStreamBase<DataType>::readAll()
-{
-    co_return co_await bodyReader_->readAll();
-}
-
 // Explicit instantiations
 template class HttpIncomingStreamBase<HttpRequest>;
 template class HttpIncomingStreamBase<HttpResponse>;
@@ -69,8 +63,9 @@ template class HttpIncomingStreamBase<HttpResponse>;
 
 Task<HttpCompleteResponse> HttpIncomingStream<HttpResponse>::toCompleteResponse()
 {
-    auto bodyView = co_await readAll();
-    co_return HttpCompleteResponse(std::move(data_), std::string(bodyView));
+    utils::StringBuffer bodyBuf;
+    co_await readToEnd(bodyBuf);
+    co_return HttpCompleteResponse(std::move(data_), bodyBuf.extract());
 }
 
 } // namespace nitro_coro::http

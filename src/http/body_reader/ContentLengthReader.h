@@ -16,8 +16,6 @@ public:
 
     Task<std::string_view> read(size_t maxSize) override;
     Task<size_t> readTo(char * buf, size_t len) override;
-    Task<std::string_view> readAll() override;
-    Task<size_t> read1(char* buf, size_t len) override;
     bool isComplete() const override { return bytesRead_ >= contentLength_; }
 
 private:

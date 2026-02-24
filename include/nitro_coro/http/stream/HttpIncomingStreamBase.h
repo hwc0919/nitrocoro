@@ -25,7 +25,12 @@ public:
     Task<> readAndParse();
     Task<std::string_view> read(size_t maxSize = 4096);
     Task<size_t> readTo(char * buf, size_t len);
-    Task<std::string_view> readAll();
+
+    template <utils::ExtendableBuffer T>
+    Task<size_t> readToEnd(T & buf)
+    {
+        co_return co_await bodyReader_->readToEnd(buf);
+    }
 
 protected:
     explicit HttpIncomingStreamBase(net::TcpConnectionPtr conn)

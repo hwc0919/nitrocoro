@@ -38,10 +38,11 @@ Task<> server_main(uint16_t port)
     });
 
     server.route("POST", "/echo", [](HttpIncomingStream<HttpRequest> & req, HttpOutgoingStream<HttpResponse> & resp) -> Task<> {
-        auto body = co_await req.readAll();
+        utils::StringBuffer bodyBuf;
+        co_await req.readToEnd(bodyBuf);
         resp.setStatus(StatusCode::k200OK);
         resp.setHeader("Content-Type", "text/plain");
-        co_await resp.end(body);
+        co_await resp.end(bodyBuf.view());
     });
 
     co_await server.start();
