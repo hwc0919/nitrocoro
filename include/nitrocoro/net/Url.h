@@ -1,0 +1,40 @@
+/**
+ * @file Url.h
+ * @brief URL parser for network requests
+ */
+#pragma once
+
+#include <string>
+#include <string_view>
+#include <cstdint>
+
+namespace nitrocoro::net
+{
+
+class Url
+{
+public:
+    Url() = default;
+    explicit Url(std::string_view url);
+
+    const std::string& scheme() const { return scheme_; }
+    const std::string& host() const { return host_; }
+    uint16_t port() const { return port_; }
+    const std::string& path() const { return path_; }
+    const std::string& query() const { return query_; }
+
+    bool isValid() const { return valid_; }
+
+private:
+    void parse(std::string_view url);
+    uint16_t getDefaultPort() const;
+
+    std::string scheme_;
+    std::string host_;
+    uint16_t port_ = 0;
+    std::string path_;
+    std::string query_;
+    bool valid_ = false;
+};
+
+} // namespace nitrocoro::net

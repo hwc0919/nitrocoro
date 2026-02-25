@@ -5,7 +5,7 @@
 #include "ContentLengthReader.h"
 #include <cstring>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 Task<size_t> ContentLengthReader::read(char * buf, size_t len)
@@ -30,4 +30,4 @@ Task<size_t> ContentLengthReader::read(char * buf, size_t len)
     co_return n;
 }
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

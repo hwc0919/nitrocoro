@@ -3,9 +3,9 @@
  * @brief Body reader that reads until connection closes
  */
 #pragma once
-#include <nitro_coro/http/BodyReader.h>
+#include <nitrocoro/http/BodyReader.h>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 class UntilCloseReader : public BodyReader
@@ -23,4 +23,4 @@ private:
     bool complete_ = false;
 };
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

@@ -4,7 +4,7 @@
  */
 #include "ContentLengthWriter.h"
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 Task<> ContentLengthWriter::write(std::string_view data)
@@ -18,4 +18,4 @@ Task<> ContentLengthWriter::end()
     co_return;
 }
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

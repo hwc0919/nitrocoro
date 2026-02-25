@@ -4,9 +4,9 @@
  */
 #include "body_writer/ChunkedWriter.h"
 #include "body_writer/ContentLengthWriter.h"
-#include <nitro_coro/http/BodyWriter.h>
+#include <nitrocoro/http/BodyWriter.h>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 std::unique_ptr<BodyWriter> BodyWriter::create(
@@ -19,4 +19,4 @@ std::unique_ptr<BodyWriter> BodyWriter::create(
     return std::make_unique<ChunkedWriter>(std::move(conn));
 }
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

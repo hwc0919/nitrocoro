@@ -5,7 +5,7 @@
 #include "ChunkedReader.h"
 #include <cstring>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 Task<bool> ChunkedReader::parseChunkSize()
@@ -109,4 +109,4 @@ Task<size_t> ChunkedReader::read(char * buf, size_t len)
     co_return n;
 }
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

@@ -5,9 +5,9 @@
 #include "body_reader/ChunkedReader.h"
 #include "body_reader/ContentLengthReader.h"
 #include "body_reader/UntilCloseReader.h"
-#include <nitro_coro/http/BodyReader.h>
+#include <nitrocoro/http/BodyReader.h>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 std::unique_ptr<BodyReader> BodyReader::create(
@@ -28,4 +28,4 @@ std::unique_ptr<BodyReader> BodyReader::create(
     return std::make_unique<UntilCloseReader>(std::move(conn), std::move(buffer));
 }
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

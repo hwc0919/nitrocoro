@@ -2,13 +2,13 @@
  * @file dns_resolver_test.cc
  * @brief DNS resolver test
  */
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/net/DnsException.h>
-#include <nitro_coro/net/DnsResolver.h>
-#include <nitro_coro/utils/Debug.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/net/DnsException.h>
+#include <nitrocoro/net/DnsResolver.h>
+#include <nitrocoro/utils/Debug.h>
 
-using namespace nitro_coro;
-using namespace nitro_coro::net;
+using namespace nitrocoro;
+using namespace nitrocoro::net;
 
 Task<> test_dns()
 {

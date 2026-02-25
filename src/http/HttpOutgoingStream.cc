@@ -2,12 +2,12 @@
  * @file HttpOutgoingStream.cc
  * @brief HTTP outgoing stream implementations
  */
-#include <nitro_coro/http/BodyWriter.h>
-#include <nitro_coro/http/stream/HttpOutgoingStream.h>
+#include <nitrocoro/http/BodyWriter.h>
+#include <nitrocoro/http/stream/HttpOutgoingStream.h>
 #include <optional>
 #include <sstream>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 static const char * toVersionString(Version version)
@@ -372,4 +372,4 @@ void HttpOutgoingStream<HttpResponse>::setStatus(StatusCode code, const std::str
     data_.statusReason = reason.empty() ? getDefaultReason(code) : reason;
 }
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

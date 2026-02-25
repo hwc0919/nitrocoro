@@ -1,10 +1,10 @@
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/core/Task.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/core/Task.h>
 #include <atomic>
 #include <iostream>
 #include <memory>
 
-using namespace nitro_coro;
+using namespace nitrocoro;
 
 Task<> example_task(int i, int n)
 {

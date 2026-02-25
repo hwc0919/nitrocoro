@@ -2,12 +2,12 @@
  * @file http_server.cc
  * @brief Simple HTTP server test
  */
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/http/HttpServer.h>
-#include <nitro_coro/utils/Debug.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/http/HttpServer.h>
+#include <nitrocoro/utils/Debug.h>
 
-using namespace nitro_coro;
-using namespace nitro_coro::http;
+using namespace nitrocoro;
+using namespace nitrocoro::http;
 
 Task<> server_main(uint16_t port)
 {

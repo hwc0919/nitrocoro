@@ -3,9 +3,9 @@
  * @brief Body reader for Content-Length based transfer
  */
 #pragma once
-#include <nitro_coro/http/BodyReader.h>
+#include <nitrocoro/http/BodyReader.h>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 class ContentLengthReader : public BodyReader
@@ -24,4 +24,4 @@ private:
     size_t bytesRead_ = 0;
 };
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

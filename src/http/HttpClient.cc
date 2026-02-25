@@ -2,17 +2,17 @@
  * @file HttpClient.cc
  * @brief HTTP client implementation
  */
-#include <nitro_coro/core/Future.h>
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/http/HttpClient.h>
-#include <nitro_coro/http/HttpContext.h>
-#include <nitro_coro/http/HttpMessage.h>
-#include <nitro_coro/net/Dns.h>
-#include <nitro_coro/net/Url.h>
+#include <nitrocoro/core/Future.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/http/HttpClient.h>
+#include <nitrocoro/http/HttpContext.h>
+#include <nitrocoro/http/HttpMessage.h>
+#include <nitrocoro/net/Dns.h>
+#include <nitrocoro/net/Url.h>
 #include <sstream>
 #include <stdexcept>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 Task<HttpCompleteResponse> HttpClient::get(const std::string & url)
@@ -125,4 +125,4 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
     co_return HttpClientSession{ std::move(requestStream), std::move(responseFuture) };
 }
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

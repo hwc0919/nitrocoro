@@ -4,19 +4,19 @@
  */
 #include <cstdlib>
 #include <fcntl.h>
-#include <nitro_coro/core/Future.h>
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/io/IoChannel.h>
-#include <nitro_coro/io/adapters/BufferReader.h>
-#include <nitro_coro/net/Dns.h>
-#include <nitro_coro/net/TcpConnection.h>
-#include <nitro_coro/utils/Debug.h>
+#include <nitrocoro/core/Future.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/io/IoChannel.h>
+#include <nitrocoro/io/adapters/BufferReader.h>
+#include <nitrocoro/net/Dns.h>
+#include <nitrocoro/net/TcpConnection.h>
+#include <nitrocoro/utils/Debug.h>
 #include <unistd.h>
 
-using namespace nitro_coro;
-using namespace nitro_coro::net;
-using namespace nitro_coro::io;
-using nitro_coro::io::adapters::BufferReader;
+using namespace nitrocoro;
+using namespace nitrocoro::net;
+using namespace nitrocoro::io;
+using nitrocoro::io::adapters::BufferReader;
 
 #define BUFFER_SIZE 1024
 

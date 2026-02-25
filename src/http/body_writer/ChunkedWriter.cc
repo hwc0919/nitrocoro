@@ -5,7 +5,7 @@
 #include "ChunkedWriter.h"
 #include <sstream>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 Task<> ChunkedWriter::write(std::string_view data)
@@ -27,4 +27,4 @@ Task<> ChunkedWriter::end()
     co_await conn_->write("0\r\n\r\n", 5);
 }
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

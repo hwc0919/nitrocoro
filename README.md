@@ -1,4 +1,4 @@
-# Nitro Coro
+# NitroCoro
 
 [中文](README_zh.md) | English
 
@@ -89,8 +89,8 @@ int main() {
 ## Project Structure
 
 ```
-coro/
-├── include/nitro_coro/    # Header files
+nitrocoro/
+├── include/nitrocoro/     # Header files
 │   ├── core/              # Coroutine primitives (Task, Scheduler, Future, etc.)
 │   ├── net/               # Network components (TCP, DNS)
 │   ├── http/              # HTTP server/client
@@ -117,6 +117,7 @@ coro/
 - [ ] Performance optimization
 - [ ] API documentation
 - [ ] More comprehensive examples
+- [ ] Database and ORM support
 
 ## License
 

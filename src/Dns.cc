@@ -2,10 +2,10 @@
  * @file Dns.cc
  * @brief Global DNS resolution implementation
  */
-#include <nitro_coro/net/Dns.h>
-#include <nitro_coro/net/DnsResolver.h>
+#include <nitrocoro/net/Dns.h>
+#include <nitrocoro/net/DnsResolver.h>
 
-namespace nitro_coro::net
+namespace nitrocoro::net
 {
 
 static DnsResolver & getGlobalResolver()
@@ -19,4 +19,4 @@ Task<std::vector<InetAddress>> resolve(const std::string & hostname)
     co_return co_await getGlobalResolver().resolve(hostname);
 }
 
-} // namespace nitro_coro::net
+} // namespace nitrocoro::net

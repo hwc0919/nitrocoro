@@ -2,11 +2,11 @@
  * @file HttpIncomingStream.cc
  * @brief HTTP incoming stream implementations
  */
-#include <nitro_coro/http/BodyReader.h>
-#include <nitro_coro/http/HttpMessage.h>
-#include <nitro_coro/http/stream/HttpIncomingStream.h>
+#include <nitrocoro/http/BodyReader.h>
+#include <nitrocoro/http/HttpMessage.h>
+#include <nitrocoro/http/stream/HttpIncomingStream.h>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 // ============================================================================
@@ -43,4 +43,4 @@ Task<HttpCompleteResponse> HttpIncomingStream<HttpResponse>::toCompleteResponse(
     co_return HttpCompleteResponse(std::move(data_), bodyBuf.extract());
 }
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

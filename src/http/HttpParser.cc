@@ -2,11 +2,11 @@
  * @file HttpParser.cc
  * @brief HTTP parser implementations
  */
-#include <nitro_coro/http/HttpHeader.h>
-#include <nitro_coro/http/HttpParser.h>
+#include <nitrocoro/http/HttpHeader.h>
+#include <nitrocoro/http/HttpParser.h>
 #include <optional>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 static Version parseHttpVersion(std::string_view versionStr)
@@ -329,4 +329,4 @@ void HttpParser<HttpResponse>::parseCookies(const std::string & cookieHeader)
     }
 }
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

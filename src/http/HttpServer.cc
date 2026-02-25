@@ -2,11 +2,11 @@
  * @file HttpServer.cc
  * @brief HTTP server implementation
  */
-#include <nitro_coro/http/HttpContext.h>
-#include <nitro_coro/http/HttpServer.h>
-#include <nitro_coro/utils/Debug.h>
+#include <nitrocoro/http/HttpContext.h>
+#include <nitrocoro/http/HttpServer.h>
+#include <nitrocoro/utils/Debug.h>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 HttpServer::HttpServer(uint16_t port, Scheduler * scheduler)
@@ -84,4 +84,4 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
     co_await conn->close();
 }
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

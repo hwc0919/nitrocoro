@@ -5,18 +5,18 @@
 #include <cassert>
 #include <csignal>
 #include <cstring>
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/io/IoChannel.h>
-#include <nitro_coro/utils/Debug.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/io/IoChannel.h>
+#include <nitrocoro/utils/Debug.h>
 #include <stdexcept>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
 
-#define NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD() \
+#define nitrocoro_SCHEDULER_ASSERT_IN_OWN_THREAD() \
     assert(isInOwnThread() && "Must be called in its own thread")
 
-namespace nitro_coro
+namespace nitrocoro
 {
 
 static constexpr int64_t kDefaultTimeoutMs = 10000;
@@ -209,7 +209,7 @@ void Scheduler::wakeup()
 
 void Scheduler::setIoHandler(uint64_t id, int fd, Scheduler::IoEventHandler handler)
 {
-    NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
+    nitrocoro_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
     auto iter = ioContexts_.find(id);
     if (iter != ioContexts_.end())
@@ -227,7 +227,7 @@ void Scheduler::setIoHandler(uint64_t id, int fd, Scheduler::IoEventHandler hand
 
 void Scheduler::updateIo(uint64_t id, int fd, uint32_t events, TriggerMode mode)
 {
-    NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
+    nitrocoro_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
     IoContext * ctx;
     auto iter = ioContexts_.find(id);
@@ -273,7 +273,7 @@ void Scheduler::updateIo(uint64_t id, int fd, uint32_t events, TriggerMode mode)
 
 void Scheduler::removeIo(uint64_t id)
 {
-    NITRO_CORO_SCHEDULER_ASSERT_IN_OWN_THREAD();
+    nitrocoro_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
     assert(ioContexts_.contains(id));
     auto ctx = std::move(ioContexts_.at(id));
@@ -313,4 +313,4 @@ void SchedulerAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
     scheduler_->schedule(h);
 }
 
-} // namespace nitro_coro
+} // namespace nitrocoro

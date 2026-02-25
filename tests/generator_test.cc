@@ -1,9 +1,9 @@
 #include <iostream>
-#include <nitro_coro/core/Generator.h>
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/core/Task.h>
+#include <nitrocoro/core/Generator.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/core/Task.h>
 
-using namespace nitro_coro;
+using namespace nitrocoro;
 
 // 同步 Generator
 Generator<int> range(int start, int end)

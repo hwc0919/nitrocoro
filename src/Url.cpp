@@ -1,7 +1,7 @@
-#include "nitro_coro/net/Url.h"
+#include "nitrocoro/net/Url.h"
 #include <algorithm>
 
-namespace nitro_coro::net
+namespace nitrocoro::net
 {
 
 Url::Url(std::string_view url)
@@ -102,4 +102,4 @@ uint16_t Url::getDefaultPort() const
     return 0;
 }
 
-} // namespace nitro_coro::net
+} // namespace nitrocoro::net

@@ -2,11 +2,11 @@
  * @file HttpContext.cc
  * @brief HTTP context implementations
  */
-#include <nitro_coro/http/HttpContext.h>
-#include <nitro_coro/http/HttpMessage.h>
+#include <nitrocoro/http/HttpContext.h>
+#include <nitrocoro/http/HttpMessage.h>
 #include <stdexcept>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 template <typename MessageType>
@@ -39,4 +39,4 @@ Task<MessageType> HttpContext<MessageType>::receiveMessage()
 template class HttpContext<HttpRequest>;
 template class HttpContext<HttpResponse>;
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

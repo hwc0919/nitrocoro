@@ -2,11 +2,11 @@
  * @file http_client.cc
  * @brief HTTP client test
  */
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/http/HttpClient.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/http/HttpClient.h>
 
-using namespace nitro_coro;
-using namespace nitro_coro::http;
+using namespace nitrocoro;
+using namespace nitrocoro::http;
 
 Task<> client_main(const char * url)
 {

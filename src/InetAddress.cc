@@ -2,7 +2,7 @@
  * @file InetAddress.cc
  * @brief Network address implementation
  */
-#include <nitro_coro/net/InetAddress.h>
+#include <nitrocoro/net/InetAddress.h>
 
 #include <cstring>
 
@@ -11,7 +11,7 @@
 #include <arpa/inet.h>
 #endif
 
-namespace nitro_coro::net
+namespace nitrocoro::net
 {
 
 static constexpr in_addr_t kInAddrAny = INADDR_ANY;
@@ -108,4 +108,4 @@ bool InetAddress::isLoopbackIp() const
     return false;
 }
 
-} // namespace nitro_coro::net
+} // namespace nitrocoro::net

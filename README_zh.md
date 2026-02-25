@@ -1,4 +1,4 @@
-# Nitro Coro
+# NitroCoro
 
 中文 | [English](README.md)
 
@@ -89,8 +89,8 @@ int main() {
 ## 项目结构
 
 ```
-coro/
-├── include/nitro_coro/    # 头文件
+nitrocoro/
+├── include/nitrocoro/     # 头文件
 │   ├── core/              # 协程原语（Task、Scheduler、Future 等）
 │   ├── net/               # 网络组件（TCP、DNS）
 │   ├── http/              # HTTP 服务器/客户端
@@ -117,6 +117,7 @@ coro/
 - [ ] 性能优化
 - [ ] API 文档
 - [ ] 更全面的示例
+- [ ] 数据库和ORM支持
 
 ## 许可证
 

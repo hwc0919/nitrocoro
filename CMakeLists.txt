@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(nitro_coro CXX)
+project(nitrocoro CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,7 +12,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
 
 # Build library
-add_library(nitro_coro STATIC
+add_library(nitrocoro STATIC
     src/Scheduler.cc
     src/TcpServer.cc
     src/TcpConnection.cc
@@ -37,13 +37,13 @@ add_library(nitro_coro STATIC
     src/http/body_writer/ChunkedWriter.cc
 )
 
-target_include_directories(nitro_coro PUBLIC
+target_include_directories(nitrocoro PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 # Link pthread for threading support
 find_package(Threads REQUIRED)
-target_link_libraries(nitro_coro PUBLIC Threads::Threads)
+target_link_libraries(nitrocoro PUBLIC Threads::Threads)
 
 # Build tests
 add_subdirectory(tests)

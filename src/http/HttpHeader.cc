@@ -3,10 +3,10 @@
  * @brief Implementation of HttpHeader
  */
 #include <cctype>
-#include <nitro_coro/http/HttpHeader.h>
+#include <nitrocoro/http/HttpHeader.h>
 #include <unordered_map>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 HttpHeader::HttpHeader(std::string_view name, std::string value)
@@ -124,52 +124,52 @@ const std::pair<std::string_view, std::string_view> & HttpHeader::codeToNames(Na
 
     static_assert(std::size(pairs) == static_cast<size_t>(NameCode::Unknown) + 1);
 
-#define NITRO_CORO_HTTP_HEADER_CHECK_PAIR(name)                                        \
+#define nitrocoro_HTTP_HEADER_CHECK_PAIR(name)                                        \
     static_assert(pairs[static_cast<size_t>(NameCode::name)].first == Name::name##_L); \
     static_assert(pairs[static_cast<size_t>(NameCode::name)].second == Name::name##_C)
 
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(CacheControl);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Connection);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Date);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(TransferEncoding);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Upgrade);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Accept);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(AcceptEncoding);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(AcceptLanguage);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Authorization);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Host);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(IfModifiedSince);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(IfNoneMatch);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Referer);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(UserAgent);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(AcceptRanges);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Age);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(ETag);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Location);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(RetryAfter);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Server);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Vary);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(WwwAuthenticate);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Allow);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(ContentEncoding);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(ContentLanguage);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(ContentLength);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(ContentRange);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(ContentType);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Expires);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(LastModified);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Cookie);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(SetCookie);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(AccessControlAllowOrigin);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(AccessControlAllowMethods);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(AccessControlAllowHeaders);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(AccessControlAllowCredentials);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(Origin);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(XForwardedFor);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(XForwardedProto);
-    NITRO_CORO_HTTP_HEADER_CHECK_PAIR(XRealIp);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(CacheControl);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Connection);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Date);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(TransferEncoding);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Upgrade);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Accept);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(AcceptEncoding);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(AcceptLanguage);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Authorization);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Host);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(IfModifiedSince);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(IfNoneMatch);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Referer);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(UserAgent);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(AcceptRanges);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Age);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(ETag);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Location);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(RetryAfter);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Server);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Vary);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(WwwAuthenticate);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Allow);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(ContentEncoding);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(ContentLanguage);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(ContentLength);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(ContentRange);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(ContentType);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Expires);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(LastModified);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Cookie);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(SetCookie);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(AccessControlAllowOrigin);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(AccessControlAllowMethods);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(AccessControlAllowHeaders);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(AccessControlAllowCredentials);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(Origin);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(XForwardedFor);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(XForwardedProto);
+    nitrocoro_HTTP_HEADER_CHECK_PAIR(XRealIp);
 
-#undef NITRO_CORO_HTTP_HEADER_CHECK_PAIR
+#undef nitrocoro_HTTP_HEADER_CHECK_PAIR
 
     return pairs[static_cast<size_t>(code)];
 }
@@ -238,4 +238,4 @@ HttpHeader::NameCode HttpHeader::nameToCode(std::string_view lowerName)
     return it != nameMap.end() ? it->second : NameCode::Unknown;
 }
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

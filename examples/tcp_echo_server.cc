@@ -4,12 +4,12 @@
  */
 #include <cstdlib>
 #include <iostream>
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/net/TcpConnection.h>
-#include <nitro_coro/net/TcpServer.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/net/TcpConnection.h>
+#include <nitrocoro/net/TcpServer.h>
 
-using namespace nitro_coro;
-using namespace nitro_coro::net;
+using namespace nitrocoro;
+using namespace nitrocoro::net;
 
 #define BUFFER_SIZE 8
 

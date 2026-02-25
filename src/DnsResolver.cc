@@ -2,8 +2,8 @@
  * @file DnsResolver.cc
  * @brief Asynchronous DNS resolver implementation
  */
-#include <nitro_coro/net/DnsException.h>
-#include <nitro_coro/net/DnsResolver.h>
+#include <nitrocoro/net/DnsException.h>
+#include <nitrocoro/net/DnsResolver.h>
 
 #include <algorithm>
 #include <thread>
@@ -17,7 +17,7 @@
 #include <sys/socket.h>
 #endif
 
-namespace nitro_coro::net
+namespace nitrocoro::net
 {
 
 DnsResolver::DnsResolver(size_t threadNum)
@@ -143,4 +143,4 @@ void DnsResolver::workerThread()
     }
 }
 
-} // namespace nitro_coro::net
+} // namespace nitrocoro::net

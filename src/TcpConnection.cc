@@ -5,20 +5,20 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <iostream>
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/io/adapters/BufferReader.h>
-#include <nitro_coro/io/adapters/BufferWriter.h>
-#include <nitro_coro/net/TcpConnection.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/io/adapters/BufferReader.h>
+#include <nitrocoro/io/adapters/BufferWriter.h>
+#include <nitrocoro/net/TcpConnection.h>
 #include <unistd.h>
 
-namespace nitro_coro::net
+namespace nitrocoro::net
 {
 
-using nitro_coro::Scheduler;
-using nitro_coro::Task;
-using nitro_coro::io::IoChannel;
-using nitro_coro::io::adapters::BufferReader;
-using nitro_coro::io::adapters::BufferWriter;
+using nitrocoro::Scheduler;
+using nitrocoro::Task;
+using nitrocoro::io::IoChannel;
+using nitrocoro::io::adapters::BufferReader;
+using nitrocoro::io::adapters::BufferWriter;
 
 struct Connector
 {
@@ -164,4 +164,4 @@ Task<> TcpConnection::close()
     co_return;
 }
 
-} // namespace nitro_coro::net
+} // namespace nitrocoro::net

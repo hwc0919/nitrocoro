@@ -3,9 +3,9 @@
  * @brief Body writer for chunked transfer encoding
  */
 #pragma once
-#include <nitro_coro/http/BodyWriter.h>
+#include <nitrocoro/http/BodyWriter.h>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 class ChunkedWriter : public BodyWriter
@@ -21,4 +21,4 @@ private:
     net::TcpConnectionPtr conn_;
 };
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

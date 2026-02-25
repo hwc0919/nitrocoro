@@ -2,10 +2,10 @@
  * @file TcpServer.cc
  * @brief Implementation of coroutine-based TCP server
  */
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/net/TcpConnection.h>
-#include <nitro_coro/net/TcpServer.h>
-#include <nitro_coro/utils/Debug.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/net/TcpConnection.h>
+#include <nitrocoro/net/TcpServer.h>
+#include <nitrocoro/utils/Debug.h>
 
 #include <cstring>
 #include <fcntl.h>
@@ -15,7 +15,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-namespace nitro_coro::net
+namespace nitrocoro::net
 {
 using io::IoChannel;
 
@@ -187,4 +187,4 @@ Task<> TcpServer::wait() const
     co_await stopFuture_.get();
 }
 
-} // namespace nitro_coro::net
+} // namespace nitrocoro::net

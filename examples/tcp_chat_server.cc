@@ -7,20 +7,20 @@
 #include <fcntl.h>
 #include <iostream>
 #include <memory>
-#include <nitro_coro/core/Mutex.h>
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/io/adapters/BufferReader.h>
-#include <nitro_coro/net/TcpConnection.h>
-#include <nitro_coro/net/TcpServer.h>
-#include <nitro_coro/utils/Debug.h>
+#include <nitrocoro/core/Mutex.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/io/adapters/BufferReader.h>
+#include <nitrocoro/net/TcpConnection.h>
+#include <nitrocoro/net/TcpServer.h>
+#include <nitrocoro/utils/Debug.h>
 #include <random>
 #include <unistd.h>
 #include <unordered_map>
 
-using namespace nitro_coro;
-using namespace nitro_coro::net;
-using namespace nitro_coro::io;
-using nitro_coro::io::adapters::BufferReader;
+using namespace nitrocoro;
+using namespace nitrocoro::net;
+using namespace nitrocoro::io;
+using nitrocoro::io::adapters::BufferReader;
 
 #define BUFFER_SIZE 1024
 

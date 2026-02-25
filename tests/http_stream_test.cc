@@ -2,13 +2,13 @@
  * @file http_stream_test.cc
  * @brief Test streaming HTTP client with echo server
  */
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/http/HttpClient.h>
-#include <nitro_coro/http/HttpServer.h>
-#include <nitro_coro/utils/Debug.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/http/HttpClient.h>
+#include <nitrocoro/http/HttpServer.h>
+#include <nitrocoro/utils/Debug.h>
 
-using namespace nitro_coro;
-using namespace nitro_coro::http;
+using namespace nitrocoro;
+using namespace nitrocoro::http;
 using namespace std::chrono_literals;
 
 Task<> echo_server(uint16_t port)

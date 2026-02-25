@@ -2,16 +2,16 @@
  * @file IoChannel.cc
  * @brief Implementation of IoChannel
  */
-#include <nitro_coro/core/Scheduler.h>
-#include <nitro_coro/io/IoChannel.h>
-#include <nitro_coro/utils/Debug.h>
+#include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/io/IoChannel.h>
+#include <nitrocoro/utils/Debug.h>
 
 #include <arpa/inet.h>
 #include <cassert>
 #include <cstring>
 #include <sys/epoll.h>
 
-namespace nitro_coro::io
+namespace nitrocoro::io
 {
 
 IoChannel::IoChannel(int fd, TriggerMode mode, Scheduler * scheduler)
@@ -223,4 +223,4 @@ void IoChannel::cancelAll()
     cancelWrite();
 }
 
-} // namespace nitro_coro::io
+} // namespace nitrocoro::io

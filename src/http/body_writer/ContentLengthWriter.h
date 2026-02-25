@@ -3,9 +3,9 @@
  * @brief Body writer for Content-Length based transfer
  */
 #pragma once
-#include <nitro_coro/http/BodyWriter.h>
+#include <nitrocoro/http/BodyWriter.h>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 class ContentLengthWriter : public BodyWriter
@@ -23,4 +23,4 @@ private:
     size_t bytesWritten_ = 0;
 };
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http

@@ -3,9 +3,9 @@
  * @brief Body reader for chunked transfer encoding
  */
 #pragma once
-#include <nitro_coro/http/BodyReader.h>
+#include <nitrocoro/http/BodyReader.h>
 
-namespace nitro_coro::http
+namespace nitrocoro::http
 {
 
 class ChunkedReader : public BodyReader
@@ -36,4 +36,4 @@ private:
     Task<> skipCRLF();
 };
 
-} // namespace nitro_coro::http
+} // namespace nitrocoro::http
