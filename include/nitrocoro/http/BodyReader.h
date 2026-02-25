@@ -9,9 +9,6 @@
 #include <nitrocoro/utils/ExtendableBuffer.h>
 #include <nitrocoro/utils/StringBuffer.h>
 
-#include <memory>
-#include <string_view>
-
 namespace nitrocoro::http
 {
 
@@ -26,10 +23,33 @@ public:
 
     virtual ~BodyReader() = default;
 
+    /**
+     * Reads up to @p len bytes of the HTTP body into @p buf.
+     *
+     * @return Number of bytes read (> 0), or 0 if the body is complete.
+     *         Returning 0 means the body has been fully consumed according to
+     *         the transfer semantics (Content-Length satisfied, chunked
+     *         terminator received, or connection closed for UntilClose mode).
+     *         Note: this differs from TcpConnection::read(), where 0 means
+     *         TCP EOF. Here, 0 always means "body done", regardless of the
+     *         underlying transfer mode.
+     * @throws std::runtime_error on I/O error or malformed HTTP body
+     *         (e.g. truncated Content-Length body, invalid chunked encoding).
+     */
     virtual Task<size_t> read(char * buf, size_t len) = 0;
+
+    /** Returns true if the body has been fully consumed. */
     virtual bool isComplete() const = 0;
 
-    // New interface: read to end with extendable buffer
+    /**
+     * Reads the entire remaining body into @p buf.
+     *
+     * Calls read() repeatedly until the body is complete. read() returning 0
+     * and isComplete() returning true are equivalent and always occur together.
+     *
+     * @return Total number of bytes appended to @p buf.
+     * @throws std::runtime_error on I/O error or malformed body (propagated from read()).
+     */
     template <utils::ExtendableBuffer T>
     Task<size_t> readToEnd(T & buf);
 };

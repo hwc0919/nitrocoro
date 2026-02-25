@@ -26,6 +26,8 @@ Task<size_t> ContentLengthReader::read(char * buf, size_t len)
     size_t remaining = contentLength_ - bytesRead_;
     size_t toRead = std::min(len, remaining);
     size_t n = co_await conn_->read(buf, toRead);
+    if (n == 0)
+        throw std::runtime_error("Connection closed before content-length body complete");
     bytesRead_ += n;
     co_return n;
 }

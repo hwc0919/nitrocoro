@@ -18,18 +18,18 @@ Task<bool> ChunkedReader::parseChunkSize()
         if (pos == std::string::npos)
         {
             if (buffer_->remainSize() >= MAX_CHUNK_SIZE_LINE)
-                co_return false;
+                throw std::runtime_error("Invalid chunked encoding: chunk size line too long");
 
             char * writePtr = buffer_->prepareWrite(128);
             size_t n = co_await conn_->read(writePtr, 128);
             if (n == 0)
-                co_return false;
+                throw std::runtime_error("Connection closed before chunk size complete");
             buffer_->commitWrite(n);
             continue;
         }
 
         if (pos > MAX_CHUNK_SIZE_LINE)
-            co_return false;
+            throw std::runtime_error("Invalid chunked encoding: chunk size line too long");
 
         std::string_view line = buffer_->view().substr(0, pos);
         buffer_->consume(pos + 2);
@@ -58,7 +58,7 @@ Task<> ChunkedReader::skipCRLF()
         char * writePtr = buffer_->prepareWrite(128);
         size_t n = co_await conn_->read(writePtr, 128);
         if (n == 0)
-            co_return;
+            throw std::runtime_error("Connection closed before chunk CRLF complete");
         buffer_->commitWrite(n);
     }
     buffer_->consume(2);
@@ -72,7 +72,7 @@ Task<size_t> ChunkedReader::read(char * buf, size_t len)
     if (state_ == State::ReadSize)
     {
         if (!co_await parseChunkSize())
-            co_return 0;
+            throw std::runtime_error("Invalid chunked encoding");
         if (complete_)
             co_return 0;
     }
@@ -98,6 +98,8 @@ Task<size_t> ChunkedReader::read(char * buf, size_t len)
 
     size_t toRead = std::min(len, remaining);
     size_t n = co_await conn_->read(buf, toRead);
+    if (n == 0)
+        throw std::runtime_error("Connection closed before chunk data complete");
     currentChunkRead_ += n;
 
     if (currentChunkRead_ >= currentChunkSize_)
