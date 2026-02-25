@@ -37,6 +37,15 @@ Task<> server_main(uint16_t port)
         co_await resp.end(body);
     });
 
+    server.route("GET", "/sleep", [](HttpIncomingStream<HttpRequest> & req, HttpOutgoingStream<HttpResponse> & resp) -> Task<> {
+        utils::StringBuffer bodyBuf;
+        co_await req.readToEnd(bodyBuf);
+        co_await sleep(std::chrono::seconds(3));
+        resp.setStatus(StatusCode::k200OK);
+        resp.setHeader("Content-Type", "text/plain");
+        co_await resp.end("wakeup after 3 seconds");
+    });
+
     server.route("POST", "/echo", [](HttpIncomingStream<HttpRequest> & req, HttpOutgoingStream<HttpResponse> & resp) -> Task<> {
         utils::StringBuffer bodyBuf;
         co_await req.readToEnd(bodyBuf);

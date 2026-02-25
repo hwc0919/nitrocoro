@@ -73,10 +73,12 @@ Task<HttpCompleteResponse> HttpClient::readResponse(net::TcpConnectionPtr conn)
     auto buffer = std::make_shared<utils::StringBuffer>();
     HttpContext<HttpResponse> context(std::move(conn), buffer);
     auto message = co_await context.receiveMessage();
+    if (!message)
+        throw std::runtime_error("Connection closed before response complete");
 
     auto stream = HttpIncomingStream<HttpResponse>(
-        std::move(message),
-        BodyReader::create(context.connection(), buffer, message.transferMode, message.contentLength));
+        std::move(*message),
+        BodyReader::create(context.connection(), buffer, message->transferMode, message->contentLength));
     co_return co_await stream.toCompleteResponse();
 }
 
@@ -110,10 +112,15 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
             auto buffer = std::make_shared<utils::StringBuffer>();
             HttpContext<HttpResponse> context(conn, buffer);
             auto message = co_await context.receiveMessage();
+            if (!message)
+            {
+                promise.set_exception(std::make_exception_ptr(std::runtime_error("Connection closed before response complete")));
+                co_return;
+            }
 
             auto response = HttpIncomingStream<HttpResponse>(
-                std::move(message),
-                BodyReader::create(context.connection(), buffer, message.transferMode, message.contentLength));
+                std::move(*message),
+                BodyReader::create(context.connection(), buffer, message->transferMode, message->contentLength));
             promise.set_value(std::move(response));
         }
         catch (...)

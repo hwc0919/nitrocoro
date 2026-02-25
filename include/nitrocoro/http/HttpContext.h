@@ -9,6 +9,7 @@
 #include <nitrocoro/utils/StringBuffer.h>
 
 #include <memory>
+#include <optional>
 
 namespace nitrocoro::http
 {
@@ -22,7 +23,7 @@ public:
     {
     }
 
-    Task<MessageType> receiveMessage();
+    Task<std::optional<MessageType>> receiveMessage();
 
     net::TcpConnectionPtr connection() const { return conn_; }
     std::shared_ptr<utils::StringBuffer> buffer() const { return buffer_; }
