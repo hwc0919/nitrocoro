@@ -35,6 +35,7 @@ add_library(nitrocoro STATIC
     src/http/body_reader/UntilCloseReader.cc
     src/http/body_writer/ContentLengthWriter.cc
     src/http/body_writer/ChunkedWriter.cc
+    src/http/body_writer/UntilCloseWriter.cc
 )
 
 target_include_directories(nitrocoro PUBLIC

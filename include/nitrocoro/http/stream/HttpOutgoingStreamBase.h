@@ -3,6 +3,7 @@
  * @brief Base class for HTTP outgoing streams
  */
 #pragma once
+#include <nitrocoro/core/Future.h>
 #include <nitrocoro/core/Task.h>
 #include <nitrocoro/http/BodyWriter.h>
 #include <nitrocoro/http/HttpParser.h>
@@ -19,8 +20,8 @@ template <typename DataType>
 class HttpOutgoingStreamBase
 {
 public:
-    explicit HttpOutgoingStreamBase(net::TcpConnectionPtr conn)
-        : conn_(std::move(conn)) {}
+    explicit HttpOutgoingStreamBase(net::TcpConnectionPtr conn, Promise<> finishedPromise)
+        : conn_(std::move(conn)), finishedPromise_(std::move(finishedPromise)) {}
 
     void setHeader(std::string_view name, std::string value);
     void setHeader(HttpHeader::NameCode code, std::string value);
@@ -42,6 +43,7 @@ protected:
     bool headersSent_ = false;
     TransferMode transferMode_ = TransferMode::Chunked;
     std::unique_ptr<BodyWriter> bodyWriter_;
+    Promise<> finishedPromise_;
 };
 
 } // namespace nitrocoro::http

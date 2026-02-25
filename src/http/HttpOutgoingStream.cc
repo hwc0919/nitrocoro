@@ -84,6 +84,18 @@ void HttpOutgoingStreamBase<DataType>::decideTransferMode(std::optional<size_t> 
         return;
     }
 
+    if constexpr (std::is_same_v<DataType, HttpResponse>)
+    {
+        if (data_.version == Version::kHttp10)
+        {
+            // HTTP/1.0 does not support chunked; fall back to close-delimited
+            data_.shouldClose = true;
+            transferMode_ = TransferMode::UntilClose;
+            bodyWriter_ = BodyWriter::create(TransferMode::UntilClose, conn_);
+            return;
+        }
+    }
+
     setHeader(HttpHeader::NameCode::TransferEncoding, "chunked");
     transferMode_ = TransferMode::Chunked;
     bodyWriter_ = BodyWriter::create(TransferMode::Chunked, conn_);
@@ -160,9 +172,9 @@ Task<> HttpOutgoingStreamBase<DataType>::end()
         setHeader(HttpHeader::NameCode::ContentLength, "0");
         co_await writeHeaders();
     }
-
     if (bodyWriter_)
         co_await bodyWriter_->end();
+    finishedPromise_.set_value();
 }
 
 template <typename DataType>
@@ -194,6 +206,7 @@ Task<> HttpOutgoingStreamBase<DataType>::end(std::string_view data)
             std::string response = oss.str();
             co_await conn_->write(response.c_str(), response.size());
             headersSent_ = true;
+            finishedPromise_.set_value();
             co_return;
         }
 
@@ -202,6 +215,7 @@ Task<> HttpOutgoingStreamBase<DataType>::end(std::string_view data)
 
     co_await bodyWriter_->write(data);
     co_await bodyWriter_->end();
+    finishedPromise_.set_value();
 }
 
 template <typename DataType>

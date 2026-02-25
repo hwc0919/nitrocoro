@@ -23,8 +23,10 @@ class HttpOutgoingStream<HttpRequest>
     : public HttpOutgoingStreamBase<HttpRequest>
 {
 public:
+    explicit HttpOutgoingStream(net::TcpConnectionPtr conn, Promise<> finishedPromise)
+        : HttpOutgoingStreamBase(std::move(conn), std::move(finishedPromise)) {}
     explicit HttpOutgoingStream(net::TcpConnectionPtr conn)
-        : HttpOutgoingStreamBase(std::move(conn)) {}
+        : HttpOutgoingStreamBase(std::move(conn), Promise<>(nullptr)) {}
 
     void setMethod(const std::string & method) { data_.method = method; }
     void setPath(const std::string & path) { data_.path = path; }

@@ -2,6 +2,7 @@
  * @file HttpServer.cc
  * @brief HTTP server implementation
  */
+#include <nitrocoro/core/Future.h>
 #include <nitrocoro/http/HttpContext.h>
 #include <nitrocoro/http/HttpServer.h>
 #include <nitrocoro/utils/Debug.h>
@@ -63,7 +64,9 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
         auto bodyReader = BodyReader::create(conn, buffer, message->transferMode, message->contentLength);
 
         auto request = HttpIncomingStream<HttpRequest>(std::move(*message), bodyReader);
-        HttpOutgoingStream<HttpResponse> response(conn);
+        Promise<> finishedPromise(scheduler_);
+        auto finishedFuture = finishedPromise.get_future();
+        HttpOutgoingStream<HttpResponse> response(conn, std::move(finishedPromise));
         response.setCloseConnection(!keepAlive);
 
         auto key = std::make_pair(std::string{ request.method() }, std::string{ request.path() });
@@ -78,10 +81,10 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
             co_await response.end("Not Found");
         }
 
+        co_await finishedFuture.get();
+        co_await bodyReader->drain();
         if (!keepAlive)
             break;
-
-        co_await bodyReader->drain();
     }
 }
 

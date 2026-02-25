@@ -4,6 +4,7 @@
  */
 #include "body_writer/ChunkedWriter.h"
 #include "body_writer/ContentLengthWriter.h"
+#include "body_writer/UntilCloseWriter.h"
 #include <nitrocoro/http/BodyWriter.h>
 
 namespace nitrocoro::http
@@ -16,6 +17,8 @@ std::unique_ptr<BodyWriter> BodyWriter::create(
 {
     if (mode == TransferMode::ContentLength)
         return std::make_unique<ContentLengthWriter>(std::move(conn), contentLength);
+    if (mode == TransferMode::UntilClose)
+        return std::make_unique<UntilCloseWriter>(std::move(conn));
     return std::make_unique<ChunkedWriter>(std::move(conn));
 }
 
