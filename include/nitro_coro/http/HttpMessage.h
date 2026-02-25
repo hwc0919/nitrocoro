@@ -24,6 +24,11 @@ struct HttpRequest
     std::map<std::string, HttpHeader, std::less<>> headers;
     std::map<std::string, std::string, std::less<>> cookies;
     std::map<std::string, std::string, std::less<>> queries;
+
+    // Metadata parsed from headers
+    TransferMode transferMode = TransferMode::UntilClose;
+    size_t contentLength = 0;
+    bool keepAlive = false;
 };
 
 struct HttpResponse
@@ -33,6 +38,11 @@ struct HttpResponse
     Version version = Version::kHttp11;
     std::map<std::string, HttpHeader, std::less<>> headers;
     std::map<std::string, std::string, std::less<>> cookies;
+
+    // Metadata for sending
+    TransferMode transferMode = TransferMode::ContentLength;
+    size_t contentLength = 0;
+    bool shouldClose = false;
 };
 
 class HttpCompleteRequest : public HttpRequestAccessor<HttpCompleteRequest>

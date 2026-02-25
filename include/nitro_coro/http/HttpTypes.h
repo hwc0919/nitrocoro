@@ -82,4 +82,11 @@ enum class Version
     kHttp11
 };
 
+enum class TransferMode
+{
+    ContentLength,
+    Chunked,
+    UntilClose
+};
+
 } // namespace nitro_coro::http

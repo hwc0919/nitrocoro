@@ -162,6 +162,19 @@ Task<> HttpOutgoingStreamBase<DataType>::writeHeaders()
         {
             oss << "Set-Cookie: " << name << "=" << value << "\r\n";
         }
+
+        // Add Connection header if not already set
+        if (data_.headers.find(HttpHeader::Name::Connection_L) == data_.headers.end())
+        {
+            if (data_.shouldClose)
+            {
+                oss << "Connection: close\r\n";
+            }
+            else if (data_.version == Version::kHttp10)
+            {
+                oss << "Connection: keep-alive\r\n";
+            }
+        }
     }
 
     oss << "\r\n";
@@ -171,6 +184,7 @@ Task<> HttpOutgoingStreamBase<DataType>::writeHeaders()
     headersSent_ = true;
 }
 
+// TODO: move to http helpers
 template <typename DataType>
 const char * HttpOutgoingStreamBase<DataType>::getDefaultReason(StatusCode code)
 {

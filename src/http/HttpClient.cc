@@ -72,11 +72,11 @@ Task<HttpCompleteResponse> HttpClient::readResponse(net::TcpConnectionPtr conn)
 {
     auto buffer = std::make_shared<utils::StringBuffer>();
     HttpContext<HttpResponse> context(std::move(conn), buffer);
-    auto parsed = co_await context.receiveMessage();
+    auto message = co_await context.receiveMessage();
 
     auto stream = HttpIncomingStream<HttpResponse>(
-        std::move(parsed.message),
-        BodyReader::create(context.connection(), buffer, parsed.transferMode, parsed.contentLength));
+        std::move(message),
+        BodyReader::create(context.connection(), buffer, message.transferMode, message.contentLength));
     co_return co_await stream.toCompleteResponse();
 }
 
@@ -109,11 +109,11 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
         {
             auto buffer = std::make_shared<utils::StringBuffer>();
             HttpContext<HttpResponse> context(conn, buffer);
-            auto [message, transferMode, contentLength] = co_await context.receiveMessage();
+            auto message = co_await context.receiveMessage();
 
             auto response = HttpIncomingStream<HttpResponse>(
                 std::move(message),
-                BodyReader::create(context.connection(), buffer, transferMode, contentLength));
+                BodyReader::create(context.connection(), buffer, message.transferMode, message.contentLength));
             promise.set_value(std::move(response));
         }
         catch (...)

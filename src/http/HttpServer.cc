@@ -42,31 +42,46 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
     try
     {
         auto buffer = std::make_shared<utils::StringBuffer>();
-        HttpContext<HttpRequest> context(conn, buffer);
-        auto [message, transferMode, contentLength] = co_await context.receiveMessage();
 
-        auto request = HttpIncomingStream<HttpRequest>(
-            std::move(message),
-            BodyReader::create(conn, buffer, transferMode, contentLength));
-        HttpOutgoingStream<HttpResponse> response(conn);
-
-        auto key = std::make_pair(std::string{ request.method() }, std::string{ request.path() });
-        auto it = routes_.find(key);
-
-        if (it != routes_.end())
+        while (true)
         {
-            co_await it->second(request, response);
-        }
-        else
-        {
-            response.setStatus(StatusCode::k404NotFound);
-            co_await response.end("Not Found");
+            HttpContext<HttpRequest> context(conn, buffer);
+            auto message = co_await context.receiveMessage();
+            // bool keepAlive = message.keepAlive;
+            bool keepAlive = false; // TODO: support keep-alive
+
+            auto request = HttpIncomingStream<HttpRequest>(
+                std::move(message),
+                BodyReader::create(conn, buffer, message.transferMode, message.contentLength));
+            HttpOutgoingStream<HttpResponse> response(conn);
+            response.setCloseConnection(!keepAlive);
+
+            auto key = std::make_pair(std::string{ request.method() }, std::string{ request.path() });
+            auto it = routes_.find(key);
+
+            if (it != routes_.end())
+            {
+                co_await it->second(request, response);
+            }
+            else
+            {
+                response.setStatus(StatusCode::k404NotFound);
+                co_await response.end("Not Found");
+            }
+
+            if (!keepAlive)
+            {
+                break;
+            }
+            // TODO: request body must be totally consumed before processing the next request in the same connection
+            co_await std::suspend_always{};
         }
     }
     catch (const std::exception & e)
     {
         NITRO_ERROR("Error handling request: %s\n", e.what());
     }
+    co_await conn->close();
 }
 
 } // namespace nitro_coro::http

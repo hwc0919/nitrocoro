@@ -66,6 +66,12 @@ bool HttpParser<HttpRequest>::parseLine(std::string_view line)
 
 void HttpParser<HttpRequest>::processHeaders()
 {
+    processTransferMode();
+    processKeepAlive();
+}
+
+void HttpParser<HttpRequest>::processTransferMode()
+{
     // RFC 7230 Section 3.3.3: Message body length determination
     // 1. Check Transfer-Encoding first (takes precedence over Content-Length)
     auto it = data_.headers.find(HttpHeader::Name::TransferEncoding_L);
@@ -75,8 +81,8 @@ void HttpParser<HttpRequest>::processHeaders()
 
         if (value == "chunked")
         {
-            transferMode_ = TransferMode::Chunked;
-            return; // Ignore Content-Length if Transfer-Encoding is present
+            data_.transferMode = TransferMode::Chunked;
+            return;
         }
         if (value != "identity")
         {
@@ -89,14 +95,29 @@ void HttpParser<HttpRequest>::processHeaders()
     it = data_.headers.find(HttpHeader::Name::ContentLength_L);
     if (it != data_.headers.end())
     {
-        contentLength_ = std::stoul(it->second.value());
-        transferMode_ = TransferMode::ContentLength;
+        data_.contentLength = std::stoul(it->second.value());
+        data_.transferMode = TransferMode::ContentLength;
     }
     else
     {
         // 3. For requests without Transfer-Encoding or Content-Length, body length is 0
-        contentLength_ = 0;
-        transferMode_ = TransferMode::ContentLength;
+        data_.contentLength = 0;
+        data_.transferMode = TransferMode::ContentLength;
+    }
+}
+
+void HttpParser<HttpRequest>::processKeepAlive()
+{
+    auto it = data_.headers.find(HttpHeader::Name::Connection_L);
+    if (it != data_.headers.end())
+    {
+        std::string lowerValue = HttpHeader::toLower(it->second.value());
+        data_.keepAlive = (lowerValue == "keep-alive");
+    }
+    else
+    {
+        // Default: HTTP/1.1 keep-alive, HTTP/1.0 close
+        data_.keepAlive = (data_.version == Version::kHttp11);
     }
 }
 
@@ -214,6 +235,12 @@ bool HttpParser<HttpResponse>::parseLine(std::string_view line)
 
 void HttpParser<HttpResponse>::processHeaders()
 {
+    processTransferMode();
+    processConnectionClose();
+}
+
+void HttpParser<HttpResponse>::processTransferMode()
+{
     // RFC 7230 Section 3.3.3: Message body length determination
     // 1. Check Transfer-Encoding first (takes precedence over Content-Length)
     auto it = data_.headers.find(HttpHeader::Name::TransferEncoding_L);
@@ -223,8 +250,8 @@ void HttpParser<HttpResponse>::processHeaders()
 
         if (value == "chunked")
         {
-            transferMode_ = TransferMode::Chunked;
-            return; // Ignore Content-Length if Transfer-Encoding is present
+            data_.transferMode = TransferMode::Chunked;
+            return;
         }
         if (value != "identity")
         {
@@ -237,13 +264,28 @@ void HttpParser<HttpResponse>::processHeaders()
     it = data_.headers.find(HttpHeader::Name::ContentLength_L);
     if (it != data_.headers.end())
     {
-        contentLength_ = std::stoul(it->second.value());
-        transferMode_ = TransferMode::ContentLength;
+        data_.contentLength = std::stoul(it->second.value());
+        data_.transferMode = TransferMode::ContentLength;
     }
     else
     {
         // 3. For responses without Transfer-Encoding or Content-Length, read until connection close
-        transferMode_ = TransferMode::UntilClose;
+        data_.transferMode = TransferMode::UntilClose;
+    }
+}
+
+void HttpParser<HttpResponse>::processConnectionClose()
+{
+    auto it = data_.headers.find(HttpHeader::Name::Connection_L);
+    if (it != data_.headers.end())
+    {
+        std::string lowerValue = HttpHeader::toLower(it->second.value());
+        data_.shouldClose = (lowerValue == "close");
+    }
+    else
+    {
+        // Default: HTTP/1.1 keep-alive (shouldClose=false), HTTP/1.0 close (shouldClose=true)
+        data_.shouldClose = (data_.version == Version::kHttp10);
     }
 }
 

@@ -10,7 +10,7 @@ namespace nitro_coro::http
 {
 
 template <typename MessageType>
-Task<ParsedMessage<MessageType>> HttpContext<MessageType>::receiveMessage()
+Task<MessageType> HttpContext<MessageType>::receiveMessage()
 {
     HttpParser<MessageType> parser;
 
@@ -32,11 +32,7 @@ Task<ParsedMessage<MessageType>> HttpContext<MessageType>::receiveMessage()
         parser.parseLine(line);
     }
 
-    co_return ParsedMessage<MessageType>{
-        parser.extractMessage(),
-        parser.transferMode(),
-        parser.contentLength()
-    };
+    co_return parser.extractMessage();
 }
 
 // Explicit instantiations

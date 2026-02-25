@@ -14,23 +14,15 @@ namespace nitro_coro::http
 {
 
 template <typename MessageType>
-struct ParsedMessage
-{
-    MessageType message;
-    TransferMode transferMode;
-    size_t contentLength;
-};
-
-template <typename MessageType>
 class HttpContext
 {
 public:
-    explicit HttpContext(net::TcpConnectionPtr conn, std::shared_ptr<utils::StringBuffer> buffer)
+    HttpContext(net::TcpConnectionPtr conn, std::shared_ptr<utils::StringBuffer> buffer)
         : conn_(std::move(conn)), buffer_(std::move(buffer))
     {
     }
 
-    Task<ParsedMessage<MessageType>> receiveMessage();
+    Task<MessageType> receiveMessage();
 
     net::TcpConnectionPtr connection() const { return conn_; }
     std::shared_ptr<utils::StringBuffer> buffer() const { return buffer_; }

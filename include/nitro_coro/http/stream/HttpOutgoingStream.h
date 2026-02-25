@@ -44,6 +44,7 @@ public:
 
     void setStatus(StatusCode code, const std::string & reason = "");
     void setVersion(Version version) { data_.version = version; }
+    void setCloseConnection(bool shouldClose) { data_.shouldClose = shouldClose; }
 };
 
 } // namespace nitro_coro::http
