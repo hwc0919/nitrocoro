@@ -13,7 +13,8 @@ using nitrocoro::io::IoChannel;
 // If situation is different, user should implement their own Writer.
 struct BufferWriter
 {
-    BufferWriter(const void * buf, size_t len) : buf_(buf), len_(len)
+    BufferWriter(const void * buf, size_t len)
+        : buf_(buf), len_(len)
     {
     }
 
@@ -52,7 +53,6 @@ struct BufferWriter
                     return IoChannel::IoResult::Retry;
                 case EPIPE:
                 case ECONNRESET:
-                    return IoChannel::IoResult::Disconnect;
                 default:
                     return IoChannel::IoResult::Error;
             }

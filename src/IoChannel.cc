@@ -114,13 +114,8 @@ bool IoChannel::ReadableAwaiter::await_suspend(std::coroutine_handle<> h) noexce
     }
 }
 
-void IoChannel::ReadableAwaiter::await_resume()
+void IoChannel::ReadableAwaiter::await_resume() noexcept
 {
-    if (state_->readCanceled)
-    {
-        state_->readCanceled = false;
-        throw std::runtime_error("Read canceled");
-    }
 }
 
 bool IoChannel::WritableAwaiter::await_ready() noexcept
@@ -141,13 +136,8 @@ bool IoChannel::WritableAwaiter::await_suspend(std::coroutine_handle<> h) noexce
     }
 }
 
-void IoChannel::WritableAwaiter::await_resume()
+void IoChannel::WritableAwaiter::await_resume() noexcept
 {
-    if (state_->writeCanceled)
-    {
-        state_->writeCanceled = false;
-        throw std::runtime_error("Write canceled");
-    }
 }
 
 void IoChannel::enableReading()

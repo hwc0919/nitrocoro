@@ -120,15 +120,10 @@ Task<> TcpServer::start(ConnectionHandler handler)
     while (!stopped_.load())
     {
         Acceptor acceptor;
-        try
+        auto result = co_await listenChannel_->performRead(&acceptor);
+        if (result != IoChannel::IoResult::Success)
         {
-            co_await listenChannel_->performRead(&acceptor);
-        }
-        catch (const std::exception & e)
-        {
-            if (acceptor.clientFd() >= 0)
-                ::close(acceptor.clientFd());
-            NITRO_ERROR("Accept error: %s\n", e.what());
+            NITRO_ERROR("Accept error: IoResult=%d\n", static_cast<int>(result));
             break;
         }
 

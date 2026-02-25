@@ -12,7 +12,8 @@ using nitrocoro::io::IoChannel;
 // the reading event is enabled by user and won't be disabled.
 struct BufferReader
 {
-    BufferReader(void * buf, size_t len) : buf_(buf), len_(len) {}
+    BufferReader(void * buf, size_t len)
+        : buf_(buf), len_(len) {}
     size_t readLen() const { return readLen_; }
 
     IoChannel::IoResult read(int fd, IoChannel *)
@@ -30,7 +31,7 @@ struct BufferReader
         }
         else if (ret == 0)
         {
-            return IoChannel::IoResult::Disconnect;
+            return IoChannel::IoResult::Eof;
         }
         else
         {

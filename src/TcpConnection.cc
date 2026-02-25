@@ -98,12 +98,14 @@ Task<TcpConnectionPtr> TcpConnection::connect(const sockaddr * addr, socklen_t a
 
     auto channelPtr = std::make_unique<IoChannel>(fd);
     Connector connector(addr, addrLen);
-    co_await channelPtr->performWrite(&connector);
+    auto result = co_await channelPtr->performWrite(&connector);
+    if (result != IoChannel::IoResult::Success)
+        throw std::runtime_error("TCP connect failed");
 
     co_return std::make_shared<TcpConnection>(std::move(channelPtr));
 }
 
-Task<TcpConnectionPtr> TcpConnection::connect(const char * ip, uint16_t port, TcpConnection::IpVersion v)
+Task<TcpConnectionPtr> TcpConnection::connect(const char * ip, uint16_t port, IpVersion v)
 {
     if (v == IpVersion::Ipv4)
     {
@@ -114,7 +116,7 @@ Task<TcpConnectionPtr> TcpConnection::connect(const char * ip, uint16_t port, Tc
         {
             throw std::runtime_error("Invalid IPv4 address");
         }
-        co_return co_await connect(reinterpret_cast<sockaddr *>(&addr), static_cast<socklen_t>(sizeof(addr)));
+        co_return co_await connect(reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
     }
     else
     {
@@ -125,7 +127,7 @@ Task<TcpConnectionPtr> TcpConnection::connect(const char * ip, uint16_t port, Tc
         {
             throw std::runtime_error("Invalid IPv6 address");
         }
-        co_return co_await connect(reinterpret_cast<sockaddr *>(&addr), static_cast<socklen_t>(sizeof(addr)));
+        co_return co_await connect(reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
     }
 }
 
@@ -141,7 +143,11 @@ TcpConnection::~TcpConnection() = default;
 Task<size_t> TcpConnection::read(void * buf, size_t len)
 {
     BufferReader reader(buf, len);
-    co_await ioChannelPtr_->performRead(&reader);
+    auto result = co_await ioChannelPtr_->performRead(&reader);
+    if (result == IoChannel::IoResult::Eof)
+        co_return 0;
+    if (result != IoChannel::IoResult::Success)
+        throw std::runtime_error("TCP read error");
     co_return reader.readLen();
 }
 
@@ -149,7 +155,9 @@ Task<> TcpConnection::write(const void * buf, size_t len)
 {
     [[maybe_unused]] auto lock = co_await writeMutex_.scoped_lock();
     BufferWriter writer(buf, len);
-    co_await ioChannelPtr_->performWrite(&writer);
+    auto result = co_await ioChannelPtr_->performWrite(&writer);
+    if (result != IoChannel::IoResult::Success)
+        throw std::runtime_error("TCP write error");
 }
 
 Task<> TcpConnection::close()

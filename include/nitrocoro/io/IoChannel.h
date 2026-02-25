@@ -59,15 +59,16 @@ public:
         Success,
         WouldBlock,
         Retry,
-        Disconnect,
-        Error
+        Eof,     // read() returned 0: peer closed write direction
+        Error,   // ECONNRESET, EPIPE, or other fatal errors
+        Canceled // operation was canceled via cancelRead()/cancelWrite()
     };
 
     template <typename Reader>
         requires requires(Reader r, int fd, IoChannel * channel) {
             { r->read(fd, channel) } -> std::same_as<IoResult>;
         }
-    Task<> performRead(Reader && reader)
+    Task<IoResult> performRead(Reader && reader)
     {
         co_return co_await performReadImpl(std::forward<Reader>(reader));
     }
@@ -75,7 +76,7 @@ public:
     template <typename Func>
         requires std::invocable<Func, int, IoChannel *>
                  && std::same_as<std::invoke_result_t<Func, int, IoChannel *>, IoResult>
-    Task<> performRead(Func && func)
+    Task<IoResult> performRead(Func && func)
     {
         co_return co_await performReadImpl(std::forward<Func>(func));
     }
@@ -84,7 +85,7 @@ public:
         requires requires(Writer w, int fd, IoChannel * channel) {
             { w->write(fd, channel) } -> std::same_as<IoResult>;
         }
-    Task<> performWrite(Writer && writer)
+    Task<IoResult> performWrite(Writer && writer)
     {
         co_return co_await performWriteImpl(std::forward<Writer>(writer));
     }
@@ -92,7 +93,7 @@ public:
     template <typename Func>
         requires std::invocable<Func, int, IoChannel *>
                  && std::same_as<std::invoke_result_t<Func, int, IoChannel *>, IoResult>
-    Task<> performWrite(Func && func)
+    Task<IoResult> performWrite(Func && func)
     {
         co_return co_await performWriteImpl(std::forward<Func>(func));
     }
@@ -122,7 +123,7 @@ private:
 
         bool await_ready() noexcept;
         bool await_suspend(std::coroutine_handle<> h) noexcept;
-        void await_resume();
+        void await_resume() noexcept;
     };
 
     struct [[nodiscard]] WritableAwaiter
@@ -131,11 +132,11 @@ private:
 
         bool await_ready() noexcept;
         bool await_suspend(std::coroutine_handle<> h) noexcept;
-        void await_resume();
+        void await_resume() noexcept;
     };
 
     template <typename T>
-    Task<> performReadImpl(T && funcOrReader)
+    Task<IoResult> performReadImpl(T && funcOrReader)
     {
         co_await scheduler_->switch_to();
         while (true)
@@ -143,6 +144,11 @@ private:
             if (!state_->readable)
             {
                 co_await ReadableAwaiter{ state_.get() };
+                if (state_->readCanceled)
+                {
+                    state_->readCanceled = false;
+                    co_return IoResult::Canceled;
+                }
             }
 
             IoResult result;
@@ -155,30 +161,26 @@ private:
             {
                 case IoResult::Success:
                     if (triggerMode_ == TriggerMode::LevelTriggered)
-                    {
                         state_->readable = false;
-                    }
-                    co_return;
+                    co_return IoResult::Success;
 
                 case IoResult::WouldBlock:
                     state_->readable = false;
-                    break;
+                    break; // break and continue
 
                 case IoResult::Retry:
-                    break;
+                    break; // break and continue
 
-                case IoResult::Disconnect:
-                    throw std::runtime_error("I/O disconnect");
-
+                case IoResult::Eof:
                 case IoResult::Error:
                 default:
-                    throw std::runtime_error("I/O read error");
+                    co_return result;
             }
         }
     }
 
     template <typename T>
-    Task<> performWriteImpl(T && funcOrWriter)
+    Task<IoResult> performWriteImpl(T && funcOrWriter)
     {
         co_await scheduler_->switch_to();
         while (true)
@@ -186,6 +188,11 @@ private:
             if (!state_->writable)
             {
                 co_await WritableAwaiter{ state_.get() };
+                if (state_->writeCanceled)
+                {
+                    state_->writeCanceled = false;
+                    co_return IoResult::Canceled;
+                }
             }
 
             IoResult result;
@@ -197,21 +204,19 @@ private:
             switch (result)
             {
                 case IoResult::Success:
-                    co_return;
+                    co_return IoResult::Success;
 
                 case IoResult::WouldBlock:
                     state_->writable = false;
-                    break;
+                    break; // break and continue
 
                 case IoResult::Retry:
-                    break;
+                    break; // break and continue
 
-                case IoResult::Disconnect:
-                    throw std::runtime_error("I/O disconnect");
-
+                case IoResult::Eof:
                 case IoResult::Error:
                 default:
-                    throw std::runtime_error("I/O write error");
+                    co_return result;
             }
         }
     }
