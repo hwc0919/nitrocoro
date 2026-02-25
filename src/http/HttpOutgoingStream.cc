@@ -62,6 +62,7 @@ void HttpOutgoingStreamBase<DataType>::decideTransferMode(std::optional<size_t> 
     if (lengthHint.has_value())
     {
         setHeader(HttpHeader::NameCode::ContentLength, std::to_string(*lengthHint));
+        transferMode_ = TransferMode::ContentLength;
         bodyWriter_ = BodyWriter::create(TransferMode::ContentLength, conn_, *lengthHint);
         return;
     }
@@ -70,6 +71,7 @@ void HttpOutgoingStreamBase<DataType>::decideTransferMode(std::optional<size_t> 
     if (it != data_.headers.end())
     {
         size_t contentLength = std::stoull(it->second.value());
+        transferMode_ = TransferMode::ContentLength;
         bodyWriter_ = BodyWriter::create(TransferMode::ContentLength, conn_, contentLength);
         return;
     }
@@ -77,12 +79,59 @@ void HttpOutgoingStreamBase<DataType>::decideTransferMode(std::optional<size_t> 
     it = data_.headers.find(HttpHeader::Name::TransferEncoding_L);
     if (it != data_.headers.end() && it->second.value().find("chunked") != std::string::npos)
     {
+        transferMode_ = TransferMode::Chunked;
         bodyWriter_ = BodyWriter::create(TransferMode::Chunked, conn_);
         return;
     }
 
     setHeader(HttpHeader::NameCode::TransferEncoding, "chunked");
+    transferMode_ = TransferMode::Chunked;
     bodyWriter_ = BodyWriter::create(TransferMode::Chunked, conn_);
+}
+
+template <typename DataType>
+void HttpOutgoingStreamBase<DataType>::buildHeaders(std::ostringstream & oss)
+{
+    if constexpr (std::is_same_v<DataType, HttpRequest>)
+    {
+        oss << data_.method << " " << data_.path << " " << toVersionString(data_.version) << "\r\n";
+
+        for (const auto & [name, header] : data_.headers)
+        {
+            oss << header.name() << ": " << header.value() << "\r\n";
+        }
+
+        for (const auto & [name, value] : data_.cookies)
+        {
+            oss << "Cookie: " << name << "=" << value << "\r\n";
+        }
+    }
+    else // HttpResponse
+    {
+        oss << toVersionString(data_.version) << " " << static_cast<int>(data_.statusCode) << " " << data_.statusReason << "\r\n";
+
+        for (const auto & [name, header] : data_.headers)
+        {
+            oss << header.name() << ": " << header.value() << "\r\n";
+        }
+
+        for (const auto & [name, value] : data_.cookies)
+        {
+            oss << "Set-Cookie: " << name << "=" << value << "\r\n";
+        }
+
+        if (data_.headers.find(HttpHeader::Name::Connection_L) == data_.headers.end())
+        {
+            if (data_.shouldClose)
+            {
+                oss << "Connection: close\r\n";
+            }
+            else if (data_.version == Version::kHttp10)
+            {
+                oss << "Connection: keep-alive\r\n";
+            }
+        }
+    }
 }
 
 template <typename DataType>
@@ -119,6 +168,10 @@ Task<> HttpOutgoingStreamBase<DataType>::end()
 template <typename DataType>
 Task<> HttpOutgoingStreamBase<DataType>::end(std::string_view data)
 {
+    // Threshold for merging headers and body in a single write call
+    // Bodies larger than this will be sent separately to avoid large memory copies
+    constexpr size_t kMaxMergedBodySize = 32 * 1024; // 32KB
+
     if (data.empty())
     {
         co_await end();
@@ -129,7 +182,23 @@ Task<> HttpOutgoingStreamBase<DataType>::end(std::string_view data)
         decideTransferMode(data.size());
 
     if (!headersSent_)
+    {
+        // Optimization: merge headers and body for small responses to reduce syscalls
+        if (transferMode_ == TransferMode::ContentLength && data.size() <= kMaxMergedBodySize)
+        {
+            std::ostringstream oss;
+            buildHeaders(oss);
+            oss << "\r\n"
+                << data;
+
+            std::string response = oss.str();
+            co_await conn_->write(response.c_str(), response.size());
+            headersSent_ = true;
+            co_return;
+        }
+
         co_await writeHeaders();
+    }
 
     co_await bodyWriter_->write(data);
     co_await bodyWriter_->end();
@@ -142,49 +211,7 @@ Task<> HttpOutgoingStreamBase<DataType>::writeHeaders()
         co_return;
 
     std::ostringstream oss;
-
-    if constexpr (std::is_same_v<DataType, HttpRequest>)
-    {
-        oss << data_.method << " " << data_.path << " " << toVersionString(data_.version) << "\r\n";
-
-        for (const auto & [name, header] : data_.headers)
-        {
-            oss << header.name() << ": " << header.value() << "\r\n";
-        }
-
-        for (const auto & [name, value] : data_.cookies)
-        {
-            oss << "Cookie: " << name << "=" << value << "\r\n";
-        }
-    }
-    else // HttpResponse
-    {
-        oss << toVersionString(data_.version) << " " << static_cast<int>(data_.statusCode) << " " << data_.statusReason << "\r\n";
-
-        for (const auto & [name, header] : data_.headers)
-        {
-            oss << header.name() << ": " << header.value() << "\r\n";
-        }
-
-        for (const auto & [name, value] : data_.cookies)
-        {
-            oss << "Set-Cookie: " << name << "=" << value << "\r\n";
-        }
-
-        // Add Connection header if not already set
-        if (data_.headers.find(HttpHeader::Name::Connection_L) == data_.headers.end())
-        {
-            if (data_.shouldClose)
-            {
-                oss << "Connection: close\r\n";
-            }
-            else if (data_.version == Version::kHttp10)
-            {
-                oss << "Connection: keep-alive\r\n";
-            }
-        }
-    }
-
+    buildHeaders(oss);
     oss << "\r\n";
 
     std::string headers = oss.str();

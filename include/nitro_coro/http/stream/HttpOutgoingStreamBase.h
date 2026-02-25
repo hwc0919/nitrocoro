@@ -34,11 +34,13 @@ public:
 protected:
     static const char * getDefaultReason(StatusCode code);
     Task<> writeHeaders();
+    void buildHeaders(std::ostringstream & oss);
     void decideTransferMode(std::optional<size_t> lengthHint = std::nullopt);
 
     DataType data_;
     net::TcpConnectionPtr conn_;
     bool headersSent_ = false;
+    TransferMode transferMode_ = TransferMode::Chunked;
     std::unique_ptr<BodyWriter> bodyWriter_;
 };
 
