@@ -64,7 +64,7 @@ Task<> ChunkedReader::skipCRLF()
     buffer_->consume(2);
 }
 
-Task<size_t> ChunkedReader::read(char * buf, size_t len)
+Task<size_t> ChunkedReader::readImpl(char * buf, size_t len)
 {
     if (complete_)
         co_return 0;

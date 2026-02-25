@@ -8,7 +8,7 @@
 namespace nitrocoro::http
 {
 
-Task<size_t> ContentLengthReader::read(char * buf, size_t len)
+Task<size_t> ContentLengthReader::readImpl(char * buf, size_t len)
 {
     if (bytesRead_ >= contentLength_)
         co_return 0;

@@ -49,12 +49,12 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
             auto message = co_await context.receiveMessage();
             if (!message)
                 break;
-            // bool keepAlive = message->keepAlive;
-            bool keepAlive = false; // TODO: support keep-alive
+            bool keepAlive = message->keepAlive;
 
-            auto request = HttpIncomingStream<HttpRequest>(
-                std::move(*message),
-                BodyReader::create(conn, buffer, message->transferMode, message->contentLength));
+            auto bodyReader = BodyReader::create(conn, buffer, message->transferMode, message->contentLength);
+            auto * bodyReaderPtr = bodyReader.get();
+
+            auto request = HttpIncomingStream<HttpRequest>(std::move(*message), std::move(bodyReader));
             HttpOutgoingStream<HttpResponse> response(conn);
             response.setCloseConnection(!keepAlive);
 
@@ -72,18 +72,15 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
             }
 
             if (!keepAlive)
-            {
                 break;
-            }
-            // TODO: request body must be totally consumed before processing the next request in the same connection
-            co_await std::suspend_always{};
+
+            co_await bodyReaderPtr->drain();
         }
     }
     catch (const std::exception & e)
     {
         NITRO_ERROR("Error handling request: %s\n", e.what());
     }
-    // TODO: send all response before close
     co_await conn->close();
 }
 

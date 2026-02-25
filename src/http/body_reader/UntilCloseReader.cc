@@ -8,7 +8,7 @@
 namespace nitrocoro::http
 {
 
-Task<size_t> UntilCloseReader::read(char * buf, size_t len)
+Task<size_t> UntilCloseReader::readImpl(char * buf, size_t len)
 {
     if (complete_)
         co_return 0;

@@ -28,4 +28,23 @@ std::unique_ptr<BodyReader> BodyReader::create(
     return std::make_unique<UntilCloseReader>(std::move(conn), std::move(buffer));
 }
 
+Task<size_t> BodyReader::read(char * buf, size_t len)
+{
+    if (draining_ || isComplete())
+        co_return 0;
+    co_return co_await readImpl(buf, len);
+}
+
+Task<> BodyReader::drain()
+{
+    draining_ = true;
+    char buf[4096];
+    while (!isComplete())
+    {
+        size_t n = co_await readImpl(buf, sizeof(buf));
+        if (n == 0)
+            break;
+    }
+}
+
 } // namespace nitrocoro::http
