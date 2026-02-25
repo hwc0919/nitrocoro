@@ -4,6 +4,7 @@
  */
 #include <nitro_coro/http/BodyWriter.h>
 #include <nitro_coro/http/stream/HttpOutgoingStream.h>
+#include <optional>
 #include <sstream>
 
 namespace nitro_coro::http
@@ -53,10 +54,17 @@ void HttpOutgoingStreamBase<DataType>::setCookie(const std::string & name, std::
 }
 
 template <typename DataType>
-void HttpOutgoingStreamBase<DataType>::decideTransferMode()
+void HttpOutgoingStreamBase<DataType>::decideTransferMode(std::optional<size_t> lengthHint)
 {
     if (bodyWriter_)
         return;
+
+    if (lengthHint.has_value())
+    {
+        setHeader(HttpHeader::NameCode::ContentLength, std::to_string(*lengthHint));
+        bodyWriter_ = BodyWriter::create(TransferMode::ContentLength, conn_, *lengthHint);
+        return;
+    }
 
     auto it = data_.headers.find(HttpHeader::Name::ContentLength_L);
     if (it != data_.headers.end())
@@ -118,7 +126,7 @@ Task<> HttpOutgoingStreamBase<DataType>::end(std::string_view data)
     }
 
     if (!bodyWriter_)
-        decideTransferMode();
+        decideTransferMode(data.size());
 
     if (!headersSent_)
         co_await writeHeaders();

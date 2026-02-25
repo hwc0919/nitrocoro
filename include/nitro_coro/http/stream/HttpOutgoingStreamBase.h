@@ -34,7 +34,7 @@ public:
 protected:
     static const char * getDefaultReason(StatusCode code);
     Task<> writeHeaders();
-    void decideTransferMode();
+    void decideTransferMode(std::optional<size_t> lengthHint = std::nullopt);
 
     DataType data_;
     net::TcpConnectionPtr conn_;
