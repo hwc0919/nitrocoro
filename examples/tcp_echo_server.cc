@@ -3,10 +3,10 @@
  * @brief Echo server test program
  */
 #include <cstdlib>
-#include <iostream>
 #include <nitrocoro/core/Scheduler.h>
 #include <nitrocoro/net/TcpConnection.h>
 #include <nitrocoro/net/TcpServer.h>
+#include <nitrocoro/utils/Debug.h>
 
 using namespace nitrocoro;
 using namespace nitrocoro::net;
@@ -18,22 +18,22 @@ Task<> echo_handler(std::shared_ptr<TcpConnection> conn)
     char buf[BUFFER_SIZE];
     while (true)
     {
-        ssize_t n = co_await conn->read(buf, sizeof(buf) - 1);
-        if (n <= 0)
+        size_t n = co_await conn->read(buf, sizeof(buf) - 1);
+        if (n == 0)
         {
-            std::cout << "Connection closed\n";
+            NITRO_INFO("Connection closed\n");
             break;
         }
 
         buf[n] = '\0';
-        std::cout << "Received " << n << " bytes: " << buf << "\n";
+        NITRO_INFO("Received %zu bytes: %s\n", n, buf);
         try
         {
             co_await conn->write(buf, n);
         }
         catch (const std::exception & ex)
         {
-            std::cout << "Write error: " << ex.what() << "\n";
+            NITRO_ERROR("Write error: %s\n", ex.what());
             break;
         }
     }
@@ -42,13 +42,13 @@ Task<> echo_handler(std::shared_ptr<TcpConnection> conn)
 int main(int argc, char * argv[])
 {
     int port = (argc >= 2) ? atoi(argv[1]) : 8888;
-    std::cout << "=== Echo Server on port " << port << " ===\n";
+    NITRO_INFO("=== Echo Server on port %d ===\n", port);
 
     Scheduler scheduler;
     TcpServer server(port, &scheduler);
     scheduler.spawn([&server]() -> Task<> { co_await server.start(echo_handler); });
     scheduler.run();
 
-    std::cout << "=== Done ===\n";
+    NITRO_INFO("=== Done ===\n");
     return 0;
 }

@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
-#include <iostream>
 #include <memory>
 #include <nitrocoro/core/Mutex.h>
 #include <nitrocoro/core/Scheduler.h>
@@ -77,11 +76,18 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
             NITRO_ERROR("Read error: %s\n", e.what());
             break;
         }
-        assert(n > 0);
+        if (n == 0)
+        {
+            NITRO_INFO("User %s disconnect\n", username.c_str());
+            break;
+        }
         buf[n] = '\0';
 
         if (strncmp(buf, "quit\n", n) == 0)
+        {
+            NITRO_INFO("User %s quit\n", username.c_str());
             break;
+        }
 
         if (strncmp(buf, "login ", sizeof("login ") - 1) == 0)
         {
@@ -142,7 +148,9 @@ Task<> server_main(int port, Scheduler * scheduler)
         while (running.load())
         {
             BufferReader reader(buf, sizeof(buf) - 1);
-            co_await stdinChannel->performRead(&reader);
+            auto result = co_await stdinChannel->performRead(&reader);
+            if (result != IoChannel::IoResult::Success)
+                break;
             buf[reader.readLen()] = '\0';
             line += buf;
 
@@ -183,12 +191,12 @@ Task<> server_main(int port, Scheduler * scheduler)
 int main(int argc, char * argv[])
 {
     int port = (argc >= 2) ? atoi(argv[1]) : 8888;
-    std::cout << "=== Chat Server on port " << port << " ===\n";
+    NITRO_INFO("=== Chat Server on port %d ===\n", port);
 
     Scheduler scheduler;
     scheduler.spawn([port, &scheduler]() -> Task<> { co_await server_main(port, &scheduler); });
     scheduler.run();
 
-    std::cout << "=== Done ===\n";
+    NITRO_INFO("=== Done ===\n");
     return 0;
 }

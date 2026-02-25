@@ -27,13 +27,15 @@ Task<> receive_messages(const TcpConnectionPtr & connPtr)
     {
         try
         {
-            ssize_t n = co_await connPtr->read(buf, sizeof(buf) - 1);
+            size_t n = co_await connPtr->read(buf, sizeof(buf) - 1);
+            if (n == 0)
+                break;
             buf[n] = '\0';
-            printf("%s", buf);
-            fflush(stdout);
+            NITRO_INFO("%s", buf);
         }
         catch (const std::exception & e)
         {
+            NITRO_ERROR("Receive error: %s\n", e.what());
             break;
         }
     }
@@ -61,7 +63,9 @@ Task<> send_messages(const TcpConnectionPtr & connPtr)
     while (true)
     {
         BufferReader reader(buf, sizeof(buf) - 1);
-        co_await stdinChannel->performRead(&reader);
+        auto result = co_await stdinChannel->performRead(&reader);
+        if (result != IoChannel::IoResult::Success)
+            co_return;
         buf[reader.readLen()] = '\0';
         line += buf;
 
@@ -122,13 +126,13 @@ int main(int argc, char * argv[])
     int port = (argc >= 2) ? atoi(argv[1]) : 8888;
     const char * host = (argc >= 3) ? argv[2] : "127.0.0.1";
 
-    printf("=== TCP Client ===\n");
-    printf("Type 'q' to quit\n");
+    NITRO_INFO("=== TCP Client ===\n");
+    NITRO_INFO("Type 'q' to quit\n");
 
     Scheduler scheduler;
     scheduler.spawn([host, port]() -> Task<> { co_await client_main(host, port); });
     scheduler.run();
 
-    printf("=== Done ===\n");
+    NITRO_INFO("=== Done ===\n");
     return 0;
 }
