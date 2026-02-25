@@ -1,6 +1,6 @@
 /**
- * @file BodyReaderFactory.cc
- * @brief Factory implementation for creating body readers
+ * @file BodyReader.cc
+ * @brief Implementation for BodyReader
  */
 #include "body_reader/ChunkedReader.h"
 #include "body_reader/ContentLengthReader.h"
@@ -10,7 +10,7 @@
 namespace nitrocoro::http
 {
 
-std::unique_ptr<BodyReader> BodyReader::create(
+std::shared_ptr<BodyReader> BodyReader::create(
     net::TcpConnectionPtr conn,
     std::shared_ptr<utils::StringBuffer> buffer,
     TransferMode mode,
@@ -19,17 +19,18 @@ std::unique_ptr<BodyReader> BodyReader::create(
     switch (mode)
     {
         case TransferMode::ContentLength:
-            return std::make_unique<ContentLengthReader>(std::move(conn), std::move(buffer), contentLength);
+            return std::make_shared<ContentLengthReader>(std::move(conn), std::move(buffer), contentLength);
         case TransferMode::Chunked:
-            return std::make_unique<ChunkedReader>(std::move(conn), std::move(buffer));
+            return std::make_shared<ChunkedReader>(std::move(conn), std::move(buffer));
         case TransferMode::UntilClose:
-            return std::make_unique<UntilCloseReader>(std::move(conn), std::move(buffer));
+            return std::make_shared<UntilCloseReader>(std::move(conn), std::move(buffer));
     }
-    return std::make_unique<UntilCloseReader>(std::move(conn), std::move(buffer));
+    return std::make_shared<UntilCloseReader>(std::move(conn), std::move(buffer));
 }
 
 Task<size_t> BodyReader::read(char * buf, size_t len)
 {
+    [[maybe_unused]] auto lock = co_await mutex_.scoped_lock();
     if (draining_ || isComplete())
         co_return 0;
     co_return co_await readImpl(buf, len);
@@ -37,6 +38,7 @@ Task<size_t> BodyReader::read(char * buf, size_t len)
 
 Task<> BodyReader::drain()
 {
+    [[maybe_unused]] auto lock = co_await mutex_.scoped_lock();
     draining_ = true;
     char buf[4096];
     while (!isComplete())

@@ -25,7 +25,19 @@ Task<> HttpServer::start()
     NITRO_INFO("HTTP server listening on port %hu\n", port_);
 
     co_await server_->start([this](net::TcpConnectionPtr conn) -> Task<> {
-        co_await handleConnection(std::move(conn));
+        try
+        {
+            co_await handleConnection(conn);
+        }
+        catch (const std::exception & e)
+        {
+            NITRO_ERROR("Error handling connection: %s\n", e.what());
+        }
+        catch (...)
+        {
+            NITRO_ERROR("Unknown error handling connection\n");
+        }
+        co_await conn->close();
     });
 }
 
@@ -39,49 +51,38 @@ Task<> HttpServer::stop()
 
 Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
 {
-    try
+    auto buffer = std::make_shared<utils::StringBuffer>();
+    HttpContext<HttpRequest> context(conn, buffer);
+    while (true)
     {
-        auto buffer = std::make_shared<utils::StringBuffer>();
+        auto message = co_await context.receiveMessage();
+        if (!message)
+            break;
+        bool keepAlive = message->keepAlive;
 
-        while (true)
+        auto bodyReader = BodyReader::create(conn, buffer, message->transferMode, message->contentLength);
+
+        auto request = HttpIncomingStream<HttpRequest>(std::move(*message), bodyReader);
+        HttpOutgoingStream<HttpResponse> response(conn);
+        response.setCloseConnection(!keepAlive);
+
+        auto key = std::make_pair(std::string{ request.method() }, std::string{ request.path() });
+        auto it = routes_.find(key);
+        if (it != routes_.end())
         {
-            HttpContext<HttpRequest> context(conn, buffer);
-            auto message = co_await context.receiveMessage();
-            if (!message)
-                break;
-            bool keepAlive = message->keepAlive;
-
-            auto bodyReader = BodyReader::create(conn, buffer, message->transferMode, message->contentLength);
-            auto * bodyReaderPtr = bodyReader.get();
-
-            auto request = HttpIncomingStream<HttpRequest>(std::move(*message), std::move(bodyReader));
-            HttpOutgoingStream<HttpResponse> response(conn);
-            response.setCloseConnection(!keepAlive);
-
-            auto key = std::make_pair(std::string{ request.method() }, std::string{ request.path() });
-            auto it = routes_.find(key);
-
-            if (it != routes_.end())
-            {
-                co_await it->second(request, response);
-            }
-            else
-            {
-                response.setStatus(StatusCode::k404NotFound);
-                co_await response.end("Not Found");
-            }
-
-            if (!keepAlive)
-                break;
-
-            co_await bodyReaderPtr->drain();
+            co_await it->second(request, response);
         }
+        else
+        {
+            response.setStatus(StatusCode::k404NotFound);
+            co_await response.end("Not Found");
+        }
+
+        if (!keepAlive)
+            break;
+
+        co_await bodyReader->drain();
     }
-    catch (const std::exception & e)
-    {
-        NITRO_ERROR("Error handling request: %s\n", e.what());
-    }
-    co_await conn->close();
 }
 
 } // namespace nitrocoro::http

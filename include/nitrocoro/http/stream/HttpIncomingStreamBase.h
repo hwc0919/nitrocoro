@@ -5,12 +5,6 @@
 #pragma once
 #include <nitrocoro/core/Task.h>
 #include <nitrocoro/http/BodyReader.h>
-#include <nitrocoro/http/HttpParser.h>
-#include <nitrocoro/net/TcpConnection.h>
-#include <nitrocoro/utils/StringBuffer.h>
-
-#include <memory>
-#include <string_view>
 
 namespace nitrocoro::http
 {
@@ -19,7 +13,7 @@ template <typename DataType>
 class HttpIncomingStreamBase
 {
 public:
-    HttpIncomingStreamBase(DataType message, std::unique_ptr<BodyReader> bodyReader)
+    HttpIncomingStreamBase(DataType message, std::shared_ptr<BodyReader> bodyReader)
         : data_(std::move(message)), bodyReader_(std::move(bodyReader)) {}
 
     const DataType & getData() const { return data_; }
@@ -35,7 +29,7 @@ public:
 
 protected:
     DataType data_;
-    std::unique_ptr<BodyReader> bodyReader_;
+    std::shared_ptr<BodyReader> bodyReader_;
 };
 
 } // namespace nitrocoro::http

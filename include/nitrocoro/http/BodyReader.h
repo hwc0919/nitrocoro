@@ -3,6 +3,7 @@
  * @brief Body reader interface and factory
  */
 #pragma once
+#include <nitrocoro/core/Mutex.h>
 #include <nitrocoro/core/Task.h>
 #include <nitrocoro/http/HttpParser.h>
 #include <nitrocoro/net/TcpConnection.h>
@@ -15,7 +16,7 @@ namespace nitrocoro::http
 class BodyReader
 {
 public:
-    static std::unique_ptr<BodyReader> create(
+    static std::shared_ptr<BodyReader> create(
         net::TcpConnectionPtr conn,
         std::shared_ptr<utils::StringBuffer> buffer,
         TransferMode mode,
@@ -38,7 +39,8 @@ protected:
     virtual Task<size_t> readImpl(char * buf, size_t len) = 0;
 
 private:
-    bool draining_ = false;
+    Mutex mutex_;
+    bool draining_{ false };
 };
 
 template <utils::ExtendableBuffer T>
