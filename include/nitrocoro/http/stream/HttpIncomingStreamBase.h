@@ -6,6 +6,9 @@
 #include <nitrocoro/core/Task.h>
 #include <nitrocoro/http/BodyReader.h>
 
+#include <memory>
+#include <string>
+
 namespace nitrocoro::http
 {
 

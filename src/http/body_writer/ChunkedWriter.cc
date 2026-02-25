@@ -3,7 +3,7 @@
  * @brief Body writer for chunked transfer encoding
  */
 #include "ChunkedWriter.h"
-#include <sstream>
+#include <cstdio>
 
 namespace nitrocoro::http
 {
@@ -13,13 +13,13 @@ Task<> ChunkedWriter::write(std::string_view data)
     if (data.empty())
         co_return;
 
-    std::ostringstream oss;
-    oss << std::hex << data.size() << "\r\n";
-    std::string header = oss.str();
+    char sizeBuf[16];
+    int sizeLen = std::snprintf(sizeBuf, sizeof(sizeBuf), "%zx\r\n", data.size());
 
-    co_await conn_->write(header.c_str(), header.size());
-    co_await conn_->write(data.data(), data.size());
-    co_await conn_->write("\r\n", 2);
+    std::string chunk;
+    chunk.reserve(sizeLen + data.size() + 2);
+    chunk.append(sizeBuf, sizeLen).append(data).append("\r\n", 2);
+    co_await conn_->write(chunk.c_str(), chunk.size());
 }
 
 Task<> ChunkedWriter::end()

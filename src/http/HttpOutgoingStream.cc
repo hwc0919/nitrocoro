@@ -5,7 +5,6 @@
 #include <nitrocoro/http/BodyWriter.h>
 #include <nitrocoro/http/stream/HttpOutgoingStream.h>
 #include <optional>
-#include <sstream>
 
 namespace nitrocoro::http
 {
@@ -102,45 +101,45 @@ void HttpOutgoingStreamBase<DataType>::decideTransferMode(std::optional<size_t> 
 }
 
 template <typename DataType>
-void HttpOutgoingStreamBase<DataType>::buildHeaders(std::ostringstream & oss)
+void HttpOutgoingStreamBase<DataType>::buildHeaders(std::string & buf)
 {
     if constexpr (std::is_same_v<DataType, HttpRequest>)
     {
-        oss << data_.method << " " << data_.path << " " << toVersionString(data_.version) << "\r\n";
+        buf.append(data_.method).append(" ").append(data_.path).append(" ").append(toVersionString(data_.version)).append("\r\n");
 
         for (const auto & [name, header] : data_.headers)
         {
-            oss << header.name() << ": " << header.value() << "\r\n";
+            buf.append(header.name()).append(": ").append(header.value()).append("\r\n");
         }
 
         for (const auto & [name, value] : data_.cookies)
         {
-            oss << "Cookie: " << name << "=" << value << "\r\n";
+            buf.append("Cookie: ").append(name).append("=").append(value).append("\r\n");
         }
     }
     else // HttpResponse
     {
-        oss << toVersionString(data_.version) << " " << static_cast<int>(data_.statusCode) << " " << data_.statusReason << "\r\n";
+        buf.append(toVersionString(data_.version)).append(" ").append(std::to_string(static_cast<int>(data_.statusCode))).append(" ").append(data_.statusReason).append("\r\n");
 
         for (const auto & [name, header] : data_.headers)
         {
-            oss << header.name() << ": " << header.value() << "\r\n";
+            buf.append(header.name()).append(": ").append(header.value()).append("\r\n");
         }
 
         for (const auto & [name, value] : data_.cookies)
         {
-            oss << "Set-Cookie: " << name << "=" << value << "\r\n";
+            buf.append("Set-Cookie: ").append(name).append("=").append(value).append("\r\n");
         }
 
         if (data_.headers.find(HttpHeader::Name::Connection_L) == data_.headers.end())
         {
             if (data_.shouldClose)
             {
-                oss << "Connection: close\r\n";
+                buf.append("Connection: close\r\n");
             }
             else if (data_.version == Version::kHttp10)
             {
-                oss << "Connection: keep-alive\r\n";
+                buf.append("Connection: keep-alive\r\n");
             }
         }
     }
@@ -198,12 +197,10 @@ Task<> HttpOutgoingStreamBase<DataType>::end(std::string_view data)
         // Optimization: merge headers and body for small responses to reduce syscalls
         if (transferMode_ == TransferMode::ContentLength && data.size() <= kMaxMergedBodySize)
         {
-            std::ostringstream oss;
-            buildHeaders(oss);
-            oss << "\r\n"
-                << data;
-
-            std::string response = oss.str();
+            std::string response;
+            response.reserve(256 + data.size());
+            buildHeaders(response);
+            response.append("\r\n").append(data);
             co_await conn_->write(response.c_str(), response.size());
             headersSent_ = true;
             finishedPromise_.set_value();
@@ -224,11 +221,10 @@ Task<> HttpOutgoingStreamBase<DataType>::writeHeaders()
     if (headersSent_)
         co_return;
 
-    std::ostringstream oss;
-    buildHeaders(oss);
-    oss << "\r\n";
-
-    std::string headers = oss.str();
+    std::string headers;
+    headers.reserve(256);
+    buildHeaders(headers);
+    headers.append("\r\n");
     co_await conn_->write(headers.c_str(), headers.size());
     headersSent_ = true;
 }

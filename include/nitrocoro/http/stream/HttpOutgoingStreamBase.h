@@ -6,7 +6,6 @@
 #include <nitrocoro/core/Future.h>
 #include <nitrocoro/core/Task.h>
 #include <nitrocoro/http/BodyWriter.h>
-#include <nitrocoro/http/HttpParser.h>
 #include <nitrocoro/net/TcpConnection.h>
 
 #include <memory>
@@ -35,7 +34,7 @@ public:
 protected:
     static const char * getDefaultReason(StatusCode code);
     Task<> writeHeaders();
-    void buildHeaders(std::ostringstream & oss);
+    void buildHeaders(std::string & buf);
     void decideTransferMode(std::optional<size_t> lengthHint = std::nullopt);
 
     DataType data_;

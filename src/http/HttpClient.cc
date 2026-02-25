@@ -9,7 +9,6 @@
 #include <nitrocoro/http/HttpMessage.h>
 #include <nitrocoro/net/Dns.h>
 #include <nitrocoro/net/Url.h>
-#include <sstream>
 #include <stdexcept>
 
 namespace nitrocoro::http
@@ -45,24 +44,23 @@ Task<HttpCompleteResponse> HttpClient::sendRequest(const std::string & method, c
     auto conn = co_await net::TcpConnection::connect(addr.toIp().c_str(), url.port());
 
     // Build request
-    std::ostringstream oss;
-    oss << method << " " << url.path() << " HTTP/1.1\r\n";
-    oss << "Host: " << url.host() << "\r\n";
-    oss << "Connection: close\r\n";
+    std::string request;
+    request.reserve(method.size() + url.path().size() + url.host().size() + body.size() + 64);
+    request.append(method).append(" ").append(url.path()).append(" HTTP/1.1\r\n");
+    request.append("Host: ").append(url.host()).append("\r\n");
+    request.append("Connection: close\r\n");
 
     if (!body.empty())
     {
-        oss << "Content-Length: " << body.size() << "\r\n";
+        request.append("Content-Length: ").append(std::to_string(body.size())).append("\r\n");
     }
 
-    oss << "\r\n";
+    request.append("\r\n");
 
     if (!body.empty())
     {
-        oss << body;
+        request.append(body);
     }
-
-    std::string request = oss.str();
     co_await conn->write(request.c_str(), request.size());
 
     co_return co_await readResponse(conn);
