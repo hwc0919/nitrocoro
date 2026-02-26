@@ -14,6 +14,10 @@
 namespace nitrocoro::http
 {
 
+using HttpHeaderMap = std::map<std::string, HttpHeader, std::less<>>;
+using HttpCookieMap = std::map<std::string, std::string, std::less<>>;
+using HttpQueryMap = std::map<std::string, std::string, std::less<>>;
+
 struct HttpRequest
 {
     std::string method;
@@ -21,9 +25,9 @@ struct HttpRequest
     std::string path;
     std::string query;
     Version version = Version::kHttp11;
-    std::map<std::string, HttpHeader, std::less<>> headers;
-    std::map<std::string, std::string, std::less<>> cookies;
-    std::map<std::string, std::string, std::less<>> queries;
+    HttpHeaderMap headers;
+    HttpCookieMap cookies;
+    HttpQueryMap queries;
 
     // Metadata parsed from headers
     TransferMode transferMode = TransferMode::UntilClose;
@@ -36,8 +40,8 @@ struct HttpResponse
     StatusCode statusCode = StatusCode::k200OK;
     std::string statusReason;
     Version version = Version::kHttp11;
-    std::map<std::string, HttpHeader, std::less<>> headers;
-    std::map<std::string, std::string, std::less<>> cookies;
+    HttpHeaderMap headers;
+    HttpCookieMap cookies;
 
     // Metadata for sending
     TransferMode transferMode = TransferMode::ContentLength;

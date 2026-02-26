@@ -78,7 +78,10 @@ void Scheduler::run()
 void Scheduler::stop()
 {
     running_.store(false, std::memory_order_release);
-    wakeup();
+    if (!isInOwnThread())
+    {
+        wakeup();
+    }
 }
 
 TimerAwaiter Scheduler::sleep_for(double seconds)
@@ -106,13 +109,19 @@ SchedulerAwaiter Scheduler::switch_to() noexcept
 void Scheduler::schedule(std::coroutine_handle<> handle)
 {
     readyQueue_.push([handle]() { handle.resume(); });
-    wakeup();
+    if (!isInOwnThread())
+    {
+        wakeup();
+    }
 }
 
 void Scheduler::schedule_at(TimePoint when, std::coroutine_handle<> handle)
 {
     pendingTimers_.push(Timer{ when, handle });
-    wakeup();
+    if (!isInOwnThread())
+    {
+        wakeup();
+    }
 }
 
 void Scheduler::process_ready_queue()

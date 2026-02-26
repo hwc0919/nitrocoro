@@ -174,14 +174,18 @@ public:
     HttpHeader(NameCode name, std::string value);
 
     const std::string & name() const { return name_; }
-    const std::string & canonicalName() const { return canonicalName_; }
+    std::string canonicalName() const
+    {
+        if (nameCode_ != NameCode::Unknown)
+            return std::string(codeToCanonicalName(nameCode_));
+        return toCanonical(name_);
+    }
     const std::string & value() const { return value_; }
     NameCode nameCode() const { return nameCode_; }
 
     bool nameEquals(std::string_view name) const;
     bool nameEqualsLower(std::string_view lowerName) const { return name_ == lowerName; }
     bool nameCodeEquals(NameCode code) const { return nameCode_ == code; }
-    std::string serialize() const;
 
     static const std::pair<std::string_view, std::string_view> & codeToNames(NameCode code);
     static std::string_view codeToName(NameCode code);
@@ -194,7 +198,6 @@ public:
 
 private:
     std::string name_;
-    std::string canonicalName_;
     std::string value_;
     NameCode nameCode_;
 };

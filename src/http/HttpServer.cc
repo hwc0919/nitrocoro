@@ -82,7 +82,8 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
         }
 
         co_await finishedFuture.get();
-        co_await bodyReader->drain();
+        if (!bodyReader->isComplete())
+            co_await bodyReader->drain();
         if (!keepAlive)
             break;
     }

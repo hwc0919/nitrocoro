@@ -66,7 +66,8 @@ struct [[nodiscard]] Task
         Task get_return_object() { return Task{ handle_type::from_promise(*this) }; }
         std::suspend_always initial_suspend() { return {}; }
         TaskFinalAwaiter<promise_type> final_suspend() noexcept { return {}; }
-        void return_value(T value) { value_ = std::move(value); }
+        void return_value(const T & value) { value_ = value; }
+        void return_value(T && value) { value_ = std::move(value); }
         void unhandled_exception() { exception_ = std::current_exception(); }
         T && result() &&
         {

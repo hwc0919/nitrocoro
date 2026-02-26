@@ -11,7 +11,6 @@ namespace nitrocoro::http
 
 HttpHeader::HttpHeader(std::string_view name, std::string value)
     : name_(toLower(name))
-    , canonicalName_(toCanonical(name))
     , value_(std::move(value))
     , nameCode_(nameToCode(name_))
 {
@@ -21,7 +20,6 @@ HttpHeader::HttpHeader(NameCode name, std::string value)
 {
     auto & [lower, canonical] = codeToNames(name);
     name_ = lower;
-    canonicalName_ = canonical;
     value_ = std::move(value);
     nameCode_ = name;
 }
@@ -37,11 +35,6 @@ bool HttpHeader::nameEquals(std::string_view name) const
             return false;
     }
     return true;
-}
-
-std::string HttpHeader::serialize() const
-{
-    return canonicalName_ + ": " + value_ + "\r\n";
 }
 
 std::string HttpHeader::toLower(std::string_view str)
