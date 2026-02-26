@@ -258,7 +258,7 @@ void Scheduler::updateIo(uint64_t id, int fd, uint32_t events, TriggerMode mode)
             if (::epoll_ctl(epollFd_, EPOLL_CTL_DEL, fd, &ev) < 0)
             {
                 perror("epoll_ctl error");
-                throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
+                // throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
             }
             ctx->addedToEpoll = false;
         }

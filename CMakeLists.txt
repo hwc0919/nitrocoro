@@ -51,3 +51,9 @@ add_subdirectory(tests)
 
 # Build examples
 add_subdirectory(examples)
+
+# Extensions
+option(BUILD_EXT_PG "Build PostgreSQL extension" OFF)
+if(BUILD_EXT_PG)
+    add_subdirectory(extensions/pg)
+endif()
