@@ -9,6 +9,7 @@
 #include <nitrocoro/core/Scheduler.h>
 #include <nitrocoro/pg/PgConnection.h>
 #include <nitrocoro/pg/PgPool.h>
+#include <nitrocoro/pg/PgTransaction.h>
 #include <nitrocoro/utils/Debug.h>
 
 #include <cstdlib>
@@ -118,24 +119,21 @@ Task<> test_pool()
 {
     NITRO_INFO("\n--- test_pool ---\n");
     PgPool pool(2, makeConn);
-    co_await pool.init();
-    ASSERT(pool.idleCount() == 2, "2 idle after init");
 
     {
         auto c1 = co_await pool.acquire();
-        ASSERT(pool.idleCount() == 1, "1 idle after acquire");
         auto result = co_await c1->query("SELECT 'pool' AS src");
         ASSERT(std::get<std::string>(result->get(0, 0)) == "pool", "pool conn query works");
     }
 
-    ASSERT(pool.idleCount() == 2, "2 idle after release");
+    co_await Scheduler::current()->sleep_for(0.5);
+    ASSERT(pool.idleCount() == 1, "1 idle after release");
 }
 
 Task<> test_pool_waiter()
 {
     NITRO_INFO("\n--- test_pool_waiter ---\n");
     PgPool pool(1, makeConn);
-    co_await pool.init();
 
     auto c1 = co_await pool.acquire();
     ASSERT(pool.idleCount() == 0, "0 idle, all borrowed");
@@ -159,7 +157,61 @@ Task<> test_pool_waiter()
     ASSERT(waiterRan, "waiter was unblocked after release");
 }
 
-// ── main ──────────────────────────────────────────────────────────────────────
+Task<> test_transaction_raii_rollback()
+{
+    NITRO_INFO("\n--- test_transaction_raii_rollback ---\n");
+    PgPool pool(1, makeConn);
+
+    co_await (co_await pool.acquire())->execute("CREATE TEMP TABLE tx_raii_test (v INT)");
+
+    {
+        auto tx = co_await pool.newTransaction();
+        NITRO_INFO("In transaction, inserting value...\n");
+        co_await tx.execute("INSERT INTO tx_raii_test VALUES (1)");
+        NITRO_INFO("Leaving scope without commit or rollback...\n");
+        // tx goes out of scope without commit → auto rollback via spawn
+    }
+
+    // Give the spawned rollback a chance to run
+    co_await Scheduler::current()->sleep_for(std::chrono::seconds(1));
+
+    auto conn = co_await pool.acquire();
+    auto result = co_await conn->query("SELECT COUNT(*) FROM tx_raii_test");
+    ASSERT(std::get<int64_t>(result->get(0, 0)) == 0, "raii rollback: table is empty");
+}
+
+Task<> test_transaction_commit()
+{
+    NITRO_INFO("\n--- test_transaction_commit ---\n");
+    PgPool pool(1, makeConn);
+
+    co_await (co_await pool.acquire())->execute("CREATE TEMP TABLE tx_commit_test (v INT)");
+
+    {
+        auto tx = co_await pool.newTransaction();
+        co_await tx.execute("INSERT INTO tx_commit_test VALUES (42)");
+        co_await tx.commit();
+    }
+
+    auto conn = co_await pool.acquire();
+    auto result = co_await conn->query("SELECT v FROM tx_commit_test");
+    ASSERT(std::get<int64_t>(result->get(0, 0)) == 42, "commit: value persisted");
+}
+
+Task<> test_transaction_pool_return()
+{
+    NITRO_INFO("\n--- test_transaction_pool_return ---\n");
+    PgPool pool(1, makeConn);
+
+    {
+        auto tx = co_await pool.newTransaction();
+        ASSERT(pool.idleCount() == 0, "0 idle during transaction");
+        co_await tx.rollback();
+    }
+    co_await Scheduler::current()->sleep_for(0.5);
+    ASSERT(pool.idleCount() == 1, "1 idle after explicit rollback");
+}
+
 
 Task<> run_all()
 {
@@ -183,6 +235,9 @@ Task<> run_all()
     co_await run("test_transaction", test_transaction());
     co_await run("test_pool", test_pool());
     co_await run("test_pool_waiter", test_pool_waiter());
+    co_await run("test_transaction_raii_rollback", test_transaction_raii_rollback());
+    co_await run("test_transaction_commit", test_transaction_commit());
+    co_await run("test_transaction_pool_return", test_transaction_pool_return());
 
     NITRO_INFO("\n=== Results: %d passed, %d failed ===\n", passed, failed);
     Scheduler::current()->stop();

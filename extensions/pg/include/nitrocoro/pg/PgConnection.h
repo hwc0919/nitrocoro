@@ -40,12 +40,11 @@ public:
     bool isAlive() const;
 
 private:
-    PgConnection(std::shared_ptr<PGconn> conn, Scheduler * scheduler);
+    PgConnection(std::shared_ptr<PGconn> conn, std::unique_ptr<IoChannel> channel);
 
     Task<std::unique_ptr<PgResult>> sendAndReceive(std::string_view sql, std::vector<PgValue> params);
 
     std::shared_ptr<PGconn> pgConn_;
-    Scheduler * scheduler_{ nullptr };
     std::unique_ptr<IoChannel> channel_;
 };
 

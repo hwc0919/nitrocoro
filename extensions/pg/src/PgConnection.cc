@@ -50,35 +50,30 @@ PgValue PgResult::get(size_t row, size_t col) const
 
 // ── PgConnection ─────────────────────────────────────────────────────────────
 
-PgConnection::PgConnection(std::shared_ptr<PGconn> conn, Scheduler * scheduler)
+PgConnection::PgConnection(std::shared_ptr<PGconn> conn, std::unique_ptr<IoChannel> channel)
     : pgConn_(std::move(conn))
-    , scheduler_(scheduler)
-    , channel_(std::make_unique<IoChannel>(PQsocket(pgConn_.get()), TriggerMode::EdgeTriggered, scheduler))
+    , channel_(std::move(channel))
 {
 }
 
 PgConnection::~PgConnection()
 {
-    if (pgConn_)
-    {
-        // IoChannel must be destroyed before closing the fd
-        channel_->disableAll();
-        channel_.reset();
-    }
+    // channel_->cancelAll();
+    channel_->disableAll();
 }
 
 Task<std::shared_ptr<PgConnection>> PgConnection::connect(std::string connStr, Scheduler * scheduler)
 {
-    auto conn = std::shared_ptr<PGconn>(PQconnectStart(connStr.c_str()), PQfinish);
-    if (!conn)
+    auto pgConn = std::shared_ptr<PGconn>(PQconnectStart(connStr.c_str()), PQfinish);
+    if (!pgConn)
         throw std::runtime_error("PQconnectStart: out of memory");
 
-    if (PQstatus(conn.get()) == CONNECTION_BAD)
-        throw std::runtime_error("PgConnection::connect: " + std::string(PQerrorMessage(conn.get())));
+    if (PQstatus(pgConn.get()) == CONNECTION_BAD)
+        throw std::runtime_error("PgConnection::connect: " + std::string(PQerrorMessage(pgConn.get())));
 
-    auto pg = std::shared_ptr<PgConnection>(new PgConnection(conn, scheduler));
     co_await scheduler->switch_to();
-    pg->channel_->enableReading();
+    auto channel = std::make_unique<IoChannel>(PQsocket(pgConn.get()), TriggerMode::EdgeTriggered, scheduler);
+    channel->enableReading();
 
     auto pgPollStr = [](PostgresPollingStatusType s) -> const char * {
         switch (s)
@@ -96,7 +91,7 @@ Task<std::shared_ptr<PgConnection>> PgConnection::connect(std::string connStr, S
         }
     };
 
-    PostgresPollingStatusType s = PQconnectPoll(pg->pgConn_.get());
+    PostgresPollingStatusType s = PQconnectPoll(pgConn.get());
     while (s != PGRES_POLLING_OK)
     {
         if (s == PGRES_POLLING_FAILED)
@@ -104,9 +99,9 @@ Task<std::shared_ptr<PgConnection>> PgConnection::connect(std::string connStr, S
 
         if (s == PGRES_POLLING_WRITING)
         {
-            pg->channel_->enableWriting();
-            co_await pg->channel_->performWrite([&pg, &s, &pgPollStr](int, IoChannel *) -> IoChannel::IoResult {
-                s = PQconnectPoll(pg->pgConn_.get());
+            channel->enableWriting();
+            co_await channel->performWrite([&pgConn, &s, &pgPollStr](int, IoChannel *) -> IoChannel::IoResult {
+                s = PQconnectPoll(pgConn.get());
                 NITRO_TRACE("PgConnection: pollWrite PQconnectPoll=%s\n", pgPollStr(s));
                 if (s == PGRES_POLLING_FAILED)
                     return IoChannel::IoResult::Error;
@@ -114,12 +109,12 @@ Task<std::shared_ptr<PgConnection>> PgConnection::connect(std::string connStr, S
                     return IoChannel::IoResult::WouldBlock;
                 return IoChannel::IoResult::Success;
             });
-            pg->channel_->disableWriting();
+            channel->disableWriting();
         }
         else
         {
-            co_await pg->channel_->performRead([&pg, &s, &pgPollStr](int, IoChannel *) -> IoChannel::IoResult {
-                s = PQconnectPoll(pg->pgConn_.get());
+            co_await channel->performRead([&pgConn, &s, &pgPollStr](int, IoChannel *) -> IoChannel::IoResult {
+                s = PQconnectPoll(pgConn.get());
                 NITRO_TRACE("PgConnection: pollRead PQconnectPoll=%s\n", pgPollStr(s));
                 if (s == PGRES_POLLING_FAILED)
                     return IoChannel::IoResult::Error;
@@ -129,10 +124,10 @@ Task<std::shared_ptr<PgConnection>> PgConnection::connect(std::string connStr, S
             });
         }
     }
-    NITRO_TRACE("PgConnection: connected (fd=%d)\n", PQsocket(pg->pgConn_.get()));
-    if (PQsetnonblocking(pg->pgConn_.get(), 1) != 0)
-        throw std::runtime_error("PQsetnonblocking: " + std::string(PQerrorMessage(pg->pgConn_.get())));
-    co_return pg;
+    NITRO_TRACE("PgConnection: connected (fd=%d)\n", PQsocket(pgConn.get()));
+    if (PQsetnonblocking(pgConn.get(), 1) != 0)
+        throw std::runtime_error("PQsetnonblocking: " + std::string(PQerrorMessage(pgConn.get())));
+    co_return std::shared_ptr<PgConnection>(new PgConnection(std::move(pgConn), std::move(channel)));
 }
 
 bool PgConnection::isAlive() const

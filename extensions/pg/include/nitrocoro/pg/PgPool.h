@@ -22,27 +22,22 @@ using nitrocoro::Promise;
 using nitrocoro::Scheduler;
 using nitrocoro::Task;
 
+class PgTransaction;
+
 class PooledConnection
 {
 public:
-    PooledConnection(std::shared_ptr<PgConnection> conn, std::function<void(std::shared_ptr<PgConnection>)> returnFn)
-        : conn_(std::move(conn)), returnFn_(std::move(returnFn))
-    {
-    }
+    PooledConnection(std::shared_ptr<PgConnection> conn, std::function<void(std::shared_ptr<PgConnection>)> returnFn);
+    ~PooledConnection() noexcept;
 
     PooledConnection(const PooledConnection &) = delete;
     PooledConnection & operator=(const PooledConnection &) = delete;
     PooledConnection(PooledConnection &&) = default;
     PooledConnection & operator=(PooledConnection &&) = default;
 
-    ~PooledConnection()
-    {
-        if (conn_)
-            returnFn_(std::move(conn_));
-    }
-
     PgConnection * operator->() const { return conn_.get(); }
     PgConnection & operator*() const { return *conn_; }
+    explicit operator bool() const noexcept { return conn_ != nullptr; }
 
 private:
     std::shared_ptr<PgConnection> conn_;
@@ -54,63 +49,28 @@ class PgPool
 public:
     using Factory = std::function<Task<std::shared_ptr<PgConnection>>()>;
 
-    PgPool(size_t size, Factory factory, Scheduler * scheduler = Scheduler::current())
-        : factory_(std::move(factory)), scheduler_(scheduler), size_(size)
+    PgPool(size_t maxSize, Factory factory, Scheduler * scheduler = Scheduler::current())
+        : factory_(std::move(factory)), scheduler_(scheduler), maxSize_(maxSize)
     {
     }
-
     PgPool(const PgPool &) = delete;
     PgPool & operator=(const PgPool &) = delete;
 
-    Task<> init()
-    {
-        for (size_t i = 0; i < size_; ++i)
-            idle_.push(co_await factory_());
-    }
-
-    [[nodiscard]] Task<PooledConnection> acquire()
-    {
-        [[maybe_unused]] auto lock = co_await mutex_.scoped_lock();
-
-        while (idle_.empty())
-        {
-            Promise<> promise(scheduler_);
-            auto future = promise.get_future();
-            waiters_.push(std::move(promise));
-            lock.unlock();
-            co_await future.get();
-            lock = co_await mutex_.scoped_lock();
-        }
-
-        auto conn = std::move(idle_.front());
-        idle_.pop();
-
-        co_return PooledConnection(std::move(conn), [this](std::shared_ptr<PgConnection> c) {
-            returnConnection(std::move(c));
-        });
-    }
-
+    [[nodiscard]] Task<PooledConnection> acquire();
     size_t idleCount() const { return idle_.size(); }
 
+    [[nodiscard]] Task<PgTransaction> newTransaction();
+
 private:
-    void returnConnection(std::shared_ptr<PgConnection> conn)
-    {
-        scheduler_->dispatch([this, conn = std::move(conn)]() mutable {
-            idle_.push(std::move(conn));
-            if (!waiters_.empty())
-            {
-                waiters_.front().set_value();
-                waiters_.pop();
-            }
-        });
-    }
+    void returnConnection(std::shared_ptr<PgConnection> conn) noexcept;
 
     Factory factory_;
     Scheduler * scheduler_;
-    size_t size_;
+    size_t maxSize_;
+    size_t totalCount_{ 0 };
     Mutex mutex_;
     std::queue<std::shared_ptr<PgConnection>> idle_;
-    std::queue<Promise<>> waiters_;
+    std::queue<Promise<std::shared_ptr<PgConnection>>> waiters_;
 };
 
 } // namespace nitrocoro::pg
