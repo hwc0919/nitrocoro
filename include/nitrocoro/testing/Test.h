@@ -167,14 +167,14 @@ struct Registrar
 
 // ── Test registration ─────────────────────────────────────────────────────────
 
-#define NITRO_TEST(name)                                                                          \
-    static nitrocoro::Task<> _nitro_test_fn_##name(nitrocoro::test::TestCtxPtr TEST_CTX);          \
-    static nitrocoro::test::Registrar _nitro_reg_##name{ #name, _nitro_test_fn_##name };           \
+#define NITRO_TEST(name)                                                                  \
+    static nitrocoro::Task<> _nitro_test_fn_##name(nitrocoro::test::TestCtxPtr TEST_CTX); \
+    static nitrocoro::test::Registrar _nitro_reg_##name{ #name, _nitro_test_fn_##name };  \
     static nitrocoro::Task<> _nitro_test_fn_##name(nitrocoro::test::TestCtxPtr TEST_CTX)
 
-#define NITRO_TEST_EXPECT_FAIL(name)                                                               \
-    static nitrocoro::Task<> _nitro_test_fn_##name(nitrocoro::test::TestCtxPtr TEST_CTX);          \
-    static nitrocoro::test::Registrar _nitro_reg_##name{ #name, _nitro_test_fn_##name, true };     \
+#define NITRO_TEST_EXPECT_FAIL(name)                                                           \
+    static nitrocoro::Task<> _nitro_test_fn_##name(nitrocoro::test::TestCtxPtr TEST_CTX);      \
+    static nitrocoro::test::Registrar _nitro_reg_##name{ #name, _nitro_test_fn_##name, true }; \
     static nitrocoro::Task<> _nitro_test_fn_##name(nitrocoro::test::TestCtxPtr TEST_CTX)
 
 // ── CHECK — soft assertion: log failure, continue ─────────────────────────────
@@ -221,3 +221,55 @@ struct Registrar
 
 #define NITRO_MANDATE_EQ(a, b) NITRO_MANDATE((a) == (b))
 #define NITRO_MANDATE_NE(a, b) NITRO_MANDATE((a) != (b))
+
+// ── THROWS — assert that an expression throws ─────────────────────────────────
+
+#define NITRO_THROWS__(expr, msg, on_fail)              \
+    do                                                  \
+    {                                                   \
+        nitrocoro::test::record_check(TEST_CTX);        \
+        bool _threw_ = false;                           \
+        try                                             \
+        {                                               \
+            (void)(expr);                               \
+        }                                               \
+        catch (...)                                     \
+        {                                               \
+            _threw_ = true;                             \
+        }                                               \
+        if (!_threw_)                                   \
+        {                                               \
+            NITRO_TEST_RECORD_FAILURE__(msg, TEST_CTX); \
+            on_fail;                                    \
+        }                                               \
+    } while (0)
+
+#define NITRO_THROWS_AS__(expr, ExType, msg, on_fail)   \
+    do                                                  \
+    {                                                   \
+        nitrocoro::test::record_check(TEST_CTX);        \
+        bool _threw_ = false;                           \
+        try                                             \
+        {                                               \
+            (void)(expr);                               \
+        }                                               \
+        catch (const ExType &)                          \
+        {                                               \
+            _threw_ = true;                             \
+        }                                               \
+        catch (...)                                     \
+        {                                               \
+        }                                               \
+        if (!_threw_)                                   \
+        {                                               \
+            NITRO_TEST_RECORD_FAILURE__(msg, TEST_CTX); \
+            on_fail;                                    \
+        }                                               \
+    } while (0)
+
+#define NITRO_CHECK_THROWS(expr)              NITRO_THROWS__(expr, #expr " did not throw", (void)0)
+#define NITRO_CHECK_THROWS_AS(expr, ExType)   NITRO_THROWS_AS__(expr, ExType, #expr " did not throw " #ExType, (void)0)
+#define NITRO_REQUIRE_THROWS(expr)            NITRO_THROWS__(expr, #expr " did not throw", co_return)
+#define NITRO_REQUIRE_THROWS_AS(expr, ExType) NITRO_THROWS_AS__(expr, ExType, #expr " did not throw " #ExType, co_return)
+#define NITRO_MANDATE_THROWS(expr)            NITRO_THROWS__(expr, #expr " did not throw", std::exit(1))
+#define NITRO_MANDATE_THROWS_AS(expr, ExType) NITRO_THROWS_AS__(expr, ExType, #expr " did not throw " #ExType, std::exit(1))

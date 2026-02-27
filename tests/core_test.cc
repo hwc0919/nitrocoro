@@ -23,16 +23,7 @@ NITRO_TEST(task_return_value)
 NITRO_TEST(task_exception_propagates)
 {
     auto thrower = []() -> Task<> { throw std::runtime_error("boom"); co_return; };
-    bool caught = false;
-    try
-    {
-        co_await thrower();
-    }
-    catch (const std::runtime_error &)
-    {
-        caught = true;
-    }
-    NITRO_CHECK(caught);
+    NITRO_CHECK_THROWS_AS(co_await thrower(), std::runtime_error);
 }
 
 /** Nested co_await chains resolve in the correct order. */
@@ -112,18 +103,7 @@ NITRO_TEST(generator_exception)
         co_yield 1;
         throw std::runtime_error("gen error");
     };
-    bool caught = false;
-    try
-    {
-        for ([[maybe_unused]] int v : thrower())
-        {
-        }
-    }
-    catch (const std::runtime_error &)
-    {
-        caught = true;
-    }
-    NITRO_CHECK(caught);
+    NITRO_CHECK_THROWS_AS([&] { for (int _ : thrower()) {} }(), std::runtime_error);
     co_return;
 }
 

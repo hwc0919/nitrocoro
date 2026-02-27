@@ -34,16 +34,7 @@ NITRO_TEST(future_set_exception)
         p.set_exception(std::make_exception_ptr(std::runtime_error("err")));
         co_return;
     });
-    bool caught = false;
-    try
-    {
-        co_await f.get();
-    }
-    catch (const std::runtime_error &)
-    {
-        caught = true;
-    }
-    NITRO_CHECK(caught);
+    NITRO_CHECK_THROWS_AS(co_await f.get(), std::runtime_error);
 }
 
 /** SharedFuture resumes all waiters when the Promise is fulfilled. */

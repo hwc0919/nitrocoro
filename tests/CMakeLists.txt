@@ -1,5 +1,7 @@
 enable_testing()
 
+add_compile_options(-Werror=return-type)
+
 add_executable(self_test self_test.cc)
 target_link_libraries(self_test PRIVATE nitrocoro)
 add_test(NAME self_test COMMAND self_test)
