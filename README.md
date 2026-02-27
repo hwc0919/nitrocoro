@@ -91,6 +91,72 @@ int main()
 }
 ```
 
+## Benchmark
+
+Benchmarked `examples/http_server` against a [Drogon](https://github.com/drogonframework/drogon) server.
+
+- Both running 4 threads, Release build
+- Machine: Intel Core Ultra 7 255H, 16 cores, 32GB RAM
+- Command: `wrk -t4 -c100 -d30s`
+
+NitroCoro reaches the performance level of [Drogon](https://github.com/drogonframework/drogon).
+
+| | Route | QPS | Latency (avg) | Transfer |
+|---|---|---|---|---|
+| **NitroCoro** (4 threads) | `/` | **997,678** | 108.26 μs | 96.10 MB/s |
+| [Drogon](https://github.com/drogonframework/drogon) (4 threads) | `/` | 968,551 | 104.51 μs | 93.29 MB/s |
+| **NitroCoro** (4 threads) | `/large` (1MB) | **27,975** | 3.00 ms | **27.32 GB/s** |
+| [Drogon](https://github.com/drogonframework/drogon) (4 threads) | `/large` (1MB) | 22,851 | 4.37 ms | 22.32 GB/s |
+
+<details>
+<summary>drogon_server code</summary>
+
+```cpp
+#include <drogon/drogon.h>
+#include <iostream>
+#include <string>
+
+int main(int argc, char* argv[])
+{
+    int port = 8081;
+    int threads = 1;
+
+    for (int i = 1; i < argc; i++) {
+        if (std::string(argv[i]) == "-p" && i + 1 < argc) {
+            port = std::stoi(argv[++i]);
+        } else if (std::string(argv[i]) == "-t" && i + 1 < argc) {
+            threads = std::stoi(argv[++i]);
+        }
+    }
+
+    drogon::app()
+        .registerHandler("/", [](drogon::HttpRequestPtr req) -> drogon::Task<drogon::HttpResponsePtr> {
+            auto resp = drogon::HttpResponse::newHttpResponse();
+            resp->setBody("<h1>Hello, World!</h1>");
+            co_return resp;
+        })
+        .registerHandler("/large", [](drogon::HttpRequestPtr req) -> drogon::Task<drogon::HttpResponsePtr> {
+            auto resp = drogon::HttpResponse::newHttpResponse();
+            std::string largeBody(1024 * 1024, 'a');
+            resp->setBody(largeBody);
+            co_return resp;
+        })
+        .registerHandler("/hello", [](drogon::HttpRequestPtr req) -> drogon::Task<drogon::HttpResponsePtr> {
+            auto name = req->getParameter("name");
+            auto resp = drogon::HttpResponse::newHttpResponse();
+            resp->setBody("Hello, " + name + "!");
+            co_return resp;
+        })
+        .setThreadNum(threads)
+        .enableServerHeader(false)
+        .enableDateHeader(false)
+        .addListener("0.0.0.0", port)
+        .run();
+}
+```
+
+</details>
+
 ## Project Structure
 
 ```
