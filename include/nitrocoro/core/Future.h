@@ -4,14 +4,14 @@
  */
 #pragma once
 
+#include <nitrocoro/core/LockFreeList.h>
 #include <nitrocoro/core/Scheduler.h>
 
+#include <atomic>
 #include <coroutine>
 #include <exception>
 #include <memory>
-#include <mutex>
 #include <optional>
-#include <vector>
 
 namespace nitrocoro
 {
@@ -22,23 +22,39 @@ class Promise;
 template <typename T>
 class SharedFuture;
 
-template <typename T = void>
-struct FutureState
+struct FutureStateBase
 {
-    std::mutex mutex_;
-    bool ready_{ false };
-    std::vector<std::coroutine_handle<>> waiters_;
-    std::optional<T> value_;
+    struct WaiterNode : LockFreeListNode
+    {
+        std::coroutine_handle<> handle;
+    };
+
+    std::atomic<LockFreeListNode *> waiters_{ nullptr };
     std::exception_ptr exception_;
+
+    static void resumeAll(WaiterNode * head, Scheduler * scheduler) noexcept
+    {
+        for (auto * n = head; n;)
+        {
+            auto * next = static_cast<WaiterNode *>(n->next_);
+            if (scheduler)
+                scheduler->schedule(n->handle);
+            else
+                n->handle.resume();
+            n = next;
+        }
+    }
+};
+
+template <typename T = void>
+struct FutureState : FutureStateBase
+{
+    std::optional<T> value_;
 };
 
 template <>
-struct FutureState<void>
+struct FutureState<void> : FutureStateBase
 {
-    std::mutex mutex_;
-    bool ready_{ false };
-    std::vector<std::coroutine_handle<>> waiters_;
-    std::exception_ptr exception_;
 };
 
 template <typename T = void>
@@ -53,25 +69,20 @@ public:
     struct Awaiter
     {
         std::shared_ptr<FutureState<T>> state_;
+        FutureStateBase::WaiterNode node_;
 
         bool await_ready() const noexcept
         {
-            std::lock_guard lock(state_->mutex_);
-            return state_->ready_;
+            return LockFreeListNode::closed(state_->waiters_);
         }
 
         bool await_suspend(std::coroutine_handle<> h) noexcept
         {
-            std::lock_guard lock(state_->mutex_);
-            if (state_->ready_)
-            {
-                return false;
-            }
-            state_->waiters_.push_back(h);
-            return true;
+            node_.handle = h;
+            return LockFreeListNode::push(state_->waiters_, &node_);
         }
 
-        T await_resume()
+        auto await_resume()
         {
             if (state_->exception_)
                 std::rethrow_exception(state_->exception_);
@@ -101,64 +112,6 @@ private:
     std::shared_ptr<FutureState<T>> state_;
 };
 
-template <>
-class Future<void>
-{
-public:
-    Future(const Future &) = delete;
-    Future & operator=(const Future &) = delete;
-    Future(Future &&) = default;
-    Future & operator=(Future &&) = default;
-
-    struct Awaiter
-    {
-        std::shared_ptr<FutureState<void>> state_;
-
-        bool await_ready() const noexcept
-        {
-            std::lock_guard lock(state_->mutex_);
-            return state_->ready_;
-        }
-
-        bool await_suspend(std::coroutine_handle<> h) noexcept
-        {
-            std::lock_guard lock(state_->mutex_);
-            if (state_->ready_)
-            {
-                return false;
-            }
-            state_->waiters_.push_back(h);
-            return true;
-        }
-
-        void await_resume()
-        {
-            if (state_->exception_)
-                std::rethrow_exception(state_->exception_);
-        }
-    };
-
-    [[nodiscard]] Awaiter get() noexcept
-    {
-        auto awaiter = Awaiter{ state_ };
-        state_.reset();
-        return awaiter;
-    }
-
-    bool valid() const noexcept { return state_ != nullptr; }
-    SharedFuture<void> share() noexcept;
-
-private:
-    friend class Promise<void>;
-
-    explicit Future(std::shared_ptr<FutureState<void>> state)
-        : state_(std::move(state))
-    {
-    }
-
-    std::shared_ptr<FutureState<void>> state_;
-};
-
 template <typename T = void>
 class SharedFuture
 {
@@ -171,22 +124,14 @@ public:
     struct Awaiter
     {
         std::shared_ptr<FutureState<T>> state_;
+        FutureStateBase::WaiterNode node_;
 
-        bool await_ready() const noexcept
-        {
-            std::lock_guard lock(state_->mutex_);
-            return state_->ready_;
-        }
+        bool await_ready() const noexcept { return LockFreeListNode::closed(state_->waiters_); }
 
         bool await_suspend(std::coroutine_handle<> h) noexcept
         {
-            std::lock_guard lock(state_->mutex_);
-            if (state_->ready_)
-            {
-                return false;
-            }
-            state_->waiters_.push_back(h);
-            return true;
+            node_.handle = h;
+            return LockFreeListNode::push(state_->waiters_, &node_);
         }
 
         const T & await_resume() const
@@ -222,23 +167,15 @@ public:
 
     struct Awaiter
     {
-        std::shared_ptr<FutureState<void>> state_;
+        std::shared_ptr<FutureState<>> state_;
+        FutureStateBase::WaiterNode node_;
 
-        bool await_ready() const noexcept
-        {
-            std::lock_guard lock(state_->mutex_);
-            return state_->ready_;
-        }
+        bool await_ready() const noexcept { return LockFreeListNode::closed(state_->waiters_); }
 
         bool await_suspend(std::coroutine_handle<> h) noexcept
         {
-            std::lock_guard lock(state_->mutex_);
-            if (state_->ready_)
-            {
-                return false;
-            }
-            state_->waiters_.push_back(h);
-            return true;
+            node_.handle = h;
+            return LockFreeListNode::push(state_->waiters_, &node_);
         }
 
         void await_resume() const
@@ -252,25 +189,20 @@ public:
     bool valid() const noexcept { return state_ != nullptr; }
 
 private:
-    friend class Future<void>;
+    friend class Future<>;
 
-    explicit SharedFuture(std::shared_ptr<FutureState<void>> state)
+    explicit SharedFuture(std::shared_ptr<FutureState<>> state)
         : state_(std::move(state))
     {
     }
 
-    std::shared_ptr<FutureState<void>> state_;
+    std::shared_ptr<FutureState<>> state_;
 };
 
 template <typename T>
 SharedFuture<T> Future<T>::share() noexcept
 {
     return SharedFuture<T>(std::move(state_));
-}
-
-inline SharedFuture<void> Future<void>::share() noexcept
-{
-    return SharedFuture<void>(std::move(state_));
 }
 
 template <typename T = void>
@@ -292,44 +224,16 @@ public:
 
     void set_value(T value)
     {
-        std::vector<std::coroutine_handle<>> waiters;
-        {
-            std::lock_guard lock(state_->mutex_);
-            state_->value_.emplace(std::move(value));
-            state_->ready_ = true;
-            waiters = std::move(state_->waiters_);
-        }
-        if (scheduler_)
-        {
-            for (auto h : waiters)
-                scheduler_->schedule(h);
-        }
-        else
-        {
-            for (auto h : waiters)
-                h.resume();
-        }
+        state_->value_.emplace(std::move(value));
+        auto * waiters = static_cast<FutureStateBase::WaiterNode *>(LockFreeListNode::close(state_->waiters_));
+        FutureStateBase::resumeAll(waiters, scheduler_);
     }
 
     void set_exception(std::exception_ptr ex)
     {
-        std::vector<std::coroutine_handle<>> waiters;
-        {
-            std::lock_guard lock(state_->mutex_);
-            state_->exception_ = std::move(ex);
-            state_->ready_ = true;
-            waiters = std::move(state_->waiters_);
-        }
-        if (scheduler_)
-        {
-            for (auto h : waiters)
-                scheduler_->schedule(h);
-        }
-        else
-        {
-            for (auto h : waiters)
-                h.resume();
-        }
+        state_->exception_ = std::move(ex);
+        auto * waiters = static_cast<FutureStateBase::WaiterNode *>(LockFreeListNode::close(state_->waiters_));
+        FutureStateBase::resumeAll(waiters, scheduler_);
     }
 
 private:
@@ -343,7 +247,7 @@ class Promise<void>
 public:
     explicit Promise(Scheduler * scheduler)
         : scheduler_(scheduler)
-        , state_(std::make_shared<FutureState<void>>())
+        , state_(std::make_shared<FutureState<>>())
     {
     }
 
@@ -352,52 +256,24 @@ public:
     Promise(Promise &&) = default;
     Promise & operator=(Promise &&) = default;
 
-    Future<void> get_future() { return Future<void>(state_); }
+    Future<> get_future() { return Future<>(state_); }
 
     void set_value()
     {
-        std::vector<std::coroutine_handle<>> waiters;
-        {
-            std::lock_guard lock(state_->mutex_);
-            state_->ready_ = true;
-            waiters = std::move(state_->waiters_);
-        }
-        if (scheduler_)
-        {
-            for (auto h : waiters)
-                scheduler_->schedule(h);
-        }
-        else
-        {
-            for (auto h : waiters)
-                h.resume();
-        }
+        auto * waiters = static_cast<FutureStateBase::WaiterNode *>(LockFreeListNode::close(state_->waiters_));
+        FutureStateBase::resumeAll(waiters, scheduler_);
     }
 
     void set_exception(std::exception_ptr ex)
     {
-        std::vector<std::coroutine_handle<>> waiters;
-        {
-            std::lock_guard lock(state_->mutex_);
-            state_->exception_ = std::move(ex);
-            state_->ready_ = true;
-            waiters = std::move(state_->waiters_);
-        }
-        if (scheduler_)
-        {
-            for (auto h : waiters)
-                scheduler_->schedule(h);
-        }
-        else
-        {
-            for (auto h : waiters)
-                h.resume();
-        }
+        state_->exception_ = std::move(ex);
+        auto * waiters = LockFreeListNode::close(state_->waiters_);
+        FutureStateBase::resumeAll(static_cast<FutureStateBase::WaiterNode *>(waiters), scheduler_);
     }
 
 private:
     Scheduler * scheduler_;
-    std::shared_ptr<FutureState<void>> state_;
+    std::shared_ptr<FutureState<>> state_;
 };
 
 } // namespace nitrocoro
