@@ -6,3 +6,6 @@ target_link_libraries(generator_test PRIVATE nitrocoro)
 
 add_executable(dns_resolver_test dns_resolver_test.cc)
 target_link_libraries(dns_resolver_test PRIVATE nitrocoro)
+
+add_executable(self_test self_test.cc)
+target_link_libraries(self_test PRIVATE nitrocoro)
