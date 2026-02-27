@@ -21,21 +21,6 @@ add_library(nitrocoro STATIC
     src/DnsResolver.cc
     src/Dns.cc
     src/Url.cpp
-    src/http/HttpContext.cc
-    src/http/HttpIncomingStream.cc
-    src/http/HttpOutgoingStream.cc
-    src/http/HttpServer.cc
-    src/http/HttpClient.cc
-    src/http/HttpHeader.cc
-    src/http/HttpParser.cc
-    src/http/BodyReader.cc
-    src/Http/BodyWriter.cc
-    src/http/body_reader/ContentLengthReader.cc
-    src/http/body_reader/ChunkedReader.cc
-    src/http/body_reader/UntilCloseReader.cc
-    src/http/body_writer/ContentLengthWriter.cc
-    src/http/body_writer/ChunkedWriter.cc
-    src/http/body_writer/UntilCloseWriter.cc
 )
 
 target_include_directories(nitrocoro PUBLIC
@@ -53,6 +38,11 @@ add_subdirectory(tests)
 add_subdirectory(examples)
 
 # Extensions
+option(BUILD_EXT_HTTP "Build HTTP extension" ON)
+if(BUILD_EXT_HTTP)
+    add_subdirectory(extensions/http)
+endif()
+
 option(BUILD_EXT_PG "Build PostgreSQL extension" OFF)
 if(BUILD_EXT_PG)
     add_subdirectory(extensions/pg)
