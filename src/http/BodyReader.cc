@@ -10,6 +10,15 @@
 namespace nitrocoro::http
 {
 
+class NoopReader : public BodyReader
+{
+public:
+    bool isComplete() const override { return true; }
+
+protected:
+    Task<size_t> readImpl(char *, size_t) override { co_return 0; }
+};
+
 std::shared_ptr<BodyReader> BodyReader::create(
     net::TcpConnectionPtr conn,
     std::shared_ptr<utils::StringBuffer> buffer,
@@ -19,6 +28,11 @@ std::shared_ptr<BodyReader> BodyReader::create(
     switch (mode)
     {
         case TransferMode::ContentLength:
+            if (contentLength == 0)
+            {
+                static auto noop = std::make_shared<NoopReader>();
+                return noop;
+            }
             return std::make_shared<ContentLengthReader>(std::move(conn), std::move(buffer), contentLength);
         case TransferMode::Chunked:
             return std::make_shared<ChunkedReader>(std::move(conn), std::move(buffer));
