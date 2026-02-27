@@ -46,6 +46,7 @@ void TcpServer::setup_socket()
 
     int opt = 1;
     setsockopt(listenFd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(listenFd_, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
 
     int flags = fcntl(listenFd_, F_GETFL, 0);
     fcntl(listenFd_, F_SETFL, flags | O_NONBLOCK);

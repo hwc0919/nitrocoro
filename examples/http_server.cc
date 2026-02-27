@@ -2,9 +2,12 @@
  * @file http_server.cc
  * @brief Simple HTTP server test
  */
+#include <getopt.h>
 #include <nitrocoro/core/Scheduler.h>
 #include <nitrocoro/http/HttpServer.h>
 #include <nitrocoro/utils/Debug.h>
+#include <thread>
+#include <vector>
 
 using namespace nitrocoro;
 using namespace nitrocoro::http;
@@ -59,18 +62,45 @@ Task<> server_main(uint16_t port)
 
 int main(int argc, char * argv[])
 {
-    uint16_t port = (argc >= 2) ? atoi(argv[1]) : 8080;
+    uint16_t port = 8080;
+    size_t threadCount = 1;
 
-    NITRO_INFO("=== HTTP Server Test ===\n"
+    int opt;
+    while ((opt = getopt(argc, argv, "p:t:")) != -1)
+    {
+        switch (opt)
+        {
+            case 'p':
+                port = std::stoi(optarg);
+                break;
+            case 't':
+                threadCount = std::stoi(optarg);
+                break;
+            default:
+                fprintf(stderr, "Usage: %s [-p port] [-t threads]\n", argv[0]);
+                return 1;
+        }
+    }
+
+    auto runWorker = [port]() {
+        Scheduler scheduler;
+        scheduler.spawn([port]() -> Task<> { co_await server_main(port); });
+        scheduler.run();
+    };
+
+    std::vector<std::thread> threads;
+    threads.reserve(threadCount);
+    for (size_t i = 0; i < threadCount; ++i)
+        threads.emplace_back(runWorker);
+
+    NITRO_INFO("=== HTTP Server Test === threads=%zu\n"
                "Try:\n"
                "  curl http://localhost:%hu/\n"
                "  curl http://localhost:%hu/hello?name=Alice\n"
                "  curl -X POST -d 'test data' http://localhost:%hu/echo\n",
-               port, port, port);
-
-    Scheduler scheduler;
-    scheduler.spawn([port]() -> Task<> { co_await server_main(port); });
-    scheduler.run();
+               threadCount, port, port, port);
+    for (auto & t : threads)
+        t.join();
 
     return 0;
 }
