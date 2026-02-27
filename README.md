@@ -2,87 +2,92 @@
 
 [中文](README_zh.md) | English
 
-A **high-performance coroutine-based async network framework** (under development) built on C++20 coroutines.
+A **coroutine async I/O runtime** built on C++20 coroutines, with a high-performance, elegantly designed core and a full-stack ecosystem via official extensions.
 
-> **Note**: 
-> - This project is under development
-> - Currently Linux-only, using epoll for I/O multiplexing
-> - HttpServer/TcpServer are basic demos with incomplete features and lifecycle management
+> [!NOTE]
+> Under active development.
+> - Cross-platform planned (currently Linux only, epoll)
+> - Core API is stabilizing
+> - Lifecycle management is not yet complete
+> - Extension API is still being explored, no stability guarantee
 
-## Project Goals
+## Design Goals
 
-Build a production-grade high-performance async network framework that provides:
-- High-performance event-driven architecture, targeting Drogon framework performance
-- Clean and easy-to-use coroutine API, eliminating callback hell
-- Cross-platform support (Linux, Windows, macOS)
-- Comprehensive network protocol support (TCP, HTTP, WebSocket, etc.)
-- Comprehensive component lifecycle management
-- Production-grade stability and reliability
+The ultimate goal is a high-performance network application framework — from bare async I/O all the way up to a full web framework. NitroCoro is the core runtime that everything builds on, designed around three principles:
+
+- **High-performance core** — minimal design, zero-overhead abstractions, `cmake .. && make`
+- **Out-of-the-box HTTP** — HTTP/1.1 server and client included by default
+- **Extensible ecosystem** — TLS, HTTP/2, WebSocket, databases via official extensions
 
 ## Features
 
-- **Native coroutine support**: Async I/O and task scheduling implemented with C++20 coroutines, no callbacks needed
-- **Coroutine Scheduler**: Event-driven scheduler with epoll backend
-- **Coroutine Primitives**: Task, Future, Promise, Mutex
-- **Basic Network Demos**: TCP/HTTP server and client as demonstrations
-- **Async DNS Resolution**: Coroutine-friendly DNS queries
+- **Native coroutine support** — async I/O and task scheduling via C++20 coroutines, no callbacks
+- **Coroutine Scheduler** — epoll-based event loop with timer support and cross-thread wakeup
+- **Coroutine primitives** — Task, Future, Promise, Mutex, Generator
+- **TCP networking** — TcpServer, TcpConnection, async DNS resolution
+- **HTTP/1.1** — HTTP server with routing and client, streaming request/response body
+
+## Architecture
+
+```
+web application framework (planned)
+    ↑
+nitrocoro (this repo)
+├── core        Scheduler / Task / Future / Mutex / Generator
+├── io          IoChannel / Stream interface
+├── net         TcpServer / TcpConnection / DNS
+└── extensions/
+    ├── http        HTTP/1.1 server + client          [default ON]
+    ├── tls         TLS via OpenSSL                   [default OFF]
+    ├── http2       HTTP/2                            [default OFF]
+    └── websocket   WebSocket                         [default OFF]
+
+github.com/nitrocoro/ (planned, version-independent)
+├── nitrocoro-pg
+├── nitrocoro-redis
+└── nitrocoro-mysql
+```
 
 ## Requirements
 
-- C++20 compatible compiler (GCC 10+, Clang 12+)
+- C++20 compiler (GCC 10+, Clang 12+)
 - CMake 3.15+
-- Linux (currently Linux-only, cross-platform support planned)
+- Linux (epoll) — cross-platform (Windows, macOS) planned
 
 ## Quick Start
 
-### Build
-
 ```bash
-mkdir build && cd build
-cmake ..
-make
+git clone https://github.com/nitrocoro/nitrocoro
+cd nitrocoro && mkdir build && cd build
+cmake .. && make
 ```
 
-### Run Examples
-
 ```bash
-# TCP Echo Server
 ./examples/tcp_echo_server 8888
-
-# TCP Client
-./examples/tcp_client 8888 127.0.0.1
-
-# HTTP Server
-./examples/http_server 8080
-# Then visit: curl http://localhost:8080/
-
-# HTTP Client
+./examples/http_server 8080   # curl http://localhost:8080/
 ./examples/http_client http://example.com/
 ```
 
-## Example Code
-
-Simple HTTP server using coroutines:
+## Example
 
 ```cpp
-Task<> server_main(uint16_t port)
+#include <nitrocoro/http/HttpServer.h>
+using namespace nitrocoro;
+
+Task<> run()
 {
-    HttpServer server(port);
-    
-    server.route("GET", "/", [](HttpRequest& req, HttpResponse& resp) -> Task<> {
-        resp.setStatus(200);
-        resp.setHeader("Content-Type", "text/html");
-        co_await resp.end("<h1>Hello, World!</h1>");
+    HttpServer server(8080);
+    server.route("GET", "/", [](HttpRequest & req, HttpResponse & resp) -> Task<> {
+        co_await resp.end("<h1>Hello, NitroCoro!</h1>");
     });
-    
     co_await server.start();
 }
 
-int main() {
+int main()
+{
     Scheduler scheduler;
-    scheduler.spawn([]() -> Task<> { co_await server_main(8080); });
+    scheduler.spawn([]() -> Task<> { co_await run(); });
     scheduler.run();
-    return 0;
 }
 ```
 
@@ -90,34 +95,26 @@ int main() {
 
 ```
 nitrocoro/
-├── include/nitrocoro/     # Header files
-│   ├── core/              # Coroutine primitives (Task, Scheduler, Future, etc.)
-│   ├── net/               # Network components (TCP, DNS)
-│   ├── http/              # HTTP server/client
-│   ├── io/                # Async I/O
-│   └── utils/             # Utilities
-├── src/                   # Implementation files
-├── examples/              # Example programs
-└── tests/                 # Unit tests
+├── include/nitrocoro/
+│   ├── core/           Task, Scheduler, Future, Mutex, Generator
+│   ├── net/            TcpServer, TcpConnection, DNS
+│   ├── io/             IoChannel, Stream, adapters
+│   └── utils/          Debug macros, buffers
+├── src/                Core implementation
+├── extensions/
+│   └── http/           HTTP/1.1 extension
+├── examples/
+└── tests/
 ```
 
-## Examples
+## Roadmap
 
-- `tcp_echo_server`: TCP echo server demo
-- `tcp_client`: TCP client with async DNS resolution
-- `tcp_chat_server`: Simple chat server
-- `http_server`: HTTP server with routing
-- `http_client`: HTTP client demo
-
-## TODO
-
-- [ ] Complete features and functionality
-- [ ] Cross-platform support (Windows, macOS)
-- [ ] More coroutine runtime features
-- [ ] Performance optimization
-- [ ] API documentation
-- [ ] More comprehensive examples
-- [ ] Database and ORM support
+- [ ] TLS extension (OpenSSL)
+- [ ] HTTP/2 extension
+- [ ] WebSocket extension
+- [ ] `install()` + `find_package()` support
+- [ ] Cross-platform (Windows, macOS)
+- [ ] Upper-layer web application framework
 
 ## License
 

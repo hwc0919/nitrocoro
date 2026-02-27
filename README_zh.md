@@ -2,87 +2,92 @@
 
 中文 | [English](README.md)
 
-基于 C++20 协程的**高性能异步网络框架**（开发中）。
+基于 C++20 协程的**协程异步 I/O 运行时**，高性能、精巧设计的核心，通过官方扩展实现完整生态。
 
-> **注意**：
-> - 本项目正在开发中
-> - 目前仅支持 Linux，使用 epoll 进行 I/O 多路复用
-> - HttpServer/TcpServer 均为基础 demo，功能和生命周期管理都不完整
+> [!NOTE]
+> 项目开发中。
+> - 跨平台支持计划中（目前仅支持 Linux epoll）
+> - 核心 API 趋于稳定
+> - 生命周期管理尚未完善
+> - Extension 接口尚在探索中，暂无稳定保证
 
-## 项目目标
+## 设计目标
 
-打造一个生产级的高性能异步网络框架，提供：
-- 高性能的事件驱动架构，性能对标 Drogon 框架
-- 简洁易用的协程 API，消除回调地狱
-- 跨平台支持（Linux、Windows、macOS）
-- 完善的网络协议支持（TCP、HTTP、WebSocket 等）
-- 完善的组件生命周期管理
-- 生产级的稳定性和可靠性
+最终目标是打造一个高性能网络应用框架——从底层异步 I/O 到完整的 Web 框架。NitroCoro 是整个生态的核心运行时，上层框架基于它构建。核心库围绕三个原则设计：
+
+- **高性能核心** — 精简设计，零开销抽象，`cmake .. && make` 一键编译
+- **开箱即用的 HTTP** — 默认包含 HTTP/1.1 服务器和客户端
+- **可扩展生态** — TLS、HTTP/2、WebSocket、数据库通过官方扩展支持
 
 ## 特性
 
-- **原生协程支持**：使用 C++20 协程实现异步 I/O 和任务调度，无需回调函数
-- **协程调度器**：基于 epoll 的事件驱动调度器
-- **协程原语**：Task、Future、Promise、Mutex
-- **基础网络演示**：TCP/HTTP 服务器和客户端作为演示
-- **异步 DNS 解析**：协程友好的 DNS 查询
+- **原生协程支持** — 使用 C++20 协程实现异步 I/O 和任务调度，无需回调函数
+- **协程调度器** — 基于 epoll 的事件驱动调度器，支持定时器、跨线程唤醒
+- **协程原语** — Task、Future、Promise、Mutex、Generator
+- **TCP 网络** — TcpServer、TcpConnection、异步 DNS 解析
+- **HTTP/1.1** — 带路由的 HTTP 服务器和客户端，支持请求/响应体流式读写
+
+## 架构
+
+```
+Web 应用框架（规划中）
+    ↑
+nitrocoro（本仓库）
+├── core        Scheduler / Task / Future / Mutex / Generator
+├── io          IoChannel / Stream 接口
+├── net         TcpServer / TcpConnection / DNS
+└── extensions/
+    ├── http        HTTP/1.1 服务器 + 客户端     [默认开启]
+    ├── tls         TLS（依赖 OpenSSL）          [默认关闭]
+    ├── http2       HTTP/2                       [默认关闭]
+    └── websocket   WebSocket                    [默认关闭]
+
+github.com/nitrocoro/（规划中，独立版本管理）
+├── nitrocoro-pg
+├── nitrocoro-redis
+└── nitrocoro-mysql
+```
 
 ## 系统要求
 
-- 支持 C++20 的编译器（GCC 10+、Clang 12+）
+- C++20 编译器（GCC 10+、Clang 12+）
 - CMake 3.15+
-- Linux（目前仅支持 Linux，跨平台支持计划中）
+- Linux（epoll）— 跨平台（Windows、macOS）支持计划中
 
 ## 快速开始
 
-### 编译
-
 ```bash
-mkdir build && cd build
-cmake ..
-make
+git clone https://github.com/nitrocoro/nitrocoro
+cd nitrocoro && mkdir build && cd build
+cmake .. && make
 ```
 
-### 运行示例
-
 ```bash
-# TCP Echo 服务器
 ./examples/tcp_echo_server 8888
-
-# TCP 客户端
-./examples/tcp_client 8888 127.0.0.1
-
-# HTTP 服务器
-./examples/http_server 8080
-# 然后访问: curl http://localhost:8080/
-
-# HTTP 客户端
+./examples/http_server 8080   # curl http://localhost:8080/
 ./examples/http_client http://example.com/
 ```
 
-## 示例代码
-
-使用协程的简单 HTTP 服务器：
+## 示例
 
 ```cpp
-Task<> server_main(uint16_t port)
+#include <nitrocoro/http/HttpServer.h>
+using namespace nitrocoro;
+
+Task<> run()
 {
-    HttpServer server(port);
-    
-    server.route("GET", "/", [](HttpRequest& req, HttpResponse& resp) -> Task<> {
-        resp.setStatus(200);
-        resp.setHeader("Content-Type", "text/html");
-        co_await resp.end("<h1>Hello, World!</h1>");
+    HttpServer server(8080);
+    server.route("GET", "/", [](HttpRequest & req, HttpResponse & resp) -> Task<> {
+        co_await resp.end("<h1>Hello, NitroCoro!</h1>");
     });
-    
     co_await server.start();
 }
 
-int main() {
+int main()
+{
     Scheduler scheduler;
-    scheduler.spawn([]() -> Task<> { co_await server_main(8080); });
+    scheduler.spawn([]() -> Task<> { co_await run(); });
     scheduler.run();
-    return 0;
 }
 ```
 
@@ -90,34 +95,26 @@ int main() {
 
 ```
 nitrocoro/
-├── include/nitrocoro/     # 头文件
-│   ├── core/              # 协程原语（Task、Scheduler、Future 等）
-│   ├── net/               # 网络组件（TCP、DNS）
-│   ├── http/              # HTTP 服务器/客户端
-│   ├── io/                # 异步 I/O
-│   └── utils/             # 工具类
-├── src/                   # 实现文件
-├── examples/              # 示例程序
-└── tests/                 # 单元测试
+├── include/nitrocoro/
+│   ├── core/           Task, Scheduler, Future, Mutex, Generator
+│   ├── net/            TcpServer, TcpConnection, DNS
+│   ├── io/             IoChannel, Stream, adapters
+│   └── utils/          调试宏, 缓冲区工具
+├── src/                核心实现
+├── extensions/
+│   └── http/           HTTP/1.1 扩展
+├── examples/
+└── tests/
 ```
 
-## 示例程序
+## 路线图
 
-- `tcp_echo_server`：TCP echo 服务器演示
-- `tcp_client`：带异步 DNS 解析的 TCP 客户端
-- `tcp_chat_server`：简单聊天服务器
-- `http_server`：带路由的 HTTP 服务器
-- `http_client`：HTTP 客户端演示
-
-## TODO
-
-- [ ] 完善功能
+- [ ] TLS 扩展（OpenSSL）
+- [ ] HTTP/2 扩展
+- [ ] WebSocket 扩展
+- [ ] `install()` + `find_package()` 支持
 - [ ] 跨平台支持（Windows、macOS）
-- [ ] 更多协程运行时特性
-- [ ] 性能优化
-- [ ] API 文档
-- [ ] 更全面的示例
-- [ ] 数据库和ORM支持
+- [ ] 上层 Web 应用框架
 
 ## 许可证
 
