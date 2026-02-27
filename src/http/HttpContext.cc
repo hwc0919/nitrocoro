@@ -29,8 +29,8 @@ Task<std::optional<MessageType>> HttpContext<MessageType>::receiveMessage()
         }
 
         std::string_view line = buffer_->view().substr(0, pos);
-        buffer_->consume(pos + 2);
         parser.parseLine(line);
+        buffer_->consume(pos + 2);
     }
 
     co_return parser.extractMessage();

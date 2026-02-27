@@ -12,7 +12,7 @@ namespace nitrocoro::utils
 {
 
 /**
- * @brief String buffer with read/write offsets - memory only grows, never shrinks
+ * @brief String buffer with read/write offsets.
  */
 class StringBuffer
 {
@@ -37,20 +37,24 @@ public:
         readOffset_ += n;
     }
 
-    // Get view of n bytes and consume them
-    std::string_view consumeView(size_t n)
-    {
-        // TODO: check n
-        readOffset_ += n;
-        return { buffer_.data() + readOffset_ - n, n };
-    }
-
     // Prepare space for writing, returns pointer to write position
     char * prepareWrite(size_t len)
     {
-        // TODO: improve
-        if (buffer_.size() < writeOffset_ + len)
-            buffer_.resize(writeOffset_ + len);
+        if (buffer_.size() - writeOffset_ < len)
+        {
+            if (readOffset_ > 0 && buffer_.size() - (writeOffset_ - readOffset_) >= len)
+            {
+                // Compact: move unconsumed data to front
+                size_t remaining = writeOffset_ - readOffset_;
+                std::memmove(buffer_.data(), buffer_.data() + readOffset_, remaining);
+                writeOffset_ = remaining;
+                readOffset_ = 0;
+            }
+            else
+            {
+                buffer_.resize(writeOffset_ + len);
+            }
+        }
         return buffer_.data() + writeOffset_;
     }
 

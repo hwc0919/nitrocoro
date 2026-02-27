@@ -61,6 +61,7 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
             break;
         bool keepAlive = message->keepAlive;
 
+        // TODO: BodyReader should read regardless of the request border or user desired length!!!
         auto bodyReader = BodyReader::create(conn, buffer, message->transferMode, message->contentLength);
 
         auto request = HttpIncomingStream<HttpRequest>(std::move(*message), bodyReader);

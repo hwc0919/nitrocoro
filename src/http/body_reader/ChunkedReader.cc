@@ -32,9 +32,8 @@ Task<bool> ChunkedReader::parseChunkSize()
             throw std::runtime_error("Invalid chunked encoding: chunk size line too long");
 
         std::string_view line = buffer_->view().substr(0, pos);
-        buffer_->consume(pos + 2);
-
         currentChunkSize_ = std::stoul(std::string(line), nullptr, 16);
+        buffer_->consume(pos + 2);
         currentChunkRead_ = 0;
 
         if (currentChunkSize_ == 0)
