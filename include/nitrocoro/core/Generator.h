@@ -65,7 +65,11 @@ public:
         {
             handle_.resume();
             if (handle_.done())
+            {
+                if (handle_.promise().exception_)
+                    std::rethrow_exception(handle_.promise().exception_);
                 handle_ = nullptr;
+            }
             return *this;
         }
 

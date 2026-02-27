@@ -1,11 +1,21 @@
-add_executable(coro_test coro_test.cc)
-target_link_libraries(coro_test PRIVATE nitrocoro)
-
-add_executable(generator_test generator_test.cc)
-target_link_libraries(generator_test PRIVATE nitrocoro)
-
-add_executable(dns_resolver_test dns_resolver_test.cc)
-target_link_libraries(dns_resolver_test PRIVATE nitrocoro)
+enable_testing()
 
 add_executable(self_test self_test.cc)
 target_link_libraries(self_test PRIVATE nitrocoro)
+add_test(NAME self_test COMMAND self_test)
+
+add_executable(core_test core_test.cc)
+target_link_libraries(core_test PRIVATE nitrocoro)
+add_test(NAME core_test COMMAND core_test)
+
+add_executable(sync_test sync_test.cc)
+target_link_libraries(sync_test PRIVATE nitrocoro)
+add_test(NAME sync_test COMMAND sync_test)
+
+add_executable(addr_test addr_test.cc)
+target_link_libraries(addr_test PRIVATE nitrocoro)
+add_test(NAME addr_test COMMAND addr_test)
+
+add_executable(dns_test dns_test.cc)
+target_link_libraries(dns_test PRIVATE nitrocoro)
+add_test(NAME dns_test COMMAND dns_test)

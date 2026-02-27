@@ -1,3 +1,8 @@
+/**
+ * @file self_test.cc
+ * @brief Validates the test framework itself: CHECK, REQUIRE, EXPECT_FAIL, and
+ *        TEST_CTX lifetime with spawn().
+ */
 #include <nitrocoro/core/Generator.h>
 #include <nitrocoro/core/Scheduler.h>
 #include <nitrocoro/core/Task.h>
@@ -31,6 +36,7 @@ Task<int> fetch_data(int id)
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
+/** NITRO_CHECK_EQ passes when values are equal. */
 NITRO_TEST(range_sum)
 {
     int sum = 0;
@@ -40,6 +46,7 @@ NITRO_TEST(range_sum)
     co_return;
 }
 
+/** NITRO_REQUIRE_EQ aborts early on size mismatch; all elements checked otherwise. */
 NITRO_TEST(fibonacci_sequence)
 {
     std::vector<int> expected{ 0, 1, 1, 2, 3, 5, 8, 13, 21, 34 };
@@ -52,6 +59,7 @@ NITRO_TEST(fibonacci_sequence)
     co_return;
 }
 
+/** co_await inside a test works correctly across multiple iterations. */
 NITRO_TEST(async_fetch)
 {
     int total = 0;
@@ -60,6 +68,7 @@ NITRO_TEST(async_fetch)
     NITRO_CHECK_EQ(total, 60); // 10+20+30
 }
 
+/** TEST_CTX captured in spawn() keeps the test alive until the coroutine finishes. */
 NITRO_TEST(spawn_check)
 {
     // Capture TEST_CTX so the test waits for the spawned coroutine.
@@ -70,6 +79,7 @@ NITRO_TEST(spawn_check)
     co_return;
 }
 
+/** NITRO_CHECK logs failure but continues; second CHECK still executes. */
 NITRO_TEST_EXPECT_FAIL(intentional_check_failure)
 {
     NITRO_CHECK_EQ(1, 2);
@@ -77,6 +87,7 @@ NITRO_TEST_EXPECT_FAIL(intentional_check_failure)
     co_return;
 }
 
+/** NITRO_REQUIRE aborts the test on failure; the line after must not execute. */
 NITRO_TEST_EXPECT_FAIL(require_aborts_early)
 {
     NITRO_REQUIRE_EQ(1, 2); // fails → co_return, next line must NOT run
