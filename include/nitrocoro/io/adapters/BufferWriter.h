@@ -53,6 +53,7 @@ struct BufferWriter
                     return IoChannel::IoResult::Retry;
                 case EPIPE:
                 case ECONNRESET:
+                    return IoChannel::IoResult::Eof;
                 default:
                     return IoChannel::IoResult::Error;
             }

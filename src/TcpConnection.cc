@@ -146,13 +146,16 @@ Task<size_t> TcpConnection::read(void * buf, size_t len)
     co_return reader.readLen();
 }
 
-Task<> TcpConnection::write(const void * buf, size_t len)
+Task<size_t> TcpConnection::write(const void * buf, size_t len)
 {
     [[maybe_unused]] auto lock = co_await writeMutex_.scoped_lock();
     BufferWriter writer(buf, len);
     auto result = co_await ioChannelPtr_->performWrite(&writer);
+    if (result == IoChannel::IoResult::Eof)
+        co_return 0;
     if (result != IoChannel::IoResult::Success)
         throw std::runtime_error("TCP write error");
+    co_return len;
 }
 
 Task<> TcpConnection::shutdown()
