@@ -143,7 +143,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
             {
                 connSetPtr->erase(connPtr);
             }
-            co_await connPtr->close();
+            // TODO: force close?
         });
     }
     listenChannel_->disableAll();
@@ -164,7 +164,7 @@ Task<> TcpServer::stop()
     std::vector<TcpConnectionPtr> conns(connSetPtr_->begin(), connSetPtr_->end());
     for (auto & c : conns)
     {
-        co_await c->close();
+        co_await c->shutdown();
     }
     co_await stopFuture_.get();
 }

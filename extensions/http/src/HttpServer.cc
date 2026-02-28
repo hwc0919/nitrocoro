@@ -38,7 +38,7 @@ Task<> HttpServer::start()
         {
             NITRO_ERROR("Unknown error handling connection\n");
         }
-        co_await conn->close();
+        // TODO: force close?
     });
 }
 
@@ -88,6 +88,7 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
         if (!keepAlive)
             break;
     }
+    co_await conn->shutdown();
 }
 
 } // namespace nitrocoro::http

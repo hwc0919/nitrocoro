@@ -112,7 +112,7 @@ Task<> client_main(const char * host, int port)
         });
         Scheduler::current()->spawn([connPtr, &quit]() -> Task<> {
             co_await send_messages(connPtr);
-            co_await connPtr->close();
+            co_await connPtr->shutdown();
             quit = true;
         });
         co_await closeFuture.get();

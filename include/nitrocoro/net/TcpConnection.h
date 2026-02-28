@@ -43,8 +43,9 @@ public:
     Task<size_t> read(void * buf, size_t len);
     Task<> write(const void * buf, size_t len);
 
-    Task<> close();
-    bool isOpen() const { return ioChannelPtr_ != nullptr; }
+    Task<> shutdown();
+    Task<> forceClose();
+    // bool isOpen() const; // TODO: implement closed state tracking
 
 private:
     std::shared_ptr<Socket> socket_;

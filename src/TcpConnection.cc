@@ -155,16 +155,19 @@ Task<> TcpConnection::write(const void * buf, size_t len)
         throw std::runtime_error("TCP write error");
 }
 
-Task<> TcpConnection::close()
+Task<> TcpConnection::shutdown()
 {
-    if (!ioChannelPtr_)
-        co_return;
+    // TODO: need status flag
     co_await ioChannelPtr_->scheduler()->switch_to();
-    if (!ioChannelPtr_)
-        co_return;
+    socket_->shutdownWrite();
+}
+
+Task<> TcpConnection::forceClose()
+{
+    // TODO: need status flag
+    co_await ioChannelPtr_->scheduler()->switch_to();
     ioChannelPtr_->disableAll();
     ioChannelPtr_->cancelAll();
-    ioChannelPtr_.reset();
 }
 
 } // namespace nitrocoro::net
