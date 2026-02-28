@@ -41,6 +41,22 @@ public:
     IoChannel(IoChannel &&) = delete;
     IoChannel & operator=(IoChannel &&) = delete;
 
+    /**
+     * @brief Defer the destruction of a resource until after this channel is removed from epoll.
+     *
+     * IoChannel destruction is asynchronous: the epoll removal (EPOLL_CTL_DEL) is posted to the
+     * scheduler queue and executes later. If the underlying fd is closed before that point, the OS
+     * may reuse the fd number for a new connection, and the deferred EPOLL_CTL_DEL would then
+     * silently remove the wrong fd from epoll.
+     *
+     * To prevent this, pass a shared_ptr to the resource that owns the fd (e.g. Socket, PgConn).
+     * IoChannel holds a copy of the shared_ptr and releases it only after removeIo() completes,
+     * guaranteeing that the fd is not closed until epoll cleanup is done.
+     *
+     * The caller retains its own shared_ptr; this method does not transfer ownership.
+     */
+    void setGuard(std::shared_ptr<void> guard) { guard_ = std::move(guard); }
+
     uint64_t id() const { return id_; }
     int fd() const { return fd_; }
     Scheduler * scheduler() const { return scheduler_; }
@@ -225,6 +241,7 @@ private:
     int fd_{ -1 };
     Scheduler * scheduler_{ nullptr };
     TriggerMode triggerMode_{ TriggerMode::EdgeTriggered };
+    std::shared_ptr<void> guard_;
 
     // All members below are accessed only within Scheduler's single thread.
     // No synchronization primitives needed due to serialized execution model.

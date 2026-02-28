@@ -3,13 +3,11 @@
  * @brief Implementation of TcpConnection
  */
 #include <arpa/inet.h>
-#include <fcntl.h>
-#include <iostream>
 #include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/io/Socket.h>
 #include <nitrocoro/io/adapters/BufferReader.h>
 #include <nitrocoro/io/adapters/BufferWriter.h>
 #include <nitrocoro/net/TcpConnection.h>
-#include <unistd.h>
 
 namespace nitrocoro::net
 {
@@ -17,6 +15,7 @@ namespace nitrocoro::net
 using nitrocoro::Scheduler;
 using nitrocoro::Task;
 using nitrocoro::io::IoChannel;
+using nitrocoro::io::Socket;
 using nitrocoro::io::adapters::BufferReader;
 using nitrocoro::io::adapters::BufferWriter;
 
@@ -87,22 +86,18 @@ private:
 
 Task<TcpConnectionPtr> TcpConnection::connect(const sockaddr * addr, socklen_t addrLen)
 {
-    int fd = socket(addr->sa_family, SOCK_STREAM, 0);
+    int fd = ::socket(addr->sa_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (fd < 0)
-    {
         throw std::runtime_error("Failed to create socket");
-    }
-
-    int flags = fcntl(fd, F_GETFL, 0);
-    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-
+    auto socket = std::make_shared<Socket>(fd);
     auto channelPtr = std::make_unique<IoChannel>(fd);
+    channelPtr->setGuard(socket);
     Connector connector(addr, addrLen);
     auto result = co_await channelPtr->performWrite(&connector);
     if (result != IoChannel::IoResult::Success)
         throw std::runtime_error("TCP connect failed");
 
-    co_return std::make_shared<TcpConnection>(std::move(channelPtr));
+    co_return std::make_shared<TcpConnection>(std::move(channelPtr), std::move(socket));
 }
 
 Task<TcpConnectionPtr> TcpConnection::connect(const char * ip, uint16_t port, IpVersion v)
@@ -131,8 +126,8 @@ Task<TcpConnectionPtr> TcpConnection::connect(const char * ip, uint16_t port, Ip
     }
 }
 
-TcpConnection::TcpConnection(std::unique_ptr<IoChannel> channelPtr)
-    : fd_(channelPtr->fd())
+TcpConnection::TcpConnection(std::unique_ptr<IoChannel> channelPtr, std::shared_ptr<Socket> socket)
+    : socket_(std::move(socket))
     , ioChannelPtr_(std::move(channelPtr))
 {
     ioChannelPtr_->enableReading();
@@ -162,14 +157,14 @@ Task<> TcpConnection::write(const void * buf, size_t len)
 
 Task<> TcpConnection::close()
 {
+    if (!ioChannelPtr_)
+        co_return;
     co_await ioChannelPtr_->scheduler()->switch_to();
-    if (fd_ < 0)
+    if (!ioChannelPtr_)
         co_return;
     ioChannelPtr_->disableAll();
     ioChannelPtr_->cancelAll();
-    ::close(fd_);
-    fd_ = -1;
-    co_return;
+    ioChannelPtr_.reset();
 }
 
 } // namespace nitrocoro::net

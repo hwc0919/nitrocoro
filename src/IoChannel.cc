@@ -39,8 +39,9 @@ IoChannel::IoChannel(int fd, TriggerMode mode, Scheduler * scheduler)
 
 IoChannel::~IoChannel() noexcept
 {
-    scheduler_->schedule([id = id_, scheduler = scheduler_]() {
+    scheduler_->schedule([id = id_, scheduler = scheduler_, guard = std::move(guard_)]() mutable {
         scheduler->removeIo(id);
+        guard.reset();
     });
 }
 

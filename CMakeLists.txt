@@ -14,6 +14,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
 # Build library
 add_library(nitrocoro STATIC
     src/Scheduler.cc
+    src/Socket.cc
     src/TcpServer.cc
     src/TcpConnection.cc
     src/IoChannel.cc

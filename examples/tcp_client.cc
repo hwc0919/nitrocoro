@@ -116,6 +116,8 @@ Task<> client_main(const char * host, int port)
             quit = true;
         });
         co_await closeFuture.get();
+
+        co_await sleep(std::chrono::seconds(1));
     }
 
     Scheduler::current()->stop();

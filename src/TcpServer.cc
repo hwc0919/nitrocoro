@@ -3,21 +3,21 @@
  * @brief Implementation of coroutine-based TCP server
  */
 #include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/io/Socket.h>
 #include <nitrocoro/net/TcpConnection.h>
 #include <nitrocoro/net/TcpServer.h>
 #include <nitrocoro/utils/Debug.h>
 
 #include <cstring>
 #include <fcntl.h>
-#include <iostream>
 #include <netinet/in.h>
 #include <stdexcept>
 #include <sys/socket.h>
-#include <unistd.h>
 
 namespace nitrocoro::net
 {
 using io::IoChannel;
+using io::Socket;
 
 TcpServer::TcpServer(uint16_t port, Scheduler * scheduler)
     : port_(port)
@@ -28,40 +28,25 @@ TcpServer::TcpServer(uint16_t port, Scheduler * scheduler)
     setup_socket();
 }
 
-TcpServer::~TcpServer()
-{
-    if (listenFd_ >= 0)
-    {
-        close(listenFd_);
-    }
-}
+TcpServer::~TcpServer() = default;
 
 void TcpServer::setup_socket()
 {
-    listenFd_ = socket(AF_INET, SOCK_STREAM, 0);
-    if (listenFd_ < 0)
-    {
+    int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+    if (fd < 0)
         throw std::runtime_error("Failed to create socket");
-    }
+    listenSocketPtr_ = std::make_shared<Socket>(fd);
 
     int opt = 1;
-    setsockopt(listenFd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    setsockopt(listenFd_, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
-
-    int flags = fcntl(listenFd_, F_GETFL, 0);
-    fcntl(listenFd_, F_SETFL, flags | O_NONBLOCK);
+    ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    ::setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(port_);
-
-    if (bind(listenFd_, (sockaddr *)&addr, sizeof(addr)) < 0)
-    {
-        close(listenFd_);
-        listenFd_ = -1;
+    if (::bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0)
         throw std::runtime_error(std::string("Failed to bind socket: ") + strerror(errno));
-    }
 }
 
 struct Acceptor
@@ -69,34 +54,32 @@ struct Acceptor
     IoChannel::IoResult read(int fd, IoChannel *)
     {
         socklen_t len = sizeof(clientAddr_);
-        fd_ = ::accept4(fd, reinterpret_cast<struct sockaddr *>(&clientAddr_), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
-        if (fd_ >= 0)
+        int connfd = ::accept4(fd, reinterpret_cast<struct sockaddr *>(&clientAddr_), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
+        if (connfd >= 0)
         {
+            socket_ = std::make_shared<Socket>(connfd);
             return IoChannel::IoResult::Success;
         }
-        else
+        switch (errno)
         {
-            switch (errno)
-            {
-                case EAGAIN:
+            case EAGAIN:
 #if EAGAIN != EWOULDBLOCK
-                case EWOULDBLOCK:
+            case EWOULDBLOCK:
 #endif
-                    return IoChannel::IoResult::WouldBlock;
-                case EINTR:
-                    return IoChannel::IoResult::Retry;
-                default:
-                    return IoChannel::IoResult::Error;
-            }
+                return IoChannel::IoResult::WouldBlock;
+            case EINTR:
+                return IoChannel::IoResult::Retry;
+            default:
+                return IoChannel::IoResult::Error;
         }
     }
 
-    int clientFd() const { return fd_; }
+    std::shared_ptr<Socket> takeSocket() { return std::move(socket_); }
     const struct sockaddr_in & clientAddr() const { return clientAddr_; }
 
 private:
     struct sockaddr_in clientAddr_{};
-    int fd_{ -1 };
+    std::shared_ptr<Socket> socket_;
 };
 
 Task<> TcpServer::start(ConnectionHandler handler)
@@ -107,30 +90,43 @@ Task<> TcpServer::start(ConnectionHandler handler)
         throw std::logic_error("TcpServer already started");
     }
 
-    if (listen(listenFd_, 128) < 0)
+    try
+    {
+        if (::listen(listenSocketPtr_->fd(), 128) < 0)
+            throw std::runtime_error(std::string("Failed to listen: ") + strerror(errno));
+    }
+    catch (...)
     {
         stopped_.store(true);
         stopPromise_.set_value();
-        throw std::runtime_error(std::string("Failed to listen on socket: ") + strerror(errno));
+        throw;
     }
     NITRO_INFO("TcpServer listening on port %hu\n", port_);
 
     auto handlerPtr = std::make_shared<ConnectionHandler>(std::move(handler));
-    listenChannel_ = std::make_unique<IoChannel>(listenFd_, TriggerMode::LevelTriggered, scheduler_);
+    listenChannel_ = std::make_unique<IoChannel>(listenSocketPtr_->fd(), TriggerMode::LevelTriggered, scheduler_);
+    listenChannel_->setGuard(listenSocketPtr_);
     listenChannel_->enableReading();
     while (!stopped_.load())
     {
         Acceptor acceptor;
         auto result = co_await listenChannel_->performRead(&acceptor);
+        if (result == IoChannel::IoResult::Canceled)
+        {
+            NITRO_INFO("TcpServer::close() called, break accepting loop\n");
+            break;
+        }
         if (result != IoChannel::IoResult::Success)
         {
             NITRO_ERROR("Accept error: IoResult=%d\n", static_cast<int>(result));
             break;
         }
 
-        NITRO_DEBUG("Accepted connection: fd = %d\n", acceptor.clientFd());
-        auto ioChannelPtr = std::make_unique<IoChannel>(acceptor.clientFd(), TriggerMode::EdgeTriggered, scheduler_);
-        auto connPtr = std::make_shared<TcpConnection>(std::move(ioChannelPtr));
+        NITRO_DEBUG("Accepted connection\n");
+        auto socket = acceptor.takeSocket();
+        auto ioChannelPtr = std::make_unique<IoChannel>(socket->fd(), TriggerMode::EdgeTriggered, scheduler_);
+        ioChannelPtr->setGuard(socket);
+        auto connPtr = std::make_shared<TcpConnection>(std::move(ioChannelPtr), socket);
         connSetPtr_->insert(connPtr);
         std::weak_ptr<ConnectionSet> weakConnSet{ connSetPtr_ };
         scheduler_->spawn([scheduler = scheduler_, handlerPtr, connPtr, weakConnSet]() mutable -> Task<> {
@@ -151,11 +147,6 @@ Task<> TcpServer::start(ConnectionHandler handler)
         });
     }
     listenChannel_->disableAll();
-    if (listenFd_ >= 0)
-    {
-        ::close(listenFd_);
-        listenFd_ = -1;
-    }
     stopPromise_.set_value();
     NITRO_INFO("TcpServer::start() quit\n");
 }
@@ -166,6 +157,7 @@ Task<> TcpServer::stop()
     if (stopped_.exchange(true))
         co_return;
 
+    NITRO_INFO("TcpServer::stop() requested\n");
     listenChannel_->disableAll(); // stop listening first
     listenChannel_->cancelAll();
 
@@ -174,7 +166,6 @@ Task<> TcpServer::stop()
     {
         co_await c->close();
     }
-    NITRO_INFO("TcpServer::stop() requested\n");
     co_await stopFuture_.get();
 }
 
