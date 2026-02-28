@@ -47,3 +47,8 @@ option(BUILD_EXT_PG "Build PostgreSQL extension" OFF)
 if(BUILD_EXT_PG)
     add_subdirectory(extensions/pg)
 endif()
+
+option(BUILD_EXT_TLS "Build TLS extension" OFF)
+if(BUILD_EXT_TLS)
+    add_subdirectory(extensions/tls)
+endif()
