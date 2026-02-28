@@ -1,7 +1,7 @@
-find_package(OpenSSL REQUIRED)
+set(NITROCORO_TLS_PROVIDER "openssl" CACHE STRING "TLS provider: openssl / botan")
 
 add_library(nitrocoro-tls
-    src/TlsConnection.cc
+    src/TlsStream.cc
 )
 
 target_include_directories(nitrocoro-tls
@@ -13,8 +13,18 @@ target_include_directories(nitrocoro-tls
 target_link_libraries(nitrocoro-tls
     PUBLIC
         nitrocoro
-        OpenSSL::SSL
-        OpenSSL::Crypto
 )
+
+if(NITROCORO_TLS_PROVIDER STREQUAL "openssl")
+    find_package(OpenSSL REQUIRED)
+    target_sources(nitrocoro-tls PRIVATE src/providers/OpenSSLProvider.cc)
+    target_link_libraries(nitrocoro-tls PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+elseif(NITROCORO_TLS_PROVIDER STREQUAL "botan")
+    find_package(Botan REQUIRED)
+    target_sources(nitrocoro-tls PRIVATE src/providers/BotanProvider.cc)
+    target_link_libraries(nitrocoro-tls PRIVATE Botan::Botan)
+else()
+    message(FATAL_ERROR "Unknown NITROCORO_TLS_PROVIDER: ${NITROCORO_TLS_PROVIDER}")
+endif()
 
 add_subdirectory(tests)
