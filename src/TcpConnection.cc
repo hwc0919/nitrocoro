@@ -27,7 +27,7 @@ struct Connector
     {
     }
 
-    IoChannel::IoResult write(int fd, IoChannel * channel)
+    IoChannel::IoResult operator()(int fd, IoChannel * channel)
     {
         if (connecting_)
         {
@@ -44,7 +44,7 @@ struct Connector
             }
             else if (error == EINPROGRESS || error == EALREADY)
             {
-                return IoChannel::IoResult::WouldBlock;
+                return IoChannel::IoResult::NeedWrite;
             }
             else
             {
@@ -68,7 +68,7 @@ struct Connector
             case EALREADY:
                 connecting_ = true;
                 channel->enableWriting();
-                return IoChannel::IoResult::WouldBlock;
+                return IoChannel::IoResult::NeedWrite;
             case EINTR:
                 return IoChannel::IoResult::Retry;
 

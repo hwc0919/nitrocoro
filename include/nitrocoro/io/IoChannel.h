@@ -73,45 +73,49 @@ public:
     enum class IoResult
     {
         Success,
-        WouldBlock,
+        NeedRead,  // wait for readable, then retry
+        NeedWrite, // wait for writable, then retry
         Retry,
         Eof,     // read() returned 0: peer closed write direction
         Error,   // ECONNRESET, EPIPE, or other fatal errors
         Canceled // operation was canceled via cancelRead()/cancelWrite()
     };
 
-    template <typename Reader>
-        requires requires(Reader r, int fd, IoChannel * channel) {
-            { r->read(fd, channel) } -> std::same_as<IoResult>;
-        }
-    Task<IoResult> performRead(Reader && reader)
+    enum class WaitHint
     {
-        co_return co_await performReadImpl(std::forward<Reader>(reader));
+        Read,  // wait for readable before first invocation
+        Write, // wait for writable before first invocation
+        None   // invoke immediately
+    };
+
+    // Adapter pointer overload: perform(&reader) / perform(&writer)
+    template <typename Adapter>
+        requires std::invocable<Adapter, int, IoChannel *>
+    Task<IoResult> perform(Adapter * adapter, WaitHint hint = WaitHint::None)
+    {
+        co_return co_await performImpl(adapter, hint);
     }
 
+    // Callable overload: perform(lambda)
     template <typename Func>
         requires std::invocable<Func, int, IoChannel *>
                  && std::same_as<std::invoke_result_t<Func, int, IoChannel *>, IoResult>
-    Task<IoResult> performRead(Func && func)
+                 && (!std::is_pointer_v<Func>)
+    Task<IoResult> perform(Func && func, WaitHint hint = WaitHint::None)
     {
-        co_return co_await performReadImpl(std::forward<Func>(func));
+        co_return co_await performImpl(std::forward<Func>(func), hint);
     }
 
-    template <typename Writer>
-        requires requires(Writer w, int fd, IoChannel * channel) {
-            { w->write(fd, channel) } -> std::same_as<IoResult>;
-        }
-    Task<IoResult> performWrite(Writer && writer)
+    template <typename T>
+    Task<IoResult> performRead(T && t)
     {
-        co_return co_await performWriteImpl(std::forward<Writer>(writer));
+        co_return co_await perform(std::forward<T>(t), WaitHint::Read);
     }
 
-    template <typename Func>
-        requires std::invocable<Func, int, IoChannel *>
-                 && std::same_as<std::invoke_result_t<Func, int, IoChannel *>, IoResult>
-    Task<IoResult> performWrite(Func && func)
+    template <typename T>
+    Task<IoResult> performWrite(T && t)
     {
-        co_return co_await performWriteImpl(std::forward<Func>(func));
+        co_return co_await perform(std::forward<T>(t), WaitHint::Write);
     }
 
     void cancelRead();
@@ -152,12 +156,14 @@ private:
     };
 
     template <typename T>
-    Task<IoResult> performReadImpl(T && funcOrReader)
+    Task<IoResult> performImpl(T && func, WaitHint hint)
     {
         co_await scheduler_->switch_to();
+
+        WaitHint pendingWait = hint;
         while (true)
         {
-            if (!state_->readable)
+            if (pendingWait == WaitHint::Read && !state_->readable)
             {
                 co_await ReadableAwaiter{ state_.get() };
                 if (state_->readCanceled)
@@ -166,42 +172,7 @@ private:
                     co_return IoResult::Canceled;
                 }
             }
-
-            IoResult result;
-            if constexpr (std::is_pointer_v<std::remove_reference_t<T>>)
-                result = funcOrReader->read(fd_, this);
-            else
-                result = funcOrReader(fd_, this);
-
-            switch (result)
-            {
-                case IoResult::Success:
-                    if (triggerMode_ == TriggerMode::LevelTriggered)
-                        state_->readable = false;
-                    co_return IoResult::Success;
-
-                case IoResult::WouldBlock:
-                    state_->readable = false;
-                    break; // break and continue
-
-                case IoResult::Retry:
-                    break; // break and continue
-
-                case IoResult::Eof:
-                case IoResult::Error:
-                default:
-                    co_return result;
-            }
-        }
-    }
-
-    template <typename T>
-    Task<IoResult> performWriteImpl(T && funcOrWriter)
-    {
-        co_await scheduler_->switch_to();
-        while (true)
-        {
-            if (!state_->writable)
+            else if (pendingWait == WaitHint::Write && !state_->writable)
             {
                 co_await WritableAwaiter{ state_.get() };
                 if (state_->writeCanceled)
@@ -213,24 +184,31 @@ private:
 
             IoResult result;
             if constexpr (std::is_pointer_v<std::remove_reference_t<T>>)
-                result = funcOrWriter->write(fd_, this);
+                result = (*func)(fd_, this);
             else
-                result = funcOrWriter(fd_, this);
+                result = func(fd_, this);
 
             switch (result)
             {
                 case IoResult::Success:
-                    co_return IoResult::Success;
-
-                case IoResult::WouldBlock:
-                    state_->writable = false;
-                    break; // break and continue
-
-                case IoResult::Retry:
-                    break; // break and continue
-
                 case IoResult::Eof:
                 case IoResult::Error:
+                    co_return result;
+
+                case IoResult::NeedRead:
+                    state_->readable = false;
+                    pendingWait = WaitHint::Read;
+                    break;
+
+                case IoResult::NeedWrite:
+                    state_->writable = false;
+                    pendingWait = WaitHint::Write;
+                    break;
+
+                case IoResult::Retry:
+                    pendingWait = WaitHint::None;
+                    break;
+
                 default:
                     co_return result;
             }

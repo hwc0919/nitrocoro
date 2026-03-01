@@ -58,7 +58,7 @@ void TcpServer::setup_socket()
 
 struct Acceptor
 {
-    IoChannel::IoResult read(int fd, IoChannel *)
+    IoChannel::IoResult operator()(int fd, IoChannel *)
     {
         socklen_t len = sizeof(clientAddr_);
         int connfd = ::accept4(fd, reinterpret_cast<struct sockaddr *>(&clientAddr_), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
@@ -73,7 +73,7 @@ struct Acceptor
 #if EAGAIN != EWOULDBLOCK
             case EWOULDBLOCK:
 #endif
-                return IoChannel::IoResult::WouldBlock;
+                return IoChannel::IoResult::NeedRead;
             case EINTR:
                 return IoChannel::IoResult::Retry;
             default:

@@ -106,7 +106,7 @@ Task<std::shared_ptr<PgConnection>> PgConnection::connect(std::string connStr, S
                 if (s == PGRES_POLLING_FAILED)
                     return IoChannel::IoResult::Error;
                 if (s == PGRES_POLLING_WRITING)
-                    return IoChannel::IoResult::WouldBlock;
+                    return IoChannel::IoResult::NeedWrite;
                 return IoChannel::IoResult::Success;
             });
             channel->disableWriting();
@@ -119,7 +119,7 @@ Task<std::shared_ptr<PgConnection>> PgConnection::connect(std::string connStr, S
                 if (s == PGRES_POLLING_FAILED)
                     return IoChannel::IoResult::Error;
                 if (s == PGRES_POLLING_READING)
-                    return IoChannel::IoResult::WouldBlock;
+                    return IoChannel::IoResult::NeedRead;
                 return IoChannel::IoResult::Success;
             });
         }
@@ -217,7 +217,7 @@ Task<std::unique_ptr<PgResult>> PgConnection::sendAndReceive(std::string_view sq
         if (r > 0)
         {
             c->enableWriting();
-            return IoChannel::IoResult::WouldBlock;
+            return IoChannel::IoResult::NeedWrite;
         }
         return IoChannel::IoResult::Error;
     });
@@ -236,7 +236,7 @@ Task<std::unique_ptr<PgResult>> PgConnection::sendAndReceive(std::string_view sq
             return IoChannel::IoResult::Error;
         NITRO_TRACE("PgConnection: PQisBusy=%d\n", PQisBusy(pgConn_.get()));
         if (PQisBusy(pgConn_.get()))
-            return IoChannel::IoResult::WouldBlock;
+            return IoChannel::IoResult::NeedRead;
         while (PGresult * r = PQgetResult(pgConn_.get()))
         {
             if (res)

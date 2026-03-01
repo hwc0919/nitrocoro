@@ -18,7 +18,7 @@ struct BufferWriter
     {
     }
 
-    IoChannel::IoResult write(int fd, IoChannel * channel)
+    IoChannel::IoResult operator()(int fd, IoChannel * channel)
     {
         if (!buf_ || len_ == 0)
         {
@@ -48,7 +48,7 @@ struct BufferWriter
                 case EWOULDBLOCK:
 #endif
                     channel->enableWriting();
-                    return IoChannel::IoResult::WouldBlock;
+                    return IoChannel::IoResult::NeedWrite;
                 case EINTR:
                     return IoChannel::IoResult::Retry;
                 case EPIPE:
