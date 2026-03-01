@@ -30,6 +30,9 @@ struct TaskAwaiter
 {
     std::coroutine_handle<PromiseType> handle_;
 
+    explicit TaskAwaiter(std::coroutine_handle<PromiseType> h) noexcept
+        : handle_(h) {}
+
     // Check done() so that if the Task temporary is destroyed before co_await
     // resumes (e.g. a prvalue Task returned from a function), the coroutine
     // frame is already at its final-suspend point and ~Task() can safely

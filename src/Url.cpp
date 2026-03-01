@@ -25,7 +25,7 @@ void Url::parse(std::string_view url)
         return;
     }
     scheme_ = url.substr(pos, schemeEnd);
-    std::ranges::transform(scheme_, scheme_.begin(), ::tolower);
+    std::transform(scheme_.begin(), scheme_.end(), scheme_.begin(), ::tolower);
     pos = schemeEnd + 3;
 
     // Parse host and optional port

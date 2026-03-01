@@ -50,7 +50,7 @@ github.com/nitrocoro/ (planned, version-independent)
 
 ## Requirements
 
-- C++20 compiler (GCC 10+, Clang 12+)
+- C++20 compiler (GCC 10+, Clang 16+)
 - CMake 3.15+
 - Linux (epoll) — cross-platform (Windows, macOS) planned
 

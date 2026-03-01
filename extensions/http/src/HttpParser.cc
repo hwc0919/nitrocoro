@@ -4,7 +4,9 @@
  */
 #include <nitrocoro/http/HttpHeader.h>
 #include <nitrocoro/http/HttpParser.h>
+
 #include <optional>
+#include <stdexcept>
 
 namespace nitrocoro::http
 {

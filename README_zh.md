@@ -50,7 +50,7 @@ github.com/nitrocoro/（规划中，独立版本管理）
 
 ## 系统要求
 
-- C++20 编译器（GCC 10+、Clang 12+）
+- C++20 编译器（GCC 10+、Clang 16+）
 - CMake 3.15+
 - Linux（epoll）— 跨平台（Windows、macOS）支持计划中
 

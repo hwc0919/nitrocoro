@@ -4,12 +4,20 @@ project(nitrocoro CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(NOT CMAKE_BUILD_TYPE)
+if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
-endif()
+endif ()
 
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    option(USE_LIBCXX "Use libc++ instead of libstdc++ (Clang only)" OFF)
+    if (USE_LIBCXX)
+        add_compile_options(-stdlib=libc++)
+        add_link_options(-stdlib=libc++)
+    endif ()
+endif ()
 
 # Build library
 add_library(nitrocoro STATIC
@@ -40,16 +48,16 @@ add_subdirectory(examples)
 
 # Extensions
 option(BUILD_EXT_HTTP "Build HTTP extension" ON)
-if(BUILD_EXT_HTTP)
+if (BUILD_EXT_HTTP)
     add_subdirectory(extensions/http)
-endif()
+endif ()
 
 option(BUILD_EXT_PG "Build PostgreSQL extension" OFF)
-if(BUILD_EXT_PG)
+if (BUILD_EXT_PG)
     add_subdirectory(extensions/pg)
-endif()
+endif ()
 
 option(BUILD_EXT_TLS "Build TLS extension" OFF)
-if(BUILD_EXT_TLS)
+if (BUILD_EXT_TLS)
     add_subdirectory(extensions/tls)
-endif()
+endif ()
