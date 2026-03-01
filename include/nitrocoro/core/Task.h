@@ -30,7 +30,11 @@ struct TaskAwaiter
 {
     std::coroutine_handle<PromiseType> handle_;
 
-    bool await_ready() { return false; }
+    // Check done() so that if the Task temporary is destroyed before co_await
+    // resumes (e.g. a prvalue Task returned from a function), the coroutine
+    // frame is already at its final-suspend point and ~Task() can safely
+    // destroy it without racing with the symmetric-transfer resume.
+    bool await_ready() noexcept { return !handle_ || handle_.done(); }
     std::coroutine_handle<> await_suspend(std::coroutine_handle<> h)
     {
         handle_.promise().continuation_ = h;
@@ -109,7 +113,10 @@ struct [[nodiscard]] Task
             handle_.destroy();
     }
 
-    auto operator co_await() { return TaskAwaiter{ handle_ }; }
+    auto operator co_await() const noexcept
+    {
+        return TaskAwaiter{ handle_ };
+    }
 };
 
 template <>
@@ -161,7 +168,10 @@ struct [[nodiscard]] Task<void>
             handle_.destroy();
     }
 
-    auto operator co_await() { return TaskAwaiter{ handle_ }; }
+    auto operator co_await() const noexcept
+    {
+        return TaskAwaiter{ handle_ };
+    }
 };
 
 } // namespace nitrocoro
