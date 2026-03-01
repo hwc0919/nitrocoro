@@ -259,6 +259,7 @@ public:
         if (n <= 0)
         {
             int err = SSL_get_error(ssl_, n);
+            // TODO: need to handle renegotiation here
             if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
                 return 0;
             lastError_ = sslError("SSL_write failed");
