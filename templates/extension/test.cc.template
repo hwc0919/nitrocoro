@@ -1,0 +1,30 @@
+#include <nitrocoro/{{NAME}}/{{CLASS}}.h>
+#include <nitrocoro/testing/Test.h>
+
+using namespace nitrocoro;
+using namespace nitrocoro::{{NAME}};
+
+NITRO_TEST(test_{{NAME}})
+{
+    NITRO_INFO("Testing {{CLASS}}");
+
+    // Soft assertions (continue on failure)
+    NITRO_CHECK(1 + 1 == 2);
+    NITRO_CHECK_EQ(42, 42);
+    NITRO_CHECK_NE(1, 2);
+
+    // Hard assertions (abort test on failure)
+    NITRO_REQUIRE(true);
+    NITRO_REQUIRE_EQ(10, 10);
+
+    // Exception checks
+    NITRO_CHECK_THROWS(throw std::runtime_error("test"));
+    NITRO_CHECK_THROWS_AS(throw std::logic_error("test"), std::logic_error);
+
+    co_return;
+}
+
+int main()
+{
+    return nitrocoro::test::run_all();
+}

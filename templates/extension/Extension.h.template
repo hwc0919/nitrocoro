@@ -1,0 +1,11 @@
+#pragma once
+
+namespace nitrocoro::{{NAME}} {
+
+class {{CLASS}} {
+public:
+    {{CLASS}}();
+    ~{{CLASS}}();
+};
+
+} // namespace nitrocoro::{{NAME}}

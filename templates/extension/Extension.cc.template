@@ -1,0 +1,9 @@
+#include <nitrocoro/{{NAME}}/{{CLASS}}.h>
+
+namespace nitrocoro::{{NAME}} {
+
+{{CLASS}}::{{CLASS}}() {}
+
+{{CLASS}}::~{{CLASS}}() {}
+
+} // namespace nitrocoro::{{NAME}}
