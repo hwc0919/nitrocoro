@@ -67,11 +67,23 @@ NITRO_TEST(tcp_multiple_clients)
     uint16_t port = server.port();
 
     Scheduler::current()->spawn([TEST_CTX, &server]() -> Task<> {
-        co_await server.start([](TcpConnectionPtr conn) -> Task<> {
+        auto somePtr = std::make_shared<int>(0);
+        NITRO_CHECK(somePtr.use_count() == 1);
+
+        co_await server.start([somePtr](TcpConnectionPtr conn) -> Task<> {
+            NITRO_INFO("somePtr.use_count = %zu\n", somePtr.use_count());
+            ++(*somePtr);
             char buf[256];
             size_t n = co_await conn->read(buf, sizeof(buf));
             co_await conn->write(buf, n);
         });
+
+        // server.start() block until server.stop() is called
+
+        /** Who can fix this bug? */
+        NITRO_INFO("somePtr.use_count = %zu, should be a valid number\n", somePtr.use_count());
+        NITRO_CHECK(somePtr.use_count() == 1);
+        ++(*somePtr); // might crash
     });
 
     co_await Scheduler::current()->sleep_for(0.01);
