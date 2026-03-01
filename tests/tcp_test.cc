@@ -80,7 +80,8 @@ NITRO_TEST(tcp_multiple_clients)
 
         // server.start() block until server.stop() is called
 
-        /** Who can fix this bug? */
+        /** GCC versions before 13 have a known bug: shared_ptr captured in a coroutine lambda
+         *  may have its lifetime incorrectly managed, causing use_count to be invalid here. */
         NITRO_INFO("somePtr.use_count = %zu, should be a valid number\n", somePtr.use_count());
         NITRO_CHECK(somePtr.use_count() == 1);
         ++(*somePtr); // might crash
