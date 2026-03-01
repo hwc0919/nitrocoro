@@ -34,6 +34,8 @@ public:
     Task<> stop();
     Task<> wait() const;
 
+    uint16_t port() const { return port_; }
+
 private:
     void setup_socket();
 

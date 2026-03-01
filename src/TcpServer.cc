@@ -47,6 +47,13 @@ void TcpServer::setup_socket()
     addr.sin_port = htons(port_);
     if (::bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0)
         throw std::runtime_error(std::string("Failed to bind socket: ") + strerror(errno));
+
+    if (port_ == 0)
+    {
+        socklen_t addrLen = sizeof(addr);
+        if (::getsockname(fd, reinterpret_cast<sockaddr *>(&addr), &addrLen) == 0)
+            port_ = ntohs(addr.sin_port);
+    }
 }
 
 struct Acceptor
@@ -82,6 +89,7 @@ private:
     std::shared_ptr<Socket> socket_;
 };
 
+// TODO: handler must be copy-constructible now, we need more flexibility.
 Task<> TcpServer::start(ConnectionHandler handler)
 {
     co_await scheduler_->switch_to();

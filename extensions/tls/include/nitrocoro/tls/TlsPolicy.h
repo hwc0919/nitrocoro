@@ -15,8 +15,10 @@ struct TlsPolicy
     std::string certPath;
     std::string keyPath;
     std::string caPath;
-    std::string hostname;           // client: SNI + cert validation
-    std::vector<std::string> alpn;  // e.g. {"h2", "http/1.1"}
+    std::string certPem;           // in-memory PEM certificate (alternative to certPath)
+    std::string keyPem;            // in-memory PEM private key (alternative to keyPath)
+    std::string hostname;          // client: SNI + cert validation
+    std::vector<std::string> alpn; // e.g. {"h2", "http/1.1"}
     bool validate = true;
     bool useSystemCertStore = true;
 

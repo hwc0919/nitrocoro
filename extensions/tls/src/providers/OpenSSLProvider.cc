@@ -10,6 +10,7 @@
 #include <stdexcept>
 
 #include <openssl/err.h>
+#include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
 
@@ -33,12 +34,38 @@ public:
 
         SSL_CTX_set_min_proto_version(ctx_, TLS1_2_VERSION);
 
-        if (!policy.certPath.empty())
+        if (!policy.certPem.empty())
+        {
+            BIO * bio = BIO_new_mem_buf(policy.certPem.data(), static_cast<int>(policy.certPem.size()));
+            X509 * cert = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr);
+            BIO_free(bio);
+            if (!cert || SSL_CTX_use_certificate(ctx_, cert) <= 0)
+            {
+                X509_free(cert);
+                throw std::runtime_error("Failed to load certificate from PEM");
+            }
+            X509_free(cert);
+        }
+        else if (!policy.certPath.empty())
         {
             if (SSL_CTX_use_certificate_chain_file(ctx_, policy.certPath.c_str()) <= 0)
                 throw std::runtime_error("Failed to load certificate: " + policy.certPath);
         }
-        if (!policy.keyPath.empty())
+        if (!policy.keyPem.empty())
+        {
+            BIO * bio = BIO_new_mem_buf(policy.keyPem.data(), static_cast<int>(policy.keyPem.size()));
+            EVP_PKEY * key = PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr);
+            BIO_free(bio);
+            if (!key || SSL_CTX_use_PrivateKey(ctx_, key) <= 0)
+            {
+                EVP_PKEY_free(key);
+                throw std::runtime_error("Failed to load private key from PEM");
+            }
+            EVP_PKEY_free(key);
+            if (SSL_CTX_check_private_key(ctx_) == 0)
+                throw std::runtime_error("Private key does not match certificate");
+        }
+        else if (!policy.keyPath.empty())
         {
             if (SSL_CTX_use_PrivateKey_file(ctx_, policy.keyPath.c_str(), SSL_FILETYPE_PEM) <= 0)
                 throw std::runtime_error("Failed to load private key: " + policy.keyPath);
