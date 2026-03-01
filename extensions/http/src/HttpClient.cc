@@ -41,7 +41,7 @@ Task<HttpCompleteResponse> HttpClient::sendRequest(const std::string & method, c
 
     // Try to connect to first address
     auto addr = addresses[0];
-    auto conn = co_await net::TcpConnection::connect(addr.toIp().c_str(), url.port());
+    auto conn = co_await net::TcpConnection::connect(net::InetAddress(addr.toIp(), url.port(), addr.isIpV6()));
 
     // Build request
     std::string request;
@@ -91,7 +91,7 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
     if (addresses.empty())
         throw std::runtime_error("DNS resolution failed");
 
-    auto conn = co_await net::TcpConnection::connect(addresses[0].toIp().c_str(), parsedUrl.port());
+    auto conn = co_await net::TcpConnection::connect(net::InetAddress(addresses[0].toIp(), parsedUrl.port(), addresses[0].isIpV6()));
 
     // Create outgoing stream for request body
     HttpOutgoingStream<HttpRequest> requestStream(conn);

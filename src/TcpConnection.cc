@@ -2,11 +2,11 @@
  * @file TcpConnection.cc
  * @brief Implementation of TcpConnection
  */
-#include <arpa/inet.h>
 #include <nitrocoro/core/Scheduler.h>
-#include <nitrocoro/io/Socket.h>
 #include <nitrocoro/io/adapters/BufferReader.h>
 #include <nitrocoro/io/adapters/BufferWriter.h>
+#include <nitrocoro/net/InetAddress.h>
+#include <nitrocoro/net/Socket.h>
 #include <nitrocoro/net/TcpConnection.h>
 
 namespace nitrocoro::net
@@ -15,9 +15,9 @@ namespace nitrocoro::net
 using nitrocoro::Scheduler;
 using nitrocoro::Task;
 using nitrocoro::io::IoChannel;
-using nitrocoro::io::Socket;
 using nitrocoro::io::adapters::BufferReader;
 using nitrocoro::io::adapters::BufferWriter;
+using nitrocoro::net::Socket;
 
 struct Connector
 {
@@ -84,46 +84,20 @@ private:
     bool connecting_{ false };
 };
 
-Task<TcpConnectionPtr> TcpConnection::connect(const sockaddr * addr, socklen_t addrLen)
+Task<TcpConnectionPtr> TcpConnection::connect(const InetAddress & addr)
 {
-    int fd = ::socket(addr->sa_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+    int fd = ::socket(addr.family(), SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (fd < 0)
         throw std::runtime_error("Failed to create socket");
     auto socket = std::make_shared<Socket>(fd);
     auto channelPtr = std::make_unique<IoChannel>(fd);
     channelPtr->setGuard(socket);
-    Connector connector(addr, addrLen);
+    socklen_t addrLen = addr.isIpV6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+    Connector connector(addr.getSockAddr(), addrLen);
     auto result = co_await channelPtr->performWrite(&connector);
     if (result != IoChannel::IoResult::Success)
         throw std::runtime_error("TCP connect failed");
-
     co_return std::make_shared<TcpConnection>(std::move(channelPtr), std::move(socket));
-}
-
-Task<TcpConnectionPtr> TcpConnection::connect(const char * ip, uint16_t port, IpVersion v)
-{
-    if (v == IpVersion::Ipv4)
-    {
-        sockaddr_in addr{};
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(port);
-        if (inet_pton(AF_INET, ip, &addr.sin_addr) != 1)
-        {
-            throw std::runtime_error("Invalid IPv4 address");
-        }
-        co_return co_await connect(reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
-    }
-    else
-    {
-        sockaddr_in6 addr{};
-        addr.sin6_family = AF_INET6;
-        addr.sin6_port = htons(port);
-        if (inet_pton(AF_INET6, ip, &addr.sin6_addr) != 1)
-        {
-            throw std::runtime_error("Invalid IPv6 address");
-        }
-        co_return co_await connect(reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
-    }
 }
 
 TcpConnection::TcpConnection(std::unique_ptr<IoChannel> channelPtr, std::shared_ptr<Socket> socket)

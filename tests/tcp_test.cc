@@ -5,6 +5,7 @@
 #include <nitrocoro/core/Future.h>
 #include <nitrocoro/core/Scheduler.h>
 #include <nitrocoro/core/Task.h>
+#include <nitrocoro/net/InetAddress.h>
 #include <nitrocoro/net/TcpConnection.h>
 #include <nitrocoro/net/TcpServer.h>
 #include <nitrocoro/testing/Test.h>
@@ -28,7 +29,7 @@ NITRO_TEST(tcp_echo)
 
     co_await Scheduler::current()->sleep_for(0.01);
 
-    auto conn = co_await TcpConnection::connect("127.0.0.1", port);
+    auto conn = co_await TcpConnection::connect({"127.0.0.1", port});
     co_await conn->write("hello", 5);
 
     char buf[256]{};
@@ -97,7 +98,7 @@ NITRO_TEST(tcp_multiple_clients)
     for (int i = 0; i < kClients; ++i)
     {
         Scheduler::current()->spawn([TEST_CTX, port, i, &received, &done]() mutable -> Task<> {
-            auto conn = co_await TcpConnection::connect("127.0.0.1", port);
+            auto conn = co_await TcpConnection::connect({"127.0.0.1", port});
             std::string msg = "client" + std::to_string(i);
             co_await conn->write(msg.data(), msg.size());
 

@@ -3,7 +3,7 @@
  * @brief Implementation of coroutine-based TCP server
  */
 #include <nitrocoro/core/Scheduler.h>
-#include <nitrocoro/io/Socket.h>
+#include <nitrocoro/net/Socket.h>
 #include <nitrocoro/net/TcpConnection.h>
 #include <nitrocoro/net/TcpServer.h>
 #include <nitrocoro/utils/Debug.h>
@@ -17,7 +17,7 @@
 namespace nitrocoro::net
 {
 using io::IoChannel;
-using io::Socket;
+using net::Socket;
 
 TcpServer::TcpServer(uint16_t port, Scheduler * scheduler)
     : port_(port)

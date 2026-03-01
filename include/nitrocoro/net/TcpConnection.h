@@ -4,11 +4,11 @@
  */
 #pragma once
 
-#include <netinet/in.h>
 #include <nitrocoro/core/Mutex.h>
 #include <nitrocoro/core/Task.h>
 #include <nitrocoro/io/IoChannel.h>
-#include <nitrocoro/io/Socket.h>
+#include <nitrocoro/net/InetAddress.h>
+#include <nitrocoro/net/Socket.h>
 
 namespace nitrocoro::net
 {
@@ -16,21 +16,14 @@ namespace nitrocoro::net
 using nitrocoro::Mutex;
 using nitrocoro::Task;
 using nitrocoro::io::IoChannel;
-using nitrocoro::io::Socket;
+using nitrocoro::net::Socket;
 class TcpConnection;
 using TcpConnectionPtr = std::shared_ptr<TcpConnection>;
 
 class TcpConnection
 {
 public:
-    enum class IpVersion
-    {
-        Ipv4,
-        Ipv6
-    };
-
-    static Task<TcpConnectionPtr> connect(const sockaddr * addr, socklen_t addrLen);
-    static Task<TcpConnectionPtr> connect(const char * ip, uint16_t port, IpVersion v = IpVersion::Ipv4);
+    static Task<TcpConnectionPtr> connect(const InetAddress & addr);
 
     explicit TcpConnection(std::unique_ptr<IoChannel>, std::shared_ptr<Socket>);
     ~TcpConnection();

@@ -3,6 +3,7 @@
  * @brief Unit tests for TlsStream
  */
 #include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/net/InetAddress.h>
 #include <nitrocoro/net/TcpConnection.h>
 #include <nitrocoro/net/TcpServer.h>
 #include <nitrocoro/testing/Test.h>
@@ -118,7 +119,7 @@ NITRO_TEST(tls_handshake)
 
     co_await Scheduler::current()->sleep_for(0.01);
 
-    auto conn = co_await TcpConnection::connect("127.0.0.1", server.port());
+    auto conn = co_await TcpConnection::connect({"127.0.0.1", server.port()});
     auto tls = co_await TlsStream::connect(conn, clientCtx);
     NITRO_CHECK(tls != nullptr);
     co_await tls->shutdown();
@@ -144,7 +145,7 @@ NITRO_TEST(tls_echo)
 
     co_await Scheduler::current()->sleep_for(0.01);
 
-    auto conn = co_await TcpConnection::connect("127.0.0.1", server.port());
+    auto conn = co_await TcpConnection::connect({"127.0.0.1", server.port()});
     auto tls = co_await TlsStream::connect(conn, clientCtx);
 
     const std::string msg = "hello tls";
@@ -177,7 +178,7 @@ NITRO_TEST(tls_alpn)
 
     co_await Scheduler::current()->sleep_for(0.01);
 
-    auto conn = co_await TcpConnection::connect("127.0.0.1", server.port());
+    auto conn = co_await TcpConnection::connect({"127.0.0.1", server.port()});
     auto tls = co_await TlsStream::connect(conn, clientCtx);
     NITRO_CHECK_EQ(tls->negotiatedAlpn(), std::string("h2"));
     co_await tls->shutdown();
@@ -203,7 +204,7 @@ NITRO_TEST(tls_sni)
 
     co_await Scheduler::current()->sleep_for(0.01);
 
-    auto conn = co_await TcpConnection::connect("127.0.0.1", server.port());
+    auto conn = co_await TcpConnection::connect({"127.0.0.1", server.port()});
     auto tls = co_await TlsStream::connect(conn, clientCtx);
     co_await tls->shutdown();
     co_await server.wait();
@@ -236,7 +237,7 @@ NITRO_TEST(tls_large_transfer)
 
     co_await Scheduler::current()->sleep_for(0.01);
 
-    auto conn = co_await TcpConnection::connect("127.0.0.1", server.port());
+    auto conn = co_await TcpConnection::connect({"127.0.0.1", server.port()});
     auto tls = co_await TlsStream::connect(conn, clientCtx);
 
     std::vector<char> payload(dataSize, 'x');
@@ -266,7 +267,7 @@ NITRO_TEST(tls_shutdown_eof)
 
     co_await Scheduler::current()->sleep_for(0.01);
 
-    auto conn = co_await TcpConnection::connect("127.0.0.1", server.port());
+    auto conn = co_await TcpConnection::connect({"127.0.0.1", server.port()});
     auto tls = co_await TlsStream::connect(conn, clientCtx);
     co_await tls->shutdown();
     co_await server.wait();
@@ -307,7 +308,7 @@ NITRO_TEST(tls_bad_cert_rejected)
 
     co_await Scheduler::current()->sleep_for(0.01);
 
-    auto conn = co_await TcpConnection::connect("127.0.0.1", server.port());
+    auto conn = co_await TcpConnection::connect({"127.0.0.1", server.port()});
     bool threw = false;
     try
     {
@@ -362,7 +363,7 @@ NITRO_TEST(tls_multi_sni)
         cp.hostname = host;
         cp.validate = false;
         auto clientCtx = TlsContext::create(cp, false);
-        auto conn = co_await TcpConnection::connect("127.0.0.1", port);
+        auto conn = co_await TcpConnection::connect({"127.0.0.1", port});
         co_return co_await TlsStream::connect(conn, clientCtx);
     };
 

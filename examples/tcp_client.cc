@@ -9,6 +9,7 @@
 #include <nitrocoro/io/IoChannel.h>
 #include <nitrocoro/io/adapters/BufferReader.h>
 #include <nitrocoro/net/Dns.h>
+#include <nitrocoro/net/InetAddress.h>
 #include <nitrocoro/net/TcpConnection.h>
 #include <nitrocoro/utils/Debug.h>
 #include <unistd.h>
@@ -100,7 +101,7 @@ Task<> client_main(const char * host, int port)
         NITRO_INFO("Resolved to %s\n", addresses[0].toIp().c_str());
 
         // Connect using resolved IP
-        auto connPtr = co_await TcpConnection::connect(addresses[0].toIp().c_str(), port);
+        auto connPtr = co_await TcpConnection::connect(InetAddress(addresses[0].toIp(), port, addresses[0].isIpV6()));
         NITRO_INFO("Connected to %s:%hu\n", host, port);
 
         Promise<> closePromise(Scheduler::current());

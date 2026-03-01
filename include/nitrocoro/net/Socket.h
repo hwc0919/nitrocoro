@@ -4,16 +4,21 @@
  */
 #pragma once
 
-namespace nitrocoro::io
+namespace nitrocoro::net
 {
 
 class Socket
 {
 public:
-    explicit Socket(int fd) noexcept : fd_(fd) {}
+    explicit Socket(int fd) noexcept
+        : fd_(fd) {}
     ~Socket() noexcept;
 
-    Socket(Socket && other) noexcept : fd_(other.fd_) { other.fd_ = -1; }
+    Socket(Socket && other) noexcept
+        : fd_(other.fd_)
+    {
+        other.fd_ = -1;
+    }
     Socket & operator=(Socket && other) noexcept;
 
     Socket(const Socket &) = delete;
@@ -27,4 +32,4 @@ private:
     int fd_{ -1 };
 };
 
-} // namespace nitrocoro::io
+} // namespace nitrocoro::net

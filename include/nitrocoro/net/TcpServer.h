@@ -7,7 +7,7 @@
 #include <nitrocoro/core/Future.h>
 #include <nitrocoro/core/Scheduler.h>
 #include <nitrocoro/core/Task.h>
-#include <nitrocoro/io/Socket.h>
+#include <nitrocoro/net/Socket.h>
 #include <nitrocoro/net/TcpConnection.h>
 
 #include <atomic>
@@ -41,7 +41,7 @@ private:
 
     uint16_t port_;
     Scheduler * scheduler_;
-    std::shared_ptr<io::Socket> listenSocketPtr_;
+    std::shared_ptr<net::Socket> listenSocketPtr_;
     std::atomic_bool started_{ false };
     std::atomic_bool stopped_{ false };
     Promise<> stopPromise_;

@@ -2,7 +2,7 @@
  * @file Socket.cc
  * @brief Implementation of Socket
  */
-#include <nitrocoro/io/Socket.h>
+#include <nitrocoro/net/Socket.h>
 #include <nitrocoro/utils/Debug.h>
 
 #include <cerrno>
@@ -10,7 +10,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-namespace nitrocoro::io
+namespace nitrocoro::net
 {
 
 Socket::~Socket() noexcept
@@ -37,4 +37,4 @@ void Socket::shutdownWrite() noexcept
         NITRO_ERROR("shutdownWrite fd %d failed: %s\n", fd_, strerror(errno));
 }
 
-} // namespace nitrocoro::io
+} // namespace nitrocoro::net
