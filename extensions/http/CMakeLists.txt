@@ -24,3 +24,4 @@ target_link_libraries(nitrocoro-http PUBLIC nitrocoro)
 
 add_executable(http_stream_test tests/http_stream_test.cc)
 target_link_libraries(http_stream_test PRIVATE nitrocoro-http)
+add_test(NAME http_stream_test COMMAND http_stream_test)

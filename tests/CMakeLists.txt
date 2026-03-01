@@ -1,5 +1,3 @@
-enable_testing()
-
 add_compile_options(-Werror=return-type)
 
 add_executable(self_test self_test.cc)

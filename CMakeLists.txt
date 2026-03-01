@@ -54,6 +54,8 @@ target_include_directories(nitrocoro PUBLIC
 find_package(Threads REQUIRED)
 target_link_libraries(nitrocoro PUBLIC Threads::Threads)
 
+enable_testing()
+
 # Build tests
 add_subdirectory(tests)
 
