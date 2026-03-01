@@ -50,7 +50,8 @@ github.com/nitrocoro/ (planned, version-independent)
 
 ## Requirements
 
-- C++20 compiler (GCC 10+, Clang 16+)
+- C++20 compiler (GCC 13+ recommended, 10+ minimum; Clang 16+)
+  - GCC 10–12 can compile but contain coroutine bugs (e.g. incorrect lifetime of `shared_ptr` captured in coroutine lambdas)
 - CMake 3.15+
 - Linux (epoll) — cross-platform (Windows, macOS) planned
 

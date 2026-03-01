@@ -50,7 +50,8 @@ github.com/nitrocoro/（规划中，独立版本管理）
 
 ## 系统要求
 
-- C++20 编译器（GCC 10+、Clang 16+）
+- C++20 编译器（GCC 13+ 推荐，最低 10+；Clang 16+）
+  - GCC 10–12 可以编译，但存在协程相关 bug（例如协程 lambda 捕获 `shared_ptr` 时出现生命周期错误）
 - CMake 3.15+
 - Linux（epoll）— 跨平台（Windows、macOS）支持计划中
 
