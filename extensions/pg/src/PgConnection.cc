@@ -100,27 +100,27 @@ Task<std::shared_ptr<PgConnection>> PgConnection::connect(std::string connStr, S
         if (s == PGRES_POLLING_WRITING)
         {
             channel->enableWriting();
-            co_await channel->performWrite([&pgConn, &s, &pgPollStr](int, IoChannel *) -> IoChannel::IoResult {
+            co_await channel->performWrite([&pgConn, &s, &pgPollStr](int, IoChannel *) -> IoChannel::IoStatus {
                 s = PQconnectPoll(pgConn.get());
                 NITRO_TRACE("PgConnection: pollWrite PQconnectPoll=%s\n", pgPollStr(s));
                 if (s == PGRES_POLLING_FAILED)
-                    return IoChannel::IoResult::Error;
+                    return IoChannel::IoStatus::Error;
                 if (s == PGRES_POLLING_WRITING)
-                    return IoChannel::IoResult::NeedWrite;
-                return IoChannel::IoResult::Success;
+                    return IoChannel::IoStatus::NeedWrite;
+                return IoChannel::IoStatus::Success;
             });
             channel->disableWriting();
         }
         else
         {
-            co_await channel->performRead([&pgConn, &s, &pgPollStr](int, IoChannel *) -> IoChannel::IoResult {
+            co_await channel->performRead([&pgConn, &s, &pgPollStr](int, IoChannel *) -> IoChannel::IoStatus {
                 s = PQconnectPoll(pgConn.get());
                 NITRO_TRACE("PgConnection: pollRead PQconnectPoll=%s\n", pgPollStr(s));
                 if (s == PGRES_POLLING_FAILED)
-                    return IoChannel::IoResult::Error;
+                    return IoChannel::IoStatus::Error;
                 if (s == PGRES_POLLING_READING)
-                    return IoChannel::IoResult::NeedRead;
-                return IoChannel::IoResult::Success;
+                    return IoChannel::IoStatus::NeedRead;
+                return IoChannel::IoStatus::Success;
             });
         }
     }
@@ -206,20 +206,20 @@ Task<std::unique_ptr<PgResult>> PgConnection::sendAndReceive(std::string_view sq
         throw std::runtime_error(std::string("PQsendQueryParams: ") + PQerrorMessage(pgConn_.get()));
     }
 
-    auto flushResult = co_await channel_->performWrite([this](int, IoChannel * c) {
+    auto flushResult = co_await channel_->performWrite([this](int, IoChannel * c) -> IoChannel::IoStatus {
         int r = PQflush(pgConn_.get());
         NITRO_TRACE("PgConnection: PQflush=%d\n", r);
         if (r == 0)
         {
             c->disableWriting();
-            return IoChannel::IoResult::Success;
+            return IoChannel::IoStatus::Success;
         }
         if (r > 0)
         {
             c->enableWriting();
-            return IoChannel::IoResult::NeedWrite;
+            return IoChannel::IoStatus::NeedWrite;
         }
-        return IoChannel::IoResult::Error;
+        return IoChannel::IoStatus::Error;
     });
     if (flushResult == IoChannel::IoResult::Error)
     {
@@ -231,12 +231,12 @@ Task<std::unique_ptr<PgResult>> PgConnection::sendAndReceive(std::string_view sq
     }
 
     PGresult * res = nullptr;
-    auto readResult = co_await channel_->performRead([this, &res](int, IoChannel *) {
+    auto readResult = co_await channel_->performRead([this, &res](int, IoChannel *) -> IoChannel::IoStatus {
         if (!PQconsumeInput(pgConn_.get()))
-            return IoChannel::IoResult::Error;
+            return IoChannel::IoStatus::Error;
         NITRO_TRACE("PgConnection: PQisBusy=%d\n", PQisBusy(pgConn_.get()));
         if (PQisBusy(pgConn_.get()))
-            return IoChannel::IoResult::NeedRead;
+            return IoChannel::IoStatus::NeedRead;
         while (PGresult * r = PQgetResult(pgConn_.get()))
         {
             if (res)
@@ -248,7 +248,7 @@ Task<std::unique_ptr<PgResult>> PgConnection::sendAndReceive(std::string_view sq
             }
             res = r;
         }
-        return IoChannel::IoResult::Success;
+        return IoChannel::IoStatus::Success;
     });
     if (readResult == IoChannel::IoResult::Error)
     {

@@ -70,12 +70,21 @@ public:
     void disableWriting();
     void disableAll();
 
-    enum class IoResult
+    // Returned by adapters/lambdas to drive the performImpl loop
+    enum class IoStatus
     {
         Success,
         NeedRead,  // wait for readable, then retry
         NeedWrite, // wait for writable, then retry
         Retry,
+        Eof,  // read() returned 0: peer closed write direction
+        Error // ECONNRESET, EPIPE, or other fatal errors
+    };
+
+    // Returned by perform() / performRead() / performWrite() to callers
+    enum class IoResult
+    {
+        Success,
         Eof,     // read() returned 0: peer closed write direction
         Error,   // ECONNRESET, EPIPE, or other fatal errors
         Canceled // operation was canceled via cancelRead()/cancelWrite()
@@ -99,7 +108,7 @@ public:
     // Callable overload: perform(lambda)
     template <typename Func>
         requires std::invocable<Func, int, IoChannel *>
-                 && std::same_as<std::invoke_result_t<Func, int, IoChannel *>, IoResult>
+                 && std::same_as<std::invoke_result_t<Func, int, IoChannel *>, IoStatus>
                  && (!std::is_pointer_v<Func>)
     Task<IoResult> perform(Func && func, WaitHint hint = WaitHint::None)
     {
@@ -182,35 +191,36 @@ private:
                 }
             }
 
-            IoResult result;
+            IoStatus status;
             if constexpr (std::is_pointer_v<std::remove_reference_t<T>>)
-                result = (*func)(fd_, this);
+                status = (*func)(fd_, this);
             else
-                result = func(fd_, this);
+                status = func(fd_, this);
 
-            switch (result)
+            switch (status)
             {
-                case IoResult::Success:
-                case IoResult::Eof:
-                case IoResult::Error:
-                    co_return result;
+                case IoStatus::Success:
+                    co_return IoResult::Success;
 
-                case IoResult::NeedRead:
+                case IoStatus::Eof:
+                    co_return IoResult::Eof;
+
+                case IoStatus::Error:
+                    co_return IoResult::Error;
+
+                case IoStatus::NeedRead:
                     state_->readable = false;
                     pendingWait = WaitHint::Read;
                     break;
 
-                case IoResult::NeedWrite:
+                case IoStatus::NeedWrite:
                     state_->writable = false;
                     pendingWait = WaitHint::Write;
                     break;
 
-                case IoResult::Retry:
+                case IoStatus::Retry:
                     pendingWait = WaitHint::None;
                     break;
-
-                default:
-                    co_return result;
             }
         }
     }

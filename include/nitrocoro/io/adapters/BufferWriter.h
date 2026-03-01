@@ -18,11 +18,11 @@ struct BufferWriter
     {
     }
 
-    IoChannel::IoResult operator()(int fd, IoChannel * channel)
+    IoChannel::IoStatus operator()(int fd, IoChannel * channel)
     {
         if (!buf_ || len_ == 0)
         {
-            return IoChannel::IoResult::Success;
+            return IoChannel::IoStatus::Success;
         }
 
         ssize_t ret = ::write(fd, static_cast<const char *>(buf_) + wroteLen_, len_ - wroteLen_);
@@ -32,11 +32,11 @@ struct BufferWriter
             if (wroteLen_ >= static_cast<ssize_t>(len_))
             {
                 channel->disableWriting();
-                return IoChannel::IoResult::Success;
+                return IoChannel::IoStatus::Success;
             }
             else
             {
-                return IoChannel::IoResult::Retry;
+                return IoChannel::IoStatus::Retry;
             }
         }
         else // ret <= 0
@@ -48,14 +48,14 @@ struct BufferWriter
                 case EWOULDBLOCK:
 #endif
                     channel->enableWriting();
-                    return IoChannel::IoResult::NeedWrite;
+                    return IoChannel::IoStatus::NeedWrite;
                 case EINTR:
-                    return IoChannel::IoResult::Retry;
+                    return IoChannel::IoStatus::Retry;
                 case EPIPE:
                 case ECONNRESET:
-                    return IoChannel::IoResult::Eof;
+                    return IoChannel::IoStatus::Eof;
                 default:
-                    return IoChannel::IoResult::Error;
+                    return IoChannel::IoStatus::Error;
             }
         }
     }

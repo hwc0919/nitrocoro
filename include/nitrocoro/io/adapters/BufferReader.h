@@ -16,20 +16,20 @@ struct BufferReader
         : buf_(buf), len_(len) {}
     size_t readLen() const { return readLen_; }
 
-    IoChannel::IoResult operator()(int fd, IoChannel *)
+    IoChannel::IoStatus operator()(int fd, IoChannel *)
     {
         if (!buf_ || len_ == 0)
-            return IoChannel::IoResult::Success;
+            return IoChannel::IoStatus::Success;
 
         ssize_t ret = ::read(fd, buf_, len_);
         if (ret > 0)
         {
             readLen_ = ret;
-            return IoChannel::IoResult::Success;
+            return IoChannel::IoStatus::Success;
         }
         else if (ret == 0)
         {
-            return IoChannel::IoResult::Eof;
+            return IoChannel::IoStatus::Eof;
         }
         else
         {
@@ -39,11 +39,11 @@ struct BufferReader
 #if EAGAIN != EWOULDBLOCK
                 case EWOULDBLOCK:
 #endif
-                    return IoChannel::IoResult::NeedRead;
+                    return IoChannel::IoStatus::NeedRead;
                 case EINTR:
-                    return IoChannel::IoResult::Retry;
+                    return IoChannel::IoStatus::Retry;
                 default:
-                    return IoChannel::IoResult::Error;
+                    return IoChannel::IoStatus::Error;
             }
         }
     }

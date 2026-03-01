@@ -27,7 +27,7 @@ struct Connector
     {
     }
 
-    IoChannel::IoResult operator()(int fd, IoChannel * channel)
+    IoChannel::IoStatus operator()(int fd, IoChannel * channel)
     {
         if (connecting_)
         {
@@ -35,20 +35,20 @@ struct Connector
             socklen_t len = sizeof(error);
             if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
             {
-                return IoChannel::IoResult::Error;
+                return IoChannel::IoStatus::Error;
             }
             if (error == 0)
             {
                 channel->disableWriting();
-                return IoChannel::IoResult::Success;
+                return IoChannel::IoStatus::Success;
             }
             else if (error == EINPROGRESS || error == EALREADY)
             {
-                return IoChannel::IoResult::NeedWrite;
+                return IoChannel::IoStatus::NeedWrite;
             }
             else
             {
-                return IoChannel::IoResult::Error;
+                return IoChannel::IoStatus::Error;
             }
         }
 
@@ -56,24 +56,24 @@ struct Connector
         if (ret == 0)
         {
             channel->disableWriting();
-            return IoChannel::IoResult::Success;
+            return IoChannel::IoStatus::Success;
         }
         int lastErrno = errno;
         switch (lastErrno)
         {
             case EISCONN:
                 channel->disableWriting();
-                return IoChannel::IoResult::Success;
+                return IoChannel::IoStatus::Success;
             case EINPROGRESS:
             case EALREADY:
                 connecting_ = true;
                 channel->enableWriting();
-                return IoChannel::IoResult::NeedWrite;
+                return IoChannel::IoStatus::NeedWrite;
             case EINTR:
-                return IoChannel::IoResult::Retry;
+                return IoChannel::IoStatus::Retry;
 
             default:
-                return IoChannel::IoResult::Error;
+                return IoChannel::IoStatus::Error;
         }
     }
 

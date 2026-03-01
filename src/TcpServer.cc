@@ -58,14 +58,14 @@ void TcpServer::setup_socket()
 
 struct Acceptor
 {
-    IoChannel::IoResult operator()(int fd, IoChannel *)
+    IoChannel::IoStatus operator()(int fd, IoChannel *)
     {
         socklen_t len = sizeof(clientAddr_);
         int connfd = ::accept4(fd, reinterpret_cast<struct sockaddr *>(&clientAddr_), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
         if (connfd >= 0)
         {
             socket_ = std::make_shared<Socket>(connfd);
-            return IoChannel::IoResult::Success;
+            return IoChannel::IoStatus::Success;
         }
         switch (errno)
         {
@@ -73,11 +73,11 @@ struct Acceptor
 #if EAGAIN != EWOULDBLOCK
             case EWOULDBLOCK:
 #endif
-                return IoChannel::IoResult::NeedRead;
+                return IoChannel::IoStatus::NeedRead;
             case EINTR:
-                return IoChannel::IoResult::Retry;
+                return IoChannel::IoStatus::Retry;
             default:
-                return IoChannel::IoResult::Error;
+                return IoChannel::IoStatus::Error;
         }
     }
 
