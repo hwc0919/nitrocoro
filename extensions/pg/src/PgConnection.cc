@@ -75,55 +75,25 @@ Task<std::shared_ptr<PgConnection>> PgConnection::connect(std::string connStr, S
     auto channel = std::make_unique<IoChannel>(PQsocket(pgConn.get()), TriggerMode::EdgeTriggered, scheduler);
     channel->enableReading();
 
-    auto pgPollStr = [](PostgresPollingStatusType s) -> const char * {
-        switch (s)
-        {
-            case PGRES_POLLING_READING:
-                return "POLLING_READING";
-            case PGRES_POLLING_WRITING:
-                return "POLLING_WRITING";
-            case PGRES_POLLING_OK:
-                return "POLLING_OK";
-            case PGRES_POLLING_FAILED:
-                return "POLLING_FAILED";
-            default:
-                return "POLLING_UNKNOWN";
-        }
-    };
-
-    PostgresPollingStatusType s = PQconnectPoll(pgConn.get());
-    while (s != PGRES_POLLING_OK)
-    {
+    auto connectResult = co_await channel->perform([&pgConn](int, IoChannel * ch) -> IoChannel::IoStatus {
+        PostgresPollingStatusType s = PQconnectPoll(pgConn.get());
+        NITRO_TRACE("PgConnection: PQconnectPoll=%d\n", (int)s);
         if (s == PGRES_POLLING_FAILED)
-            throw std::runtime_error("PgConnection: handshake failed");
-
+            return IoChannel::IoStatus::Error;
         if (s == PGRES_POLLING_WRITING)
         {
-            channel->enableWriting();
-            co_await channel->performWrite([&pgConn, &s, &pgPollStr](int, IoChannel *) -> IoChannel::IoStatus {
-                s = PQconnectPoll(pgConn.get());
-                NITRO_TRACE("PgConnection: pollWrite PQconnectPoll=%s\n", pgPollStr(s));
-                if (s == PGRES_POLLING_FAILED)
-                    return IoChannel::IoStatus::Error;
-                if (s == PGRES_POLLING_WRITING)
-                    return IoChannel::IoStatus::NeedWrite;
-                return IoChannel::IoStatus::Success;
-            });
-            channel->disableWriting();
+            ch->enableWriting();
+            return IoChannel::IoStatus::NeedWrite;
         }
-        else
+        if (s == PGRES_POLLING_READING)
         {
-            co_await channel->performRead([&pgConn, &s, &pgPollStr](int, IoChannel *) -> IoChannel::IoStatus {
-                s = PQconnectPoll(pgConn.get());
-                NITRO_TRACE("PgConnection: pollRead PQconnectPoll=%s\n", pgPollStr(s));
-                if (s == PGRES_POLLING_FAILED)
-                    return IoChannel::IoStatus::Error;
-                if (s == PGRES_POLLING_READING)
-                    return IoChannel::IoStatus::NeedRead;
-                return IoChannel::IoStatus::Success;
-            });
+            ch->disableWriting();
+            return IoChannel::IoStatus::NeedRead;
         }
-    }
+        return IoChannel::IoStatus::Success; // PGRES_POLLING_OK
+    });
+    if (connectResult != IoChannel::IoResult::Success)
+        throw std::runtime_error("PgConnection: handshake failed");
     NITRO_TRACE("PgConnection: connected (fd=%d)\n", PQsocket(pgConn.get()));
     if (PQsetnonblocking(pgConn.get(), 1) != 0)
         throw std::runtime_error("PQsetnonblocking: " + std::string(PQerrorMessage(pgConn.get())));
