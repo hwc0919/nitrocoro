@@ -54,15 +54,25 @@ target_include_directories(nitrocoro PUBLIC
 find_package(Threads REQUIRED)
 target_link_libraries(nitrocoro PUBLIC Threads::Threads)
 
-enable_testing()
+option(BUILD_TESTING "Build tests" ON)
+if (BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(tests)
+endif ()
 
-# Build tests
-add_subdirectory(tests)
-
-# Build examples
-add_subdirectory(examples)
+option(BUILD_EXAMPLES "Build examples" ON)
+if (BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif ()
 
 # Extensions
+option(BUILD_ALL_EXTENSIONS "Build all extensions" OFF)
+if (BUILD_ALL_EXTENSIONS)
+    set(BUILD_EXT_HTTP ON)
+    set(BUILD_EXT_PG   ON)
+    set(BUILD_EXT_TLS  ON)
+endif ()
+
 option(BUILD_EXT_HTTP "Build HTTP extension" ON)
 if (BUILD_EXT_HTTP)
     add_subdirectory(extensions/http)
