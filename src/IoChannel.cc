@@ -199,11 +199,11 @@ void IoChannel::cancelRead()
 
 void IoChannel::cancelWrite()
 {
-    if (state_->readableWaiter)
+    if (state_->writableWaiter)
     {
         state_->writeCanceled = true;
-        auto h = state_->readableWaiter;
-        state_->readableWaiter = nullptr;
+        auto h = state_->writableWaiter;
+        state_->writableWaiter = nullptr;
         scheduler_->schedule(h);
     }
 }
