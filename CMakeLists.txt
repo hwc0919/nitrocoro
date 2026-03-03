@@ -44,6 +44,7 @@ add_library(nitrocoro STATIC
     src/DnsResolver.cc
     src/Dns.cc
     src/Url.cpp
+    src/Debug.cc
 )
 
 target_include_directories(nitrocoro PUBLIC
