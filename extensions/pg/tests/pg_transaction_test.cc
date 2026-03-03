@@ -190,6 +190,68 @@ NITRO_TEST(transaction_from_connection)
     co_await conn2->execute("DROP TABLE tx_conn_test");
 }
 
+NITRO_TEST(transaction_begin_unique_ptr)
+{
+    auto conn = co_await PgConnection::connect(connStr());
+    co_await conn->execute("DROP TABLE IF EXISTS tx_uptr_test");
+    co_await conn->execute("CREATE TABLE tx_uptr_test (v INT)");
+
+    {
+        auto tx = co_await PgTransaction::begin(std::move(conn));
+        co_await tx.execute("INSERT INTO tx_uptr_test VALUES (200)");
+        co_await tx.commit();
+    }
+
+    auto conn2 = co_await PgConnection::connect(connStr());
+    auto result = co_await conn2->query("SELECT v FROM tx_uptr_test");
+    NITRO_CHECK_EQ(result.rowCount(), 1);
+    NITRO_CHECK_EQ(std::get<int64_t>(result.get(0, 0)), 200);
+
+    co_await conn2->execute("DROP TABLE tx_uptr_test");
+}
+
+NITRO_TEST(transaction_release_and_reuse)
+{
+    auto conn = co_await PgConnection::connect(connStr());
+    co_await conn->execute("DROP TABLE IF EXISTS tx_release_test");
+    co_await conn->execute("CREATE TABLE tx_release_test (v INT)");
+
+    {
+        auto tx = co_await PgTransaction::begin(std::move(conn));
+        co_await tx.execute("INSERT INTO tx_release_test VALUES (1)");
+        co_await tx.commit();
+        conn = tx.release();
+    }
+
+    {
+        auto tx = co_await PgTransaction::begin(std::move(conn));
+        co_await tx.execute("INSERT INTO tx_release_test VALUES (2)");
+        co_await tx.commit();
+        conn = tx.release();
+    }
+
+    auto result = co_await conn->query("SELECT SUM(v) FROM tx_release_test");
+    NITRO_CHECK_EQ(std::get<int64_t>(result.get(0, 0)), 3);
+
+    co_await conn->execute("DROP TABLE tx_release_test");
+}
+
+NITRO_TEST(transaction_release_before_commit)
+{
+    auto conn = co_await PgConnection::connect(connStr());
+    auto tx = co_await PgTransaction::begin(std::move(conn));
+    NITRO_CHECK_THROWS_AS(tx.release(), std::logic_error);
+    co_await tx.rollback();
+}
+
+NITRO_TEST(transaction_release_pooled_connection)
+{
+    PgPool pool(1, makeConn);
+    auto tx = co_await pool.newTransaction();
+    co_await tx.commit();
+    NITRO_CHECK_THROWS_AS(tx.release(), std::logic_error);
+}
+
 int main()
 {
     return nitrocoro::test::run_all();

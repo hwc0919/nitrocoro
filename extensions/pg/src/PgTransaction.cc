@@ -25,6 +25,13 @@ Task<PgTransaction> PgTransaction::begin(PgConnection && conn)
     co_return PgTransaction(std::move(conn), scheduler);
 }
 
+Task<PgTransaction> PgTransaction::begin(std::unique_ptr<PgConnection> && conn)
+{
+    auto scheduler = conn->scheduler();
+    co_await conn->execute("BEGIN");
+    co_return PgTransaction(std::move(conn), scheduler);
+}
+
 // Private constructors
 PgTransaction::PgTransaction(PooledConnection conn, Scheduler * scheduler)
     : pooledConn_(std::move(conn)), scheduler_(scheduler)
@@ -34,6 +41,12 @@ PgTransaction::PgTransaction(PooledConnection conn, Scheduler * scheduler)
 
 PgTransaction::PgTransaction(PgConnection conn, Scheduler * scheduler)
     : ownedConn_(std::make_unique<PgConnection>(std::move(conn))), scheduler_(scheduler)
+{
+    conn_ = ownedConn_.get();
+}
+
+PgTransaction::PgTransaction(std::unique_ptr<PgConnection> conn, Scheduler * scheduler)
+    : ownedConn_(std::move(conn)), scheduler_(scheduler)
 {
     conn_ = ownedConn_.get();
 }
@@ -128,7 +141,6 @@ Task<> PgTransaction::commit()
     done_ = true;
     conn_ = nullptr;
     pooledConn_.reset();
-    ownedConn_.reset();
 }
 
 Task<> PgTransaction::rollback()
@@ -141,7 +153,19 @@ Task<> PgTransaction::rollback()
     done_ = true;
     conn_ = nullptr;
     pooledConn_.reset();
-    ownedConn_.reset();
+}
+
+std::unique_ptr<PgConnection> PgTransaction::release()
+{
+    if (!done_)
+    {
+        throw std::logic_error("Cannot release connection before commit/rollback");
+    }
+    if (!ownedConn_)
+    {
+        throw std::logic_error("Cannot release pooled connection");
+    }
+    return std::move(ownedConn_);
 }
 
 } // namespace nitrocoro::pg
