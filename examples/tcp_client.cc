@@ -36,7 +36,7 @@ Task<> receive_messages(const TcpConnectionPtr & connPtr)
         }
         catch (const std::exception & e)
         {
-            NITRO_ERROR("Receive error: %s\n", e.what());
+            NITRO_ERROR("Receive error: %s", e.what());
             break;
         }
     }
@@ -91,18 +91,18 @@ Task<> client_main(const char * host, int port)
     while (!quit)
     {
         // Resolve hostname
-        NITRO_INFO("Resolving %s...\n", host);
+        NITRO_INFO("Resolving %s...", host);
         auto addresses = co_await net::resolve(host);
         if (addresses.empty())
         {
-            NITRO_ERROR("Failed to resolve %s\n", host);
+            NITRO_ERROR("Failed to resolve %s", host);
             co_return;
         }
-        NITRO_INFO("Resolved to %s\n", addresses[0].toIp().c_str());
+        NITRO_INFO("Resolved to %s", addresses[0].toIp().c_str());
 
         // Connect using resolved IP
         auto connPtr = co_await TcpConnection::connect(InetAddress(addresses[0].toIp(), port, addresses[0].isIpV6()));
-        NITRO_INFO("Connected to %s:%hu\n", host, port);
+        NITRO_INFO("Connected to %s:%hu", host, port);
 
         Promise<> closePromise(Scheduler::current());
         auto closeFuture = closePromise.get_future();
@@ -129,13 +129,13 @@ int main(int argc, char * argv[])
     int port = (argc >= 2) ? atoi(argv[1]) : 8888;
     const char * host = (argc >= 3) ? argv[2] : "127.0.0.1";
 
-    NITRO_INFO("=== TCP Client ===\n");
-    NITRO_INFO("Type 'q' to quit\n");
+    NITRO_INFO("=== TCP Client ===");
+    NITRO_INFO("Type 'q' to quit");
 
     Scheduler scheduler;
     scheduler.spawn([host, port]() -> Task<> { co_await client_main(host, port); });
     scheduler.run();
 
-    NITRO_INFO("=== Done ===\n");
+    NITRO_INFO("=== Done ===");
     return 0;
 }

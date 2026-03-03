@@ -33,14 +33,14 @@ std::unordered_map<std::shared_ptr<TcpConnection>, ChatClient> clients;
 
 Task<> broadcast(const std::string & message, std::shared_ptr<TcpConnection> sender)
 {
-    NITRO_DEBUG("broadcast %s\n", message.c_str());
+    NITRO_DEBUG("broadcast %s", message.c_str());
 
     [[maybe_unused]] auto lock = co_await clientsMutex.scoped_lock();
     for (auto & [conn, client] : clients)
     {
         if (conn != sender)
         {
-            NITRO_TRACE("broadcast to %s\n", client.username.c_str());
+            NITRO_TRACE("broadcast to %s", client.username.c_str());
             Scheduler::current()->spawn([message, conn]() -> Task<> {
                 static thread_local std::mt19937 gen(std::random_device{}());
                 static std::uniform_real_distribution<> dis(0.0, 1.0);
@@ -73,19 +73,19 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
         }
         catch (const std::exception & e)
         {
-            NITRO_ERROR("Read error: %s\n", e.what());
+            NITRO_ERROR("Read error: %s", e.what());
             break;
         }
         if (n == 0)
         {
-            NITRO_INFO("User %s disconnect\n", username.c_str());
+            NITRO_INFO("User %s disconnect", username.c_str());
             break;
         }
         buf[n] = '\0';
 
         if (strncmp(buf, "quit\n", n) == 0)
         {
-            NITRO_INFO("User %s quit\n", username.c_str());
+            NITRO_INFO("User %s quit", username.c_str());
             break;
         }
 
@@ -94,14 +94,14 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
             username = std::string{ buf + sizeof("login ") - 1 };
             if (username.empty() || username == "\n")
             {
-                NITRO_DEBUG("Empty username\n");
+                NITRO_DEBUG("Empty username");
                 continue;
             }
             if (username.back() == '\n')
             {
                 username.pop_back();
             }
-            NITRO_INFO("User %s joined\n", username.c_str());
+            NITRO_INFO("User %s joined", username.c_str());
             [[maybe_unused]] auto lock = co_await clientsMutex.scoped_lock();
             clients[conn] = { username };
             continue;
@@ -115,7 +115,7 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
         }
 
         std::string msg = username + ": " + buf;
-        NITRO_DEBUG("%s: %s\n", username.c_str(), buf);
+        NITRO_DEBUG("%s: %s", username.c_str(), buf);
         co_await broadcast(msg, conn);
     }
 
@@ -124,7 +124,7 @@ Task<> chat_handler(std::shared_ptr<TcpConnection> conn)
         auto it = clients.find(conn);
         if (it != clients.end())
         {
-            NITRO_INFO("User %s left\n", username.c_str());
+            NITRO_INFO("User %s left", username.c_str());
             clients.erase(it);
         }
     }
@@ -191,12 +191,12 @@ Task<> server_main(int port, Scheduler * scheduler)
 int main(int argc, char * argv[])
 {
     int port = (argc >= 2) ? atoi(argv[1]) : 8888;
-    NITRO_INFO("=== Chat Server on port %d ===\n", port);
+    NITRO_INFO("=== Chat Server on port %d ===", port);
 
     Scheduler scheduler;
     scheduler.spawn([port, &scheduler]() -> Task<> { co_await server_main(port, &scheduler); });
     scheduler.run();
 
-    NITRO_INFO("=== Done ===\n");
+    NITRO_INFO("=== Done ===");
     return 0;
 }

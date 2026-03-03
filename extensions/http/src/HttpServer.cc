@@ -23,7 +23,7 @@ void HttpServer::route(const std::string & method, const std::string & path, Han
 Task<> HttpServer::start()
 {
     server_ = std::make_unique<net::TcpServer>(port_, scheduler_);
-    NITRO_INFO("HTTP server listening on port %hu\n", port_);
+    NITRO_INFO("HTTP server listening on port %hu", port_);
 
     co_await server_->start([this](net::TcpConnectionPtr conn) -> Task<> {
         try
@@ -32,11 +32,11 @@ Task<> HttpServer::start()
         }
         catch (const std::exception & e)
         {
-            NITRO_ERROR("Error handling connection: %s\n", e.what());
+            NITRO_ERROR("Error handling connection: %s", e.what());
         }
         catch (...)
         {
-            NITRO_ERROR("Unknown error handling connection\n");
+            NITRO_ERROR("Unknown error handling connection");
         }
         // TODO: force close?
     });

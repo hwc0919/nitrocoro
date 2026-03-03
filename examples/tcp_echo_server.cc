@@ -21,19 +21,19 @@ Task<> echo_handler(std::shared_ptr<TcpConnection> conn)
         size_t n = co_await conn->read(buf, sizeof(buf) - 1);
         if (n == 0)
         {
-            NITRO_INFO("Connection closed\n");
+            NITRO_INFO("Connection closed");
             break;
         }
 
         buf[n] = '\0';
-        NITRO_INFO("Received %zu bytes: %s\n", n, buf);
+        NITRO_INFO("Received %zu bytes: %s", n, buf);
         try
         {
             co_await conn->write(buf, n);
         }
         catch (const std::exception & ex)
         {
-            NITRO_ERROR("Write error: %s\n", ex.what());
+            NITRO_ERROR("Write error: %s", ex.what());
             break;
         }
     }
@@ -42,13 +42,13 @@ Task<> echo_handler(std::shared_ptr<TcpConnection> conn)
 int main(int argc, char * argv[])
 {
     int port = (argc >= 2) ? atoi(argv[1]) : 8888;
-    NITRO_INFO("=== Echo Server on port %d ===\n", port);
+    NITRO_INFO("=== Echo Server on port %d ===", port);
 
     Scheduler scheduler;
     TcpServer server(port, &scheduler);
     scheduler.spawn([&server]() -> Task<> { co_await server.start(echo_handler); });
     scheduler.run();
 
-    NITRO_INFO("=== Done ===\n");
+    NITRO_INFO("=== Done ===");
     return 0;
 }

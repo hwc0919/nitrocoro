@@ -109,7 +109,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
         stopPromise_.set_value();
         throw;
     }
-    NITRO_INFO("TcpServer listening on port %hu\n", port_);
+    NITRO_INFO("TcpServer listening on port %hu", port_);
 
     auto handlerPtr = std::make_shared<ConnectionHandler>(std::move(handler));
     listenChannel_ = std::make_unique<IoChannel>(listenSocketPtr_->fd(), TriggerMode::LevelTriggered, scheduler_);
@@ -121,16 +121,16 @@ Task<> TcpServer::start(ConnectionHandler handler)
         auto result = co_await listenChannel_->performRead(&acceptor);
         if (result == IoChannel::IoResult::Canceled)
         {
-            NITRO_INFO("TcpServer::close() called, break accepting loop\n");
+            NITRO_INFO("TcpServer::close() called, break accepting loop");
             break;
         }
         if (result != IoChannel::IoResult::Success)
         {
-            NITRO_ERROR("Accept error: IoResult=%d\n", static_cast<int>(result));
+            NITRO_ERROR("Accept error: IoResult=%d", static_cast<int>(result));
             break;
         }
 
-        NITRO_DEBUG("Accepted connection\n");
+        NITRO_DEBUG("Accepted connection");
         auto socket = acceptor.takeSocket();
         auto ioChannelPtr = std::make_unique<IoChannel>(socket->fd(), TriggerMode::EdgeTriggered, scheduler_);
         ioChannelPtr->setGuard(socket);
@@ -144,7 +144,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
             }
             catch (...)
             {
-                NITRO_ERROR("Exception escaped from TcpServer handler\n");
+                NITRO_ERROR("Exception escaped from TcpServer handler");
             }
             co_await scheduler->switch_to();
             if (auto connSetPtr = weakConnSet.lock())
@@ -156,7 +156,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
     }
     listenChannel_->disableAll();
     stopPromise_.set_value();
-    NITRO_INFO("TcpServer::start() quit\n");
+    NITRO_INFO("TcpServer::start() quit");
 }
 
 Task<> TcpServer::stop()
@@ -165,7 +165,7 @@ Task<> TcpServer::stop()
     if (stopped_.exchange(true))
         co_return;
 
-    NITRO_INFO("TcpServer::stop() requested\n");
+    NITRO_INFO("TcpServer::stop() requested");
     listenChannel_->disableAll(); // stop listening first
     listenChannel_->cancelAll();
 

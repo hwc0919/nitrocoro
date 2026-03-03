@@ -35,7 +35,7 @@ static void returnConnection(const auto & weakState, PgConnection * conn) noexce
 
         if (!connPtr->isAlive())
         {
-            NITRO_ERROR("PgPool: connection dead, discarding\n");
+            NITRO_ERROR("PgPool: connection dead, discarding");
             --state->totalCount;
             if (!state->waiters.empty())
             {

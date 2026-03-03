@@ -37,7 +37,7 @@ Task<PgConnection> PgConnection::connect(std::string connStr, Scheduler * schedu
 
     auto connectResult = co_await channel->perform([&pgConn](int, IoChannel * ch) -> IoChannel::IoStatus {
         PostgresPollingStatusType s = PQconnectPoll(pgConn.get());
-        NITRO_TRACE("PgConnection: PQconnectPoll=%d\n", (int)s);
+        NITRO_TRACE("PgConnection: PQconnectPoll=%d", (int)s);
         if (s == PGRES_POLLING_FAILED)
             return IoChannel::IoStatus::Error;
         if (s == PGRES_POLLING_WRITING)
@@ -54,7 +54,7 @@ Task<PgConnection> PgConnection::connect(std::string connStr, Scheduler * schedu
     });
     if (connectResult != IoChannel::IoResult::Success)
         throw std::runtime_error("PgConnection: handshake failed");
-    NITRO_TRACE("PgConnection: connected (fd=%d)\n", PQsocket(pgConn.get()));
+    NITRO_TRACE("PgConnection: connected (fd=%d)", PQsocket(pgConn.get()));
     if (PQsetnonblocking(pgConn.get(), 1) != 0)
         throw std::runtime_error("PQsetnonblocking: " + std::string(PQerrorMessage(pgConn.get())));
     co_return PgConnection(std::move(pgConn), std::move(channel));
@@ -143,7 +143,7 @@ Task<PgResult> PgConnection::sendAndReceive(std::string_view sql, std::vector<Pg
 
     auto flushResult = co_await channel_->performWrite([this](int, IoChannel * c) -> IoChannel::IoStatus {
         int r = PQflush(pgConn_.get());
-        NITRO_TRACE("PgConnection: PQflush=%d\n", r);
+        NITRO_TRACE("PgConnection: PQflush=%d", r);
         if (r == 0)
         {
             c->disableWriting();
@@ -169,7 +169,7 @@ Task<PgResult> PgConnection::sendAndReceive(std::string_view sql, std::vector<Pg
     auto readResult = co_await channel_->performRead([this, &res](int, IoChannel *) -> IoChannel::IoStatus {
         if (!PQconsumeInput(pgConn_.get()))
             return IoChannel::IoStatus::Error;
-        NITRO_TRACE("PgConnection: PQisBusy=%d\n", PQisBusy(pgConn_.get()));
+        NITRO_TRACE("PgConnection: PQisBusy=%d", PQisBusy(pgConn_.get()));
         if (PQisBusy(pgConn_.get()))
             return IoChannel::IoStatus::NeedRead;
         while (PGresult * r = PQgetResult(pgConn_.get()))
@@ -177,7 +177,7 @@ Task<PgResult> PgConnection::sendAndReceive(std::string_view sql, std::vector<Pg
             if (res)
             {
                 // TODO
-                NITRO_TRACE("PgConnection: dropping extra result status=%s rows=%d\n",
+                NITRO_TRACE("PgConnection: dropping extra result status=%s rows=%d",
                             PQresStatus(PQresultStatus(res.get())),
                             PQntuples(res.get()));
             }
@@ -193,7 +193,7 @@ Task<PgResult> PgConnection::sendAndReceive(std::string_view sql, std::vector<Pg
     {
         throw std::runtime_error("PgConnection: read canceled");
     }
-    NITRO_TRACE("PgConnection: result received, res=%p\n", (void *)res.get());
+    NITRO_TRACE("PgConnection: result received, res=%p", (void *)res.get());
 
     if (!res)
         throw std::runtime_error("PgConnection: no result returned");

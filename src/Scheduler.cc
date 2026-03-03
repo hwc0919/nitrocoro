@@ -149,20 +149,20 @@ void Scheduler::process_io_events(int timeout_ms)
             uint64_t dummy;
             ssize_t ret = read(wakeupFd_, &dummy, sizeof(dummy));
             if (ret < 0)
-                NITRO_ERROR("wakeup read error: %s\n", strerror(errno));
+                NITRO_ERROR("wakeup read error: %s", strerror(errno));
             continue;
         }
 
         auto iter = ioContexts_.find(channelId);
         if (iter == ioContexts_.end())
         {
-            NITRO_ERROR("channel with id %ld not found!!!\n", channelId);
+            NITRO_ERROR("channel with id %ld not found!!!", channelId);
             continue;
         }
         auto * ctx = &iter->second;
         int fd = ctx->fd;
 
-        NITRO_TRACE("fd %d event %d: IN: %d, OUT: %d, ERR: %d\n",
+        NITRO_TRACE("fd %d event %d: IN: %d, OUT: %d, ERR: %d",
                     fd,
                     ev,
                     ev & EPOLLIN,
@@ -214,7 +214,7 @@ void Scheduler::wakeup()
     ssize_t result = write(wakeupFd_, &val, sizeof(val));
     if (result < 0)
     {
-        NITRO_ERROR("wakeup write error: %s\n", strerror(errno));
+        NITRO_ERROR("wakeup write error: %s", strerror(errno));
     }
 }
 
@@ -274,7 +274,7 @@ void Scheduler::updateIo(uint64_t id, int fd, uint32_t events, TriggerMode mode)
     int op = ctx->addedToEpoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
     if (::epoll_ctl(epollFd_, op, fd, &ev) < 0)
     {
-        NITRO_ERROR("epoll_ctl %s fd %d ev %d error: %s\n",
+        NITRO_ERROR("epoll_ctl %s fd %d ev %d error: %s",
                     ctx->addedToEpoll ? "MOD" : "ADD", fd, events, strerror(errno));
         throw std::runtime_error(ctx->addedToEpoll ? "Failed to call EPOLL_CTL_MOD on epoll" : "Failed to call EPOLL_CTL_ADD on epoll");
     }

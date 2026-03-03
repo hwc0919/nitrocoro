@@ -50,26 +50,26 @@ void IoChannel::handleIoEvents(Scheduler * scheduler, IoState * state, uint32_t 
     if ((ev & EPOLLHUP) && !(ev & EPOLLIN))
     {
         // peer closed, and no more bytes to read
-        NITRO_TRACE("Peer closed, fd %d\n", state->fd);
+        NITRO_TRACE("Peer closed, fd %d", state->fd);
         // TODO: handle close
     }
 
     if (ev & EPOLLERR) // (POLLNVAL | POLLERR)
     {
-        NITRO_ERROR("Channel error for fd %d\n", state->fd);
+        NITRO_ERROR("Channel error for fd %d", state->fd);
         int error = 0;
         socklen_t len = sizeof(error);
         if (getsockopt(state->fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
         {
-            NITRO_ERROR("getsockopt failed: %s\n", strerror(errno));
+            NITRO_ERROR("getsockopt failed: %s", strerror(errno));
         }
         if (error == 0)
         {
-            NITRO_DEBUG("EPOLLERR but no error\n");
+            NITRO_DEBUG("EPOLLERR but no error");
         }
         else
         {
-            NITRO_ERROR("socket %d error %d: %s\n", state->fd, error, strerror(error));
+            NITRO_ERROR("socket %d error %d: %s", state->fd, error, strerror(error));
         }
         // TODO: mark error
     }
@@ -86,7 +86,7 @@ void IoChannel::handleIoEvents(Scheduler * scheduler, IoState * state, uint32_t 
     }
     if (ev & EPOLLOUT) // WIN32: if ((ev & POLLOUT) && !(ev & POLLHUP))
     {
-        NITRO_DEBUG("Handle write fd %d writable = %d\n", state->fd, state->writable);
+        NITRO_DEBUG("Handle write fd %d writable = %d", state->fd, state->writable);
         state->writable = true;
         if (state->writableWaiter)
         {

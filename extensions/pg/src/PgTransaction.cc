@@ -61,11 +61,11 @@ PgTransaction & PgTransaction::operator=(PgTransaction && other) noexcept
                 try
                 {
                     co_await conn->execute("ROLLBACK");
-                    NITRO_TRACE("PgTransaction: auto rollback successful\n");
+                    NITRO_TRACE("PgTransaction: auto rollback successful");
                 }
                 catch (const std::exception & e)
                 {
-                    NITRO_ERROR("PgTransaction: auto rollback failed: %s\n", e.what());
+                    NITRO_ERROR("PgTransaction: auto rollback failed: %s", e.what());
                 }
             });
         }
@@ -90,11 +90,11 @@ PgTransaction::~PgTransaction()
             try
             {
                 co_await conn->execute("ROLLBACK");
-                NITRO_TRACE("PgTransaction: auto rollback successful\n");
+                NITRO_TRACE("PgTransaction: auto rollback successful");
             }
             catch (const std::exception & e)
             {
-                NITRO_ERROR("PgTransaction: auto rollback failed: %s\n", e.what());
+                NITRO_ERROR("PgTransaction: auto rollback failed: %s", e.what());
             }
         });
     }

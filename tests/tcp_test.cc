@@ -72,7 +72,7 @@ NITRO_TEST(tcp_multiple_clients)
         NITRO_CHECK(somePtr.use_count() == 1);
 
         co_await server.start([somePtr](TcpConnectionPtr conn) -> Task<> {
-            NITRO_INFO("somePtr.use_count = %zu\n", somePtr.use_count());
+            NITRO_INFO("somePtr.use_count = %zu", somePtr.use_count());
             ++(*somePtr);
             char buf[256];
             size_t n = co_await conn->read(buf, sizeof(buf));
@@ -83,7 +83,7 @@ NITRO_TEST(tcp_multiple_clients)
 
         /** GCC versions before 13 have a known bug: shared_ptr captured in a coroutine lambda
          *  may have its lifetime incorrectly managed, causing use_count to be invalid here. */
-        NITRO_INFO("somePtr.use_count = %zu, should be a valid number\n", somePtr.use_count());
+        NITRO_INFO("somePtr.use_count = %zu, should be a valid number", somePtr.use_count());
         NITRO_CHECK(somePtr.use_count() == 1);
         ++(*somePtr); // might crash
     });
