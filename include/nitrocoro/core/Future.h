@@ -209,7 +209,7 @@ template <typename T = void>
 class Promise
 {
 public:
-    explicit Promise(Scheduler * scheduler)
+    explicit Promise(Scheduler * scheduler = Scheduler::current())
         : scheduler_(scheduler)
         , state_(std::make_shared<FutureState<T>>())
     {
@@ -245,7 +245,7 @@ template <>
 class Promise<void>
 {
 public:
-    explicit Promise(Scheduler * scheduler)
+    explicit Promise(Scheduler * scheduler = Scheduler::current())
         : scheduler_(scheduler)
         , state_(std::make_shared<FutureState<>>())
     {
