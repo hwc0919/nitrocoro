@@ -5,7 +5,7 @@
 #pragma once
 #include <nitrocoro/core/Task.h>
 #include <nitrocoro/http/HttpParser.h>
-#include <nitrocoro/net/TcpConnection.h>
+#include <nitrocoro/io/AnyStream.h>
 #include <nitrocoro/utils/StringBuffer.h>
 
 #include <memory>
@@ -18,18 +18,18 @@ template <typename MessageType>
 class HttpContext
 {
 public:
-    HttpContext(net::TcpConnectionPtr conn, std::shared_ptr<utils::StringBuffer> buffer)
-        : conn_(std::move(conn)), buffer_(std::move(buffer))
+    HttpContext(io::AnyStreamPtr stream, std::shared_ptr<utils::StringBuffer> buffer)
+        : stream_(std::move(stream)), buffer_(std::move(buffer))
     {
     }
 
     Task<std::optional<MessageType>> receiveMessage();
 
-    net::TcpConnectionPtr connection() const { return conn_; }
+    io::AnyStreamPtr stream() const { return stream_; }
     std::shared_ptr<utils::StringBuffer> buffer() const { return buffer_; }
 
 private:
-    net::TcpConnectionPtr conn_;
+    io::AnyStreamPtr stream_;
     std::shared_ptr<utils::StringBuffer> buffer_;
 };
 

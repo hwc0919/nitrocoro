@@ -12,14 +12,14 @@ namespace nitrocoro::http
 
 std::unique_ptr<BodyWriter> BodyWriter::create(
     TransferMode mode,
-    net::TcpConnectionPtr conn,
+    io::AnyStreamPtr stream,
     size_t contentLength)
 {
     if (mode == TransferMode::ContentLength)
-        return std::make_unique<ContentLengthWriter>(std::move(conn), contentLength);
+        return std::make_unique<ContentLengthWriter>(std::move(stream), contentLength);
     if (mode == TransferMode::UntilClose)
-        return std::make_unique<UntilCloseWriter>(std::move(conn));
-    return std::make_unique<ChunkedWriter>(std::move(conn));
+        return std::make_unique<UntilCloseWriter>(std::move(stream));
+    return std::make_unique<ChunkedWriter>(std::move(stream));
 }
 
 } // namespace nitrocoro::http

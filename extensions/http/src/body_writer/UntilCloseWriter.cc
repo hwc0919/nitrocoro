@@ -9,7 +9,7 @@ namespace nitrocoro::http
 
 Task<> UntilCloseWriter::write(std::string_view data)
 {
-    co_await conn_->write(data.data(), data.size());
+    co_await stream_->write(data.data(), data.size());
 }
 
 Task<> UntilCloseWriter::end()

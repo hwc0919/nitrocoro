@@ -62,7 +62,7 @@ void HttpOutgoingStreamBase<DataType>::decideTransferMode(std::optional<size_t> 
     {
         setHeader(HttpHeader::NameCode::ContentLength, std::to_string(*lengthHint));
         transferMode_ = TransferMode::ContentLength;
-        bodyWriter_ = BodyWriter::create(TransferMode::ContentLength, conn_, *lengthHint);
+        bodyWriter_ = BodyWriter::create(TransferMode::ContentLength, stream_, *lengthHint);
         return;
     }
 
@@ -71,7 +71,7 @@ void HttpOutgoingStreamBase<DataType>::decideTransferMode(std::optional<size_t> 
     {
         size_t contentLength = std::stoull(it->second.value());
         transferMode_ = TransferMode::ContentLength;
-        bodyWriter_ = BodyWriter::create(TransferMode::ContentLength, conn_, contentLength);
+        bodyWriter_ = BodyWriter::create(TransferMode::ContentLength, stream_, contentLength);
         return;
     }
 
@@ -79,7 +79,7 @@ void HttpOutgoingStreamBase<DataType>::decideTransferMode(std::optional<size_t> 
     if (it != data_.headers.end() && it->second.value().find("chunked") != std::string::npos)
     {
         transferMode_ = TransferMode::Chunked;
-        bodyWriter_ = BodyWriter::create(TransferMode::Chunked, conn_);
+        bodyWriter_ = BodyWriter::create(TransferMode::Chunked, stream_);
         return;
     }
 
@@ -90,14 +90,14 @@ void HttpOutgoingStreamBase<DataType>::decideTransferMode(std::optional<size_t> 
             // HTTP/1.0 does not support chunked; fall back to close-delimited
             data_.shouldClose = true;
             transferMode_ = TransferMode::UntilClose;
-            bodyWriter_ = BodyWriter::create(TransferMode::UntilClose, conn_);
+            bodyWriter_ = BodyWriter::create(TransferMode::UntilClose, stream_);
             return;
         }
     }
 
     setHeader(HttpHeader::NameCode::TransferEncoding, "chunked");
     transferMode_ = TransferMode::Chunked;
-    bodyWriter_ = BodyWriter::create(TransferMode::Chunked, conn_);
+    bodyWriter_ = BodyWriter::create(TransferMode::Chunked, stream_);
 }
 
 template <typename DataType>
@@ -201,7 +201,7 @@ Task<> HttpOutgoingStreamBase<DataType>::end(std::string_view data)
             response.reserve(256 + data.size());
             buildHeaders(response);
             response.append("\r\n").append(data);
-            co_await conn_->write(response.c_str(), response.size());
+            co_await stream_->write(response.c_str(), response.size());
             headersSent_ = true;
             finishedPromise_.set_value();
             co_return;
@@ -225,7 +225,7 @@ Task<> HttpOutgoingStreamBase<DataType>::writeHeaders()
     headers.reserve(256);
     buildHeaders(headers);
     headers.append("\r\n");
-    co_await conn_->write(headers.c_str(), headers.size());
+    co_await stream_->write(headers.c_str(), headers.size());
     headersSent_ = true;
 }
 

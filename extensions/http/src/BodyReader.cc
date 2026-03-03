@@ -20,7 +20,7 @@ protected:
 };
 
 std::shared_ptr<BodyReader> BodyReader::create(
-    net::TcpConnectionPtr conn,
+    io::AnyStreamPtr stream,
     std::shared_ptr<utils::StringBuffer> buffer,
     TransferMode mode,
     size_t contentLength)
@@ -33,13 +33,13 @@ std::shared_ptr<BodyReader> BodyReader::create(
                 static auto noop = std::make_shared<NoopReader>();
                 return noop;
             }
-            return std::make_shared<ContentLengthReader>(std::move(conn), std::move(buffer), contentLength);
+            return std::make_shared<ContentLengthReader>(std::move(stream), std::move(buffer), contentLength);
         case TransferMode::Chunked:
-            return std::make_shared<ChunkedReader>(std::move(conn), std::move(buffer));
+            return std::make_shared<ChunkedReader>(std::move(stream), std::move(buffer));
         case TransferMode::UntilClose:
-            return std::make_shared<UntilCloseReader>(std::move(conn), std::move(buffer));
+            return std::make_shared<UntilCloseReader>(std::move(stream), std::move(buffer));
     }
-    return std::make_shared<UntilCloseReader>(std::move(conn), std::move(buffer));
+    return std::make_shared<UntilCloseReader>(std::move(stream), std::move(buffer));
 }
 
 Task<size_t> BodyReader::read(char * buf, size_t len)

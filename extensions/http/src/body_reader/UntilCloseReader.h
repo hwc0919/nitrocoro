@@ -4,6 +4,7 @@
  */
 #pragma once
 #include <nitrocoro/http/BodyReader.h>
+#include <nitrocoro/io/AnyStream.h>
 
 namespace nitrocoro::http
 {
@@ -11,14 +12,14 @@ namespace nitrocoro::http
 class UntilCloseReader : public BodyReader
 {
 public:
-    UntilCloseReader(net::TcpConnectionPtr conn, std::shared_ptr<utils::StringBuffer> buffer)
-        : conn_(std::move(conn)), buffer_(std::move(buffer)) {}
+    UntilCloseReader(io::AnyStreamPtr stream, std::shared_ptr<utils::StringBuffer> buffer)
+        : stream_(std::move(stream)), buffer_(std::move(buffer)) {}
 
     Task<size_t> readImpl(char * buf, size_t len) override;
     bool isComplete() const override { return complete_; }
 
 private:
-    net::TcpConnectionPtr conn_;
+    io::AnyStreamPtr stream_;
     std::shared_ptr<utils::StringBuffer> buffer_;
     bool complete_ = false;
 };

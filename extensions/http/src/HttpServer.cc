@@ -5,6 +5,7 @@
 #include <nitrocoro/core/Future.h>
 #include <nitrocoro/http/HttpContext.h>
 #include <nitrocoro/http/HttpServer.h>
+#include <nitrocoro/io/AnyStream.h>
 #include <nitrocoro/utils/Debug.h>
 
 namespace nitrocoro::http
@@ -13,6 +14,16 @@ namespace nitrocoro::http
 HttpServer::HttpServer(uint16_t port, Scheduler * scheduler)
     : port_(port), scheduler_(scheduler)
 {
+    server_ = std::make_unique<net::TcpServer>(port_, scheduler_);
+    if (port_ == 0)
+    {
+        port_ = server_->port();
+    }
+}
+
+void HttpServer::setStreamUpgrader(StreamUpgrader upgrader)
+{
+    upgrader_ = std::move(upgrader);
 }
 
 void HttpServer::route(const std::string & method, const std::string & path, Handler handler)
@@ -22,7 +33,6 @@ void HttpServer::route(const std::string & method, const std::string & path, Han
 
 Task<> HttpServer::start()
 {
-    server_ = std::make_unique<net::TcpServer>(port_, scheduler_);
     NITRO_INFO("HTTP server listening on port %hu", port_);
 
     co_await server_->start([this](net::TcpConnectionPtr conn) -> Task<> {
@@ -52,8 +62,27 @@ Task<> HttpServer::stop()
 
 Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
 {
+    io::AnyStreamPtr stream;
+
+    if (upgrader_)
+    {
+        // Use upgrader to upgrade connection (e.g., TLS handshake)
+        stream = co_await upgrader_(conn);
+        if (!stream)
+        {
+            // Upgrade failed, close connection
+            co_await conn->shutdown();
+            co_return;
+        }
+    }
+    else
+    {
+        // No upgrader, use TcpConnection directly
+        stream = std::make_shared<io::AnyStream>(conn);
+    }
+
     auto buffer = std::make_shared<utils::StringBuffer>();
-    HttpContext<HttpRequest> context(conn, buffer);
+    HttpContext<HttpRequest> context(stream, buffer);
     while (true)
     {
         auto message = co_await context.receiveMessage();
@@ -62,12 +91,12 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
         bool keepAlive = message->keepAlive;
 
         // TODO: BodyReader should read regardless of the request border or user desired length!!!
-        auto bodyReader = BodyReader::create(conn, buffer, message->transferMode, message->contentLength);
+        auto bodyReader = BodyReader::create(stream, buffer, message->transferMode, message->contentLength);
 
         auto request = HttpIncomingStream<HttpRequest>(std::move(*message), bodyReader);
         Promise<> finishedPromise(scheduler_);
         auto finishedFuture = finishedPromise.get_future();
-        HttpOutgoingStream<HttpResponse> response(conn, std::move(finishedPromise));
+        HttpOutgoingStream<HttpResponse> response(stream, std::move(finishedPromise));
         response.setCloseConnection(!keepAlive);
 
         auto key = std::make_pair(std::string{ request.method() }, std::string{ request.path() });
@@ -88,7 +117,7 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
         if (!keepAlive)
             break;
     }
-    co_await conn->shutdown();
+    co_await stream->shutdown();
 }
 
 } // namespace nitrocoro::http

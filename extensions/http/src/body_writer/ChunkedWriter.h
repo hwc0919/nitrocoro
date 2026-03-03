@@ -4,6 +4,7 @@
  */
 #pragma once
 #include <nitrocoro/http/BodyWriter.h>
+#include <nitrocoro/io/AnyStream.h>
 
 namespace nitrocoro::http
 {
@@ -11,14 +12,14 @@ namespace nitrocoro::http
 class ChunkedWriter : public BodyWriter
 {
 public:
-    explicit ChunkedWriter(net::TcpConnectionPtr conn)
-        : conn_(std::move(conn)) {}
+    explicit ChunkedWriter(io::AnyStreamPtr stream)
+        : stream_(std::move(stream)) {}
 
     Task<> write(std::string_view data) override;
     Task<> end() override;
 
 private:
-    net::TcpConnectionPtr conn_;
+    io::AnyStreamPtr stream_;
 };
 
 } // namespace nitrocoro::http

@@ -6,7 +6,7 @@
 #include <nitrocoro/core/Mutex.h>
 #include <nitrocoro/core/Task.h>
 #include <nitrocoro/http/HttpParser.h>
-#include <nitrocoro/net/TcpConnection.h>
+#include <nitrocoro/io/AnyStream.h>
 #include <nitrocoro/utils/ExtendableBuffer.h>
 #include <nitrocoro/utils/StringBuffer.h>
 
@@ -17,7 +17,7 @@ class BodyReader
 {
 public:
     static std::shared_ptr<BodyReader> create(
-        net::TcpConnectionPtr conn,
+        io::AnyStreamPtr stream,
         std::shared_ptr<utils::StringBuffer> buffer,
         TransferMode mode,
         size_t contentLength);

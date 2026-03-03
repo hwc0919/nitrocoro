@@ -6,7 +6,7 @@
 #include <nitrocoro/core/Future.h>
 #include <nitrocoro/core/Task.h>
 #include <nitrocoro/http/BodyWriter.h>
-#include <nitrocoro/net/TcpConnection.h>
+#include <nitrocoro/io/AnyStream.h>
 
 #include <memory>
 #include <string>
@@ -19,8 +19,8 @@ template <typename DataType>
 class HttpOutgoingStreamBase
 {
 public:
-    explicit HttpOutgoingStreamBase(net::TcpConnectionPtr conn, Promise<> finishedPromise)
-        : conn_(std::move(conn)), finishedPromise_(std::move(finishedPromise)) {}
+    explicit HttpOutgoingStreamBase(io::AnyStreamPtr stream, Promise<> finishedPromise)
+        : stream_(std::move(stream)), finishedPromise_(std::move(finishedPromise)) {}
 
     void setHeader(std::string_view name, std::string value);
     void setHeader(HttpHeader::NameCode code, std::string value);
@@ -38,7 +38,7 @@ protected:
     void decideTransferMode(std::optional<size_t> lengthHint = std::nullopt);
 
     DataType data_;
-    net::TcpConnectionPtr conn_;
+    io::AnyStreamPtr stream_;
     bool headersSent_ = false;
     TransferMode transferMode_ = TransferMode::Chunked;
     std::unique_ptr<BodyWriter> bodyWriter_;

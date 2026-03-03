@@ -20,7 +20,7 @@ Task<std::optional<MessageType>> HttpContext<MessageType>::receiveMessage()
         if (pos == std::string::npos)
         {
             char * writePtr = buffer_->prepareWrite(4096);
-            size_t n = co_await conn_->read(writePtr, 4096);
+            size_t n = co_await stream_->read(writePtr, 4096);
             buffer_->commitWrite(n);
             // TODO: last message, or half message?
             if (n == 0)

@@ -19,12 +19,12 @@ Task<> ChunkedWriter::write(std::string_view data)
     std::string chunk;
     chunk.reserve(sizeLen + data.size() + 2);
     chunk.append(sizeBuf, sizeLen).append(data).append("\r\n", 2);
-    co_await conn_->write(chunk.c_str(), chunk.size());
+    co_await stream_->write(chunk.c_str(), chunk.size());
 }
 
 Task<> ChunkedWriter::end()
 {
-    co_await conn_->write("0\r\n\r\n", 5);
+    co_await stream_->write("0\r\n\r\n", 5);
 }
 
 } // namespace nitrocoro::http

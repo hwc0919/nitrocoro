@@ -22,7 +22,7 @@ Task<size_t> UntilCloseReader::readImpl(char * buf, size_t len)
         co_return toRead;
     }
 
-    size_t n = co_await conn_->read(buf, len);
+    size_t n = co_await stream_->read(buf, len);
     if (n == 0)
         complete_ = true;
 

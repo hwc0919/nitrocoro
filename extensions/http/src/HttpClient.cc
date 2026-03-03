@@ -7,12 +7,18 @@
 #include <nitrocoro/http/HttpClient.h>
 #include <nitrocoro/http/HttpContext.h>
 #include <nitrocoro/http/HttpMessage.h>
+#include <nitrocoro/io/AnyStream.h>
 #include <nitrocoro/net/Dns.h>
 #include <nitrocoro/net/Url.h>
 #include <stdexcept>
 
 namespace nitrocoro::http
 {
+
+void HttpClient::setStreamUpgrader(StreamUpgrader upgrader)
+{
+    upgrader_ = std::move(upgrader);
+}
 
 Task<HttpCompleteResponse> HttpClient::get(const std::string & url)
 {
@@ -43,6 +49,19 @@ Task<HttpCompleteResponse> HttpClient::sendRequest(const std::string & method, c
     auto addr = addresses[0];
     auto conn = co_await net::TcpConnection::connect(net::InetAddress(addr.toIp(), url.port(), addr.isIpV6()));
 
+    // Upgrade stream if upgrader is set
+    io::AnyStreamPtr stream;
+    if (upgrader_)
+    {
+        stream = co_await upgrader_(conn);
+        if (!stream)
+            throw std::runtime_error("Stream upgrade failed");
+    }
+    else
+    {
+        stream = std::make_shared<io::AnyStream>(conn);
+    }
+
     // Build request
     std::string request;
     request.reserve(method.size() + url.path().size() + url.host().size() + body.size() + 64);
@@ -61,23 +80,23 @@ Task<HttpCompleteResponse> HttpClient::sendRequest(const std::string & method, c
     {
         request.append(body);
     }
-    co_await conn->write(request.c_str(), request.size());
+    co_await stream->write(request.c_str(), request.size());
 
-    co_return co_await readResponse(conn);
+    co_return co_await readResponse(stream);
 }
 
-Task<HttpCompleteResponse> HttpClient::readResponse(net::TcpConnectionPtr conn)
+Task<HttpCompleteResponse> HttpClient::readResponse(io::AnyStreamPtr stream)
 {
     auto buffer = std::make_shared<utils::StringBuffer>();
-    HttpContext<HttpResponse> context(std::move(conn), buffer);
+    HttpContext<HttpResponse> context(stream, buffer);
     auto message = co_await context.receiveMessage();
     if (!message)
         throw std::runtime_error("Connection closed before response complete");
 
-    auto stream = HttpIncomingStream<HttpResponse>(
+    auto incomingStream = HttpIncomingStream<HttpResponse>(
         std::move(*message),
-        BodyReader::create(context.connection(), buffer, message->transferMode, message->contentLength));
-    co_return co_await stream.toCompleteResponse();
+        BodyReader::create(stream, buffer, message->transferMode, message->contentLength));
+    co_return co_await incomingStream.toCompleteResponse();
 }
 
 Task<HttpClientSession> HttpClient::stream(const std::string & method, const std::string & url)
@@ -93,8 +112,21 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
 
     auto conn = co_await net::TcpConnection::connect(net::InetAddress(addresses[0].toIp(), parsedUrl.port(), addresses[0].isIpV6()));
 
+    // Upgrade stream if upgrader is set
+    io::AnyStreamPtr anyStream;
+    if (upgrader_)
+    {
+        anyStream = co_await upgrader_(conn);
+        if (!anyStream)
+            throw std::runtime_error("Stream upgrade failed");
+    }
+    else
+    {
+        anyStream = std::make_shared<io::AnyStream>(conn);
+    }
+
     // Create outgoing stream for request body
-    HttpOutgoingStream<HttpRequest> requestStream(conn);
+    HttpOutgoingStream<HttpRequest> requestStream(anyStream);
     requestStream.setMethod(method);
     requestStream.setPath(parsedUrl.path());
     requestStream.setHeader(HttpHeader::NameCode::Host, parsedUrl.host());
@@ -104,11 +136,11 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
     auto responseFuture = promise.get_future();
 
     // Spawn background task to receive response
-    Scheduler::current()->spawn([conn, promise = std::move(promise)]() mutable -> Task<> {
+    Scheduler::current()->spawn([anyStream, promise = std::move(promise)]() mutable -> Task<> {
         try
         {
             auto buffer = std::make_shared<utils::StringBuffer>();
-            HttpContext<HttpResponse> context(conn, buffer);
+            HttpContext<HttpResponse> context(anyStream, buffer);
             auto message = co_await context.receiveMessage();
             if (!message)
             {
@@ -118,7 +150,7 @@ Task<HttpClientSession> HttpClient::stream(const std::string & method, const std
 
             auto response = HttpIncomingStream<HttpResponse>(
                 std::move(*message),
-                BodyReader::create(context.connection(), buffer, message->transferMode, message->contentLength));
+                BodyReader::create(anyStream, buffer, message->transferMode, message->contentLength));
             promise.set_value(std::move(response));
         }
         catch (...)
