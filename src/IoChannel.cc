@@ -56,16 +56,19 @@ void IoChannel::handleIoEvents(Scheduler * scheduler, IoState * state, uint32_t 
 
     if (ev & EPOLLERR) // (POLLNVAL | POLLERR)
     {
-        NITRO_ERROR("Channel error for fd %d", state->fd);
         int error = 0;
         socklen_t len = sizeof(error);
         if (getsockopt(state->fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
         {
-            NITRO_ERROR("getsockopt failed: %s", strerror(errno));
+            NITRO_ERROR("getsockopt failed on socket %d: %s", state->fd, strerror(errno));
         }
-        if (error == 0)
+        else if (error == 0)
         {
-            NITRO_DEBUG("EPOLLERR but no error");
+            NITRO_ERROR("socket %d EPOLLERR but no error", state->fd);
+        }
+        else if (error == ECONNRESET || error == EPIPE)
+        {
+            NITRO_TRACE("socket %d connection closed (error=%d)", state->fd, error);
         }
         else
         {
