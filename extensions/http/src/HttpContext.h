@@ -4,7 +4,6 @@
  */
 #pragma once
 #include <nitrocoro/core/Task.h>
-#include <nitrocoro/http/HttpParser.h>
 #include <nitrocoro/io/Stream.h>
 #include <nitrocoro/utils/StringBuffer.h>
 

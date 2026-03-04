@@ -3,8 +3,6 @@
  * @brief HTTP incoming stream for reading requests and responses
  */
 #pragma once
-#include <nitrocoro/http/BodyReader.h>
-#include <nitrocoro/http/HttpContext.h>
 #include <nitrocoro/http/HttpDataAccessor.h>
 #include <nitrocoro/http/HttpMessage.h>
 #include <nitrocoro/http/stream/HttpIncomingStreamBase.h>

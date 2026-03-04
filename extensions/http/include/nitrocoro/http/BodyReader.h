@@ -5,7 +5,7 @@
 #pragma once
 #include <nitrocoro/core/Mutex.h>
 #include <nitrocoro/core/Task.h>
-#include <nitrocoro/http/HttpParser.h>
+#include <nitrocoro/http/HttpTypes.h>
 #include <nitrocoro/io/Stream.h>
 #include <nitrocoro/utils/ExtendableBuffer.h>
 #include <nitrocoro/utils/StringBuffer.h>

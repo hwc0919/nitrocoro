@@ -2,14 +2,15 @@
  * @file HttpClient.cc
  * @brief HTTP client implementation
  */
+#include "HttpContext.h"
 #include <nitrocoro/core/Future.h>
 #include <nitrocoro/core/Scheduler.h>
 #include <nitrocoro/http/HttpClient.h>
-#include <nitrocoro/http/HttpContext.h>
 #include <nitrocoro/http/HttpMessage.h>
 #include <nitrocoro/io/Stream.h>
 #include <nitrocoro/net/Dns.h>
 #include <nitrocoro/net/Url.h>
+
 #include <stdexcept>
 
 namespace nitrocoro::http

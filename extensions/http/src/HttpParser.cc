@@ -2,8 +2,8 @@
  * @file HttpParser.cc
  * @brief HTTP parser implementations
  */
+#include "HttpParser.h"
 #include <nitrocoro/http/HttpHeader.h>
-#include <nitrocoro/http/HttpParser.h>
 
 #include <optional>
 #include <stdexcept>
