@@ -10,6 +10,7 @@
 #include <atomic>
 #include <coroutine>
 #include <exception>
+#include <future>
 #include <memory>
 #include <optional>
 
@@ -30,6 +31,7 @@ struct FutureStateBase
     };
 
     std::atomic<LockFreeListNode *> waiters_{ nullptr };
+    std::atomic_flag futureRetrieved_{};
     std::exception_ptr exception_;
 
     static void resumeAll(WaiterNode * head, Scheduler * scheduler) noexcept
@@ -91,8 +93,10 @@ public:
         }
     };
 
-    [[nodiscard]] Awaiter get() noexcept
+    [[nodiscard]] Awaiter get()
     {
+        if (!state_)
+            throw std::future_error(std::future_errc::no_state);
         auto awaiter = Awaiter{ state_ };
         state_.reset();
         return awaiter;
@@ -142,7 +146,12 @@ public:
         }
     };
 
-    [[nodiscard]] Awaiter get() const noexcept { return Awaiter{ state_ }; }
+    [[nodiscard]] Awaiter get() const
+    {
+        if (!state_)
+            throw std::future_error(std::future_errc::no_state);
+        return Awaiter{ state_ };
+    }
     bool valid() const noexcept { return state_ != nullptr; }
 
 private:
@@ -185,7 +194,12 @@ public:
         }
     };
 
-    [[nodiscard]] Awaiter get() const noexcept { return Awaiter{ state_ }; }
+    [[nodiscard]] Awaiter get() const
+    {
+        if (!state_)
+            throw std::future_error(std::future_errc::no_state);
+        return Awaiter{ state_ };
+    }
     bool valid() const noexcept { return state_ != nullptr; }
 
 private:
@@ -215,24 +229,45 @@ public:
     {
     }
 
+    ~Promise()
+    {
+        if (state_ && !LockFreeListNode::closed(state_->waiters_))
+            set_exception(std::make_exception_ptr(std::future_error(std::future_errc::broken_promise)));
+    }
+
     Promise(const Promise &) = delete;
     Promise & operator=(const Promise &) = delete;
     Promise(Promise &&) = default;
     Promise & operator=(Promise &&) = default;
 
-    Future<T> get_future() { return Future<T>(state_); }
+    Future<T> get_future()
+    {
+        if (!state_)
+            throw std::future_error(std::future_errc::no_state);
+        if (state_->futureRetrieved_.test_and_set())
+            throw std::future_error(std::future_errc::future_already_retrieved);
+        return Future<T>(state_);
+    }
 
     void set_value(T value)
     {
-        state_->value_.emplace(std::move(value));
+        if (!state_)
+            throw std::future_error(std::future_errc::no_state);
         auto * waiters = static_cast<FutureStateBase::WaiterNode *>(LockFreeListNode::close(state_->waiters_));
+        if (waiters == reinterpret_cast<FutureStateBase::WaiterNode *>(LockFreeListNode::kClosed))
+            throw std::future_error(std::future_errc::promise_already_satisfied);
+        state_->value_.emplace(std::move(value));
         FutureStateBase::resumeAll(waiters, scheduler_);
     }
 
     void set_exception(std::exception_ptr ex)
     {
-        state_->exception_ = std::move(ex);
+        if (!state_)
+            throw std::future_error(std::future_errc::no_state);
         auto * waiters = static_cast<FutureStateBase::WaiterNode *>(LockFreeListNode::close(state_->waiters_));
+        if (waiters == reinterpret_cast<FutureStateBase::WaiterNode *>(LockFreeListNode::kClosed))
+            throw std::future_error(std::future_errc::promise_already_satisfied);
+        state_->exception_ = std::move(ex);
         FutureStateBase::resumeAll(waiters, scheduler_);
     }
 
@@ -251,24 +286,45 @@ public:
     {
     }
 
+    ~Promise()
+    {
+        if (state_ && !LockFreeListNode::closed(state_->waiters_))
+            set_exception(std::make_exception_ptr(std::future_error(std::future_errc::broken_promise)));
+    }
+
     Promise(const Promise &) = delete;
     Promise & operator=(const Promise &) = delete;
     Promise(Promise &&) = default;
     Promise & operator=(Promise &&) = default;
 
-    Future<> get_future() { return Future<>(state_); }
+    Future<> get_future()
+    {
+        if (!state_)
+            throw std::future_error(std::future_errc::no_state);
+        if (state_->futureRetrieved_.test_and_set())
+            throw std::future_error(std::future_errc::future_already_retrieved);
+        return Future<>(state_);
+    }
 
     void set_value()
     {
+        if (!state_)
+            throw std::future_error(std::future_errc::no_state);
         auto * waiters = static_cast<FutureStateBase::WaiterNode *>(LockFreeListNode::close(state_->waiters_));
+        if (waiters == reinterpret_cast<FutureStateBase::WaiterNode *>(LockFreeListNode::kClosed))
+            throw std::future_error(std::future_errc::promise_already_satisfied);
         FutureStateBase::resumeAll(waiters, scheduler_);
     }
 
     void set_exception(std::exception_ptr ex)
     {
+        if (!state_)
+            throw std::future_error(std::future_errc::no_state);
+        auto * waiters = static_cast<FutureStateBase::WaiterNode *>(LockFreeListNode::close(state_->waiters_));
+        if (waiters == reinterpret_cast<FutureStateBase::WaiterNode *>(LockFreeListNode::kClosed))
+            throw std::future_error(std::future_errc::promise_already_satisfied);
         state_->exception_ = std::move(ex);
-        auto * waiters = LockFreeListNode::close(state_->waiters_);
-        FutureStateBase::resumeAll(static_cast<FutureStateBase::WaiterNode *>(waiters), scheduler_);
+        FutureStateBase::resumeAll(waiters, scheduler_);
     }
 
 private:
