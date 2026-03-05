@@ -2,12 +2,12 @@
  * @file PgPool.cc
  * @brief PgPool implementation
  */
-#include "nitrocoro/pg/PgPool.h"
+#include <nitrocoro/pg/PgPool.h>
+
 #include "PgConnectionImpl.h"
 #include "PoolState.h"
-
 #include "PooledConnection.h"
-#include "nitrocoro/pg/PgTransaction.h"
+#include <nitrocoro/pg/PgTransaction.h>
 
 namespace nitrocoro::pg
 {

@@ -3,7 +3,7 @@
  * @brief PoolState and pool helper functions implementation
  */
 #include "PoolState.h"
-#include "nitrocoro/pg/PgException.h"
+#include <nitrocoro/pg/PgException.h>
 #include <nitrocoro/utils/Debug.h>
 
 namespace nitrocoro::pg

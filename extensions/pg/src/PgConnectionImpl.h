@@ -4,8 +4,8 @@
  */
 #pragma once
 
-#include "nitrocoro/pg/PgConnection.h"
 #include <nitrocoro/io/IoChannel.h>
+#include <nitrocoro/pg/PgConnection.h>
 
 #include <memory>
 #include <string_view>

@@ -4,11 +4,10 @@
  */
 #include "PgConnectionImpl.h"
 #include "PgResultWrapper.h"
-#include "nitrocoro/pg/PgException.h"
-#include <libpq-fe.h>
-#include <nitrocoro/utils/Debug.h>
 
-#include <stdexcept>
+#include <libpq-fe.h>
+#include <nitrocoro/pg/PgException.h>
+#include <nitrocoro/utils/Debug.h>
 
 namespace nitrocoro::pg
 {

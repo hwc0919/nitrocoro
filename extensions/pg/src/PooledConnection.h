@@ -4,7 +4,7 @@
  */
 #pragma once
 
-#include "../include/nitrocoro/pg/PgConnection.h"
+#include <nitrocoro/pg/PgConnection.h>
 
 #include <memory>
 

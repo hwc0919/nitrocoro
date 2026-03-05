@@ -4,9 +4,9 @@
  */
 #pragma once
 
-#include "nitrocoro/pg/PgConnection.h"
 #include <nitrocoro/core/Scheduler.h>
 #include <nitrocoro/core/Task.h>
+#include <nitrocoro/pg/PgConnection.h>
 
 #include <functional>
 #include <memory>
