@@ -152,6 +152,50 @@ NITRO_TEST(transaction_release_before_commit)
     co_await tx->rollback();
 }
 
+// Verifies the @note on release(): when the transaction was created from a pooled connection,
+// the released connection is still automatically recycled to the pool when destroyed.
+NITRO_TEST(transaction_release_pooled_recycle)
+{
+    PgPool pool(1, makeConn);
+    {
+        auto tx = co_await pool.newTransaction();
+        co_await tx->commit();
+        auto conn = tx->release();
+        NITRO_CHECK_EQ(pool.idleCount(), 0); // conn still alive, not yet recycled
+    } // conn destroyed here → recycled to pool
+    co_await Scheduler::current()->sleep_for(0.5);
+    NITRO_CHECK_EQ(pool.idleCount(), 1);
+}
+
+// Verifies that after release() the destructor does not spawn an extra rollback.
+NITRO_TEST(transaction_release_no_extra_rollback)
+{
+    PgPool pool(1, makeConn);
+    {
+        auto tx = co_await pool.newTransaction();
+        co_await tx->commit();
+        [[maybe_unused]] auto conn = tx->release();
+        // tx destroyed with done_=true → no rollback spawned
+    }
+    co_await Scheduler::current()->sleep_for(0.5);
+    NITRO_CHECK_EQ(pool.idleCount(), 1);
+}
+
+NITRO_TEST(transaction_auto_commit)
+{
+    PgPool pool(1, makeConn);
+    co_await (co_await pool.acquire())->execute("CREATE TEMP TABLE tx_autocommit_test (v INT)");
+    {
+        auto tx = co_await pool.newTransaction();
+        tx->setAutoCommit(true);
+        co_await tx->execute("INSERT INTO tx_autocommit_test VALUES (1)");
+    } // destructor commits
+    co_await Scheduler::current()->sleep_for(0.5);
+    auto conn = co_await pool.acquire();
+    auto result = co_await conn->query("SELECT COUNT(*) FROM tx_autocommit_test");
+    NITRO_CHECK_EQ(std::get<int64_t>(result.get(0, 0)), 1);
+}
+
 int main()
 {
     return nitrocoro::test::run_all();
