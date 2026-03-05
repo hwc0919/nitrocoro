@@ -1,10 +1,10 @@
 /**
  * @file PoolState.h
- * @brief Internal pool state shared between PgPool, PooledConnection, and PgTransaction
+ * @brief Internal pool state shared between PgPool and PooledConnection
  */
 #pragma once
 
-#include "nitrocoro/pg/PgConnection.h"
+#include "PgConnectionImpl.h"
 #include <nitrocoro/core/Future.h>
 #include <nitrocoro/core/Mutex.h>
 #include <nitrocoro/core/Scheduler.h>
@@ -27,11 +27,11 @@ struct PoolState
     size_t maxSize;
     size_t totalCount = 0;
     Mutex mutex;
-    std::queue<std::unique_ptr<PgConnection>> idle;
-    std::queue<Promise<std::unique_ptr<PgConnection>>> waiters;
+    std::queue<std::unique_ptr<PgConnectionImpl>> idle;
+    std::queue<Promise<std::unique_ptr<PgConnectionImpl>>> waiters;
 
     static void returnConnection(const std::weak_ptr<PoolState> & state,
-                                 std::unique_ptr<PgConnection> conn) noexcept;
+                                 std::unique_ptr<PgConnectionImpl> conn) noexcept;
     static void detachConnection(const std::weak_ptr<PoolState> & state) noexcept;
 };
 

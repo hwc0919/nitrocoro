@@ -3,56 +3,37 @@
  * @brief PgTransaction implementation
  */
 #include "nitrocoro/pg/PgTransaction.h"
-#include "PoolState.h"
-#include "nitrocoro/pg/PgConnection.h"
-#include "nitrocoro/pg/PgResult.h"
-#include "nitrocoro/pg/PooledConnection.h"
 #include <nitrocoro/utils/Debug.h>
 
 namespace nitrocoro::pg
 {
 
-Task<std::unique_ptr<PgTransaction>> PgTransaction::begin(std::unique_ptr<PooledConnection> pooled)
-{
-    co_await pooled->conn_->execute("BEGIN");
-    auto state = std::move(pooled->state_);
-    auto conn = std::move(pooled->conn_);
-    co_return std::unique_ptr<PgTransaction>(new PgTransaction(std::move(conn), std::move(state)));
-}
-
 Task<std::unique_ptr<PgTransaction>> PgTransaction::begin(std::unique_ptr<PgConnection> conn)
 {
     co_await conn->execute("BEGIN");
-    co_return std::unique_ptr<PgTransaction>(new PgTransaction(std::move(conn), {}));
+    co_return std::unique_ptr<PgTransaction>(new PgTransaction(std::move(conn)));
 }
 
-PgTransaction::PgTransaction(std::unique_ptr<PgConnection> conn, std::weak_ptr<PoolState> poolState)
-    : conn_(std::move(conn)), poolState_(std::move(poolState))
+PgTransaction::PgTransaction(std::unique_ptr<PgConnection> conn)
+    : conn_(std::move(conn))
 {
 }
 
 PgTransaction::~PgTransaction()
 {
-    if (conn_)
+    if (conn_ && !done_)
     {
         auto conn = std::move(conn_);
-        auto poolState = std::move(poolState_);
-        conn->scheduler()->spawn([conn = std::move(conn),
-                                  poolState = std::move(poolState),
-                                  needRollback = !done_]() mutable -> Task<> {
-            if (needRollback)
+        conn->scheduler()->spawn([conn = std::move(conn)]() -> Task<> {
+            try
             {
-                try
-                {
-                    co_await conn->execute("ROLLBACK");
-                    NITRO_TRACE("PgTransaction: auto rollback successful\n");
-                }
-                catch (const std::exception & e)
-                {
-                    NITRO_ERROR("PgTransaction: auto rollback failed: %s\n", e.what());
-                }
+                co_await conn->execute("ROLLBACK");
+                NITRO_TRACE("PgTransaction: auto rollback successful\n");
             }
-            PoolState::returnConnection(poolState, std::move(conn));
+            catch (const std::exception & e)
+            {
+                NITRO_ERROR("PgTransaction: auto rollback failed: %s\n", e.what());
+            }
         });
     }
 }
@@ -91,8 +72,6 @@ std::unique_ptr<PgConnection> PgTransaction::release()
 {
     if (!done_)
         throw std::logic_error("Cannot release connection before commit/rollback");
-    PoolState::detachConnection(poolState_);
-    poolState_ = {};
     return std::move(conn_);
 }
 

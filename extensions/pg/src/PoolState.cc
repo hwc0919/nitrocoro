@@ -9,7 +9,7 @@ namespace nitrocoro::pg
 {
 
 void PoolState::returnConnection(const std::weak_ptr<PoolState> & weakState,
-                                 std::unique_ptr<PgConnection> conn) noexcept
+                                 std::unique_ptr<PgConnectionImpl> conn) noexcept
 {
     auto state = weakState.lock();
     if (!state)

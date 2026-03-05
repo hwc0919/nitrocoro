@@ -1,14 +1,13 @@
 #include "nitrocoro/pg/PgResult.h"
-
-#include <libpq-fe.h>
+#include "PgResultWrapper.h"
 
 namespace nitrocoro::pg
 {
 
-PgResult::PgResult(std::shared_ptr<PGresult> res)
+PgResult::PgResult(std::shared_ptr<PgResultWrapper> res)
     : res_(std::move(res))
-    , rows_(res_ ? static_cast<size_t>(PQntuples(res_.get())) : 0)
-    , cols_(res_ ? static_cast<size_t>(PQnfields(res_.get())) : 0)
+    , rows_(res_ ? static_cast<size_t>(PQntuples(res_->raw)) : 0)
+    , cols_(res_ ? static_cast<size_t>(PQnfields(res_->raw)) : 0)
 {
 }
 
@@ -16,7 +15,7 @@ const char * PgResult::colName(size_t col) const
 {
     if (col >= cols_)
         return nullptr;
-    return PQfname(res_.get(), static_cast<int>(col));
+    return PQfname(res_->raw, static_cast<int>(col));
 }
 
 PgValue PgResult::get(size_t row, size_t col) const
@@ -27,11 +26,11 @@ PgValue PgResult::get(size_t row, size_t col) const
     int r = static_cast<int>(row);
     int c = static_cast<int>(col);
 
-    if (PQgetisnull(res_.get(), r, c))
+    if (PQgetisnull(res_->raw, r, c))
         return std::monostate{};
 
-    const char * val = PQgetvalue(res_.get(), r, c);
-    Oid oid = PQftype(res_.get(), c);
+    const char * val = PQgetvalue(res_->raw, r, c);
+    Oid oid = PQftype(res_->raw, c);
 
     switch (oid)
     {

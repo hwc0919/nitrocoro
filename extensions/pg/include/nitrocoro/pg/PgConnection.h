@@ -1,21 +1,17 @@
 /**
  * @file PgConnection.h
- * @brief PostgreSQL async connection using libpq
+ * @brief PostgreSQL async connection interface
  */
 #pragma once
 
 #include "nitrocoro/pg/PgResult.h"
 #include <nitrocoro/core/Scheduler.h>
 #include <nitrocoro/core/Task.h>
-#include <nitrocoro/io/IoChannel.h>
 
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
-
-struct pg_conn;
-typedef struct pg_conn PGconn;
 
 namespace nitrocoro::pg
 {
@@ -30,21 +26,16 @@ public:
     PgConnection & operator=(const PgConnection &) = delete;
     PgConnection(PgConnection &&) = delete;
     PgConnection & operator=(PgConnection &&) = delete;
-    ~PgConnection();
+    virtual ~PgConnection() = default;
 
-    Scheduler * scheduler() const { return channel_ ? channel_->scheduler() : nullptr; }
-    bool isAlive() const;
+    virtual Scheduler * scheduler() const = 0;
+    virtual bool isAlive() const = 0;
 
-    Task<PgResult> query(std::string_view sql, std::vector<PgValue> params = {});
-    Task<> execute(std::string_view sql, std::vector<PgValue> params = {});
+    virtual Task<PgResult> query(std::string_view sql, std::vector<PgValue> params = {}) = 0;
+    virtual Task<> execute(std::string_view sql, std::vector<PgValue> params = {}) = 0;
 
-private:
-    PgConnection(std::shared_ptr<PGconn> conn, std::unique_ptr<io::IoChannel> channel);
-
-    Task<PgResult> sendAndReceive(std::string_view sql, std::vector<PgValue> params);
-
-    std::shared_ptr<PGconn> pgConn_;
-    std::unique_ptr<io::IoChannel> channel_;
+protected:
+    PgConnection() = default;
 };
 
 } // namespace nitrocoro::pg

@@ -4,7 +4,7 @@
  */
 #pragma once
 
-#include "nitrocoro/pg/PooledConnection.h" // for user convenience
+#include "nitrocoro/pg/PgConnection.h"
 #include <nitrocoro/core/Scheduler.h>
 #include <nitrocoro/core/Task.h>
 
@@ -15,9 +15,7 @@ namespace nitrocoro::pg
 {
 
 struct PoolState;
-class PgConnection;
 class PgTransaction;
-class PooledConnection;
 
 class PgPool
 {
@@ -29,7 +27,7 @@ public:
     PgPool(const PgPool &) = delete;
     PgPool & operator=(const PgPool &) = delete;
 
-    [[nodiscard]] Task<std::unique_ptr<PooledConnection>> acquire();
+    [[nodiscard]] Task<std::unique_ptr<PgConnection>> acquire();
     [[nodiscard]] Task<std::unique_ptr<PgTransaction>> newTransaction();
     size_t idleCount() const;
 

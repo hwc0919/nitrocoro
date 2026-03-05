@@ -3,11 +3,11 @@
  * @brief PgPool implementation
  */
 #include "nitrocoro/pg/PgPool.h"
+#include "PgConnectionImpl.h"
 #include "PoolState.h"
 
-#include "nitrocoro/pg/PgConnection.h"
+#include "PooledConnection.h"
 #include "nitrocoro/pg/PgTransaction.h"
-#include "nitrocoro/pg/PooledConnection.h"
 
 namespace nitrocoro::pg
 {
@@ -25,9 +25,9 @@ size_t PgPool::idleCount() const
     return state_->idle.size();
 }
 
-Task<std::unique_ptr<PooledConnection>> PgPool::acquire()
+Task<std::unique_ptr<PgConnection>> PgPool::acquire()
 {
-    std::unique_ptr<PgConnection> conn;
+    std::unique_ptr<PgConnectionImpl> conn;
     {
         [[maybe_unused]] auto lock = co_await state_->mutex.scoped_lock();
         if (!state_->idle.empty())
@@ -41,7 +41,7 @@ Task<std::unique_ptr<PooledConnection>> PgPool::acquire()
         }
         else
         {
-            Promise<std::unique_ptr<PgConnection>> promise(state_->scheduler);
+            Promise<std::unique_ptr<PgConnectionImpl>> promise(state_->scheduler);
             auto future = promise.get_future();
             state_->waiters.push(std::move(promise));
             lock.unlock();
@@ -52,9 +52,10 @@ Task<std::unique_ptr<PooledConnection>> PgPool::acquire()
     if (!conn)
     {
         std::exception_ptr err;
+        std::unique_ptr<PgConnection> raw;
         try
         {
-            conn = co_await factory_();
+            raw = co_await factory_();
         }
         catch (...)
         {
@@ -67,10 +68,12 @@ Task<std::unique_ptr<PooledConnection>> PgPool::acquire()
             --state_->totalCount;
             std::rethrow_exception(err);
         }
+
+        // factory_ returns unique_ptr<PgConnection> which is actually a PgConnectionImpl
+        conn.reset(static_cast<PgConnectionImpl *>(raw.release()));
     }
 
-    co_return std::unique_ptr<PooledConnection>(
-        new PooledConnection(std::move(conn), std::weak_ptr<PoolState>(state_)));
+    co_return std::make_unique<PooledConnection>(std::move(conn), std::weak_ptr<PoolState>(state_));
 }
 
 Task<std::unique_ptr<PgTransaction>> PgPool::newTransaction()

@@ -3,6 +3,7 @@
  * @brief RAII PostgreSQL transaction with automatic rollback on destruction
  */
 #pragma once
+
 #include "nitrocoro/pg/PgConnection.h"
 #include "nitrocoro/pg/PgResult.h"
 #include <nitrocoro/core/Task.h>
@@ -14,14 +15,9 @@
 namespace nitrocoro::pg
 {
 
-struct PoolState;
-class PgConnection;
-class PooledConnection;
-
 class PgTransaction
 {
 public:
-    static Task<std::unique_ptr<PgTransaction>> begin(std::unique_ptr<PooledConnection> conn);
     static Task<std::unique_ptr<PgTransaction>> begin(std::unique_ptr<PgConnection> conn);
 
     ~PgTransaction();
@@ -39,10 +35,9 @@ public:
     std::unique_ptr<PgConnection> release();
 
 private:
-    PgTransaction(std::unique_ptr<PgConnection> conn, std::weak_ptr<PoolState> poolState);
+    explicit PgTransaction(std::unique_ptr<PgConnection> conn);
 
     std::unique_ptr<PgConnection> conn_;
-    std::weak_ptr<PoolState> poolState_;
     bool done_{ false };
 };
 

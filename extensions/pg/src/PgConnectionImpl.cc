@@ -1,8 +1,9 @@
 /**
- * @file PgConnection.cc
+ * @file PgConnectionImpl.cc
  * @brief PostgreSQL async connection implementation
  */
-#include "nitrocoro/pg/PgConnection.h"
+#include "PgConnectionImpl.h"
+#include "PgResultWrapper.h"
 #include <libpq-fe.h>
 #include <nitrocoro/utils/Debug.h>
 
@@ -13,32 +14,41 @@ namespace nitrocoro::pg
 
 using nitrocoro::io::IoChannel;
 
-PgConnection::PgConnection(std::shared_ptr<PGconn> conn, std::unique_ptr<IoChannel> channel)
+struct PgConnectionImpl::PgConnWrapper
+{
+    PGconn * raw;
+
+    explicit PgConnWrapper(PGconn * raw)
+        : raw(raw) {}
+    ~PgConnWrapper()
+    {
+        if (raw)
+            PQfinish(raw);
+    }
+};
+
+PgConnectionImpl::PgConnectionImpl(std::shared_ptr<PgConnWrapper> conn, std::unique_ptr<IoChannel> channel)
     : pgConn_(std::move(conn))
     , channel_(std::move(channel))
 {
 }
 
-PgConnection::~PgConnection()
-{
-}
-
 Task<std::unique_ptr<PgConnection>> PgConnection::connect(std::string connStr, Scheduler * scheduler)
 {
-    auto pgConn = std::shared_ptr<PGconn>(PQconnectStart(connStr.c_str()), PQfinish);
+    auto pgConn = std::make_shared<PgConnectionImpl::PgConnWrapper>(PQconnectStart(connStr.c_str()));
     if (!pgConn)
         throw std::runtime_error("PQconnectStart: out of memory");
 
-    if (PQstatus(pgConn.get()) == CONNECTION_BAD)
-        throw std::runtime_error("PgConnection::connect: " + std::string(PQerrorMessage(pgConn.get())));
+    if (PQstatus(pgConn->raw) == CONNECTION_BAD)
+        throw std::runtime_error("PgConnection::connect: " + std::string(PQerrorMessage(pgConn->raw)));
 
     co_await scheduler->switch_to();
-    auto channel = std::make_unique<io::IoChannel>(PQsocket(pgConn.get()), TriggerMode::LevelTriggered, scheduler);
+    auto channel = std::make_unique<io::IoChannel>(PQsocket(pgConn->raw), TriggerMode::LevelTriggered, scheduler);
     channel->setGuard(pgConn);
     channel->enableReading();
 
     auto connectResult = co_await channel->perform([&pgConn](int, IoChannel * ch) -> IoChannel::IoStatus {
-        PostgresPollingStatusType s = PQconnectPoll(pgConn.get());
+        PostgresPollingStatusType s = PQconnectPoll(pgConn->raw);
         NITRO_TRACE("PgConnection: PQconnectPoll=%d", (int)s);
         if (s == PGRES_POLLING_FAILED)
             return IoChannel::IoStatus::Error;
@@ -56,29 +66,33 @@ Task<std::unique_ptr<PgConnection>> PgConnection::connect(std::string connStr, S
     });
     if (connectResult != IoChannel::IoResult::Success)
         throw std::runtime_error("PgConnection: handshake failed");
-    NITRO_TRACE("PgConnection: connected (fd=%d)", PQsocket(pgConn.get()));
-    if (PQsetnonblocking(pgConn.get(), 1) != 0)
-        throw std::runtime_error("PQsetnonblocking: " + std::string(PQerrorMessage(pgConn.get())));
-    co_return std::unique_ptr<PgConnection>(new PgConnection(std::move(pgConn), std::move(channel)));
+    NITRO_TRACE("PgConnection: connected (fd=%d)", PQsocket(pgConn->raw));
+    if (PQsetnonblocking(pgConn->raw, 1) != 0)
+        throw std::runtime_error("PQsetnonblocking: " + std::string(PQerrorMessage(pgConn->raw)));
+    co_return std::make_unique<PgConnectionImpl>(std::move(pgConn), std::move(channel));
 }
 
-bool PgConnection::isAlive() const
+Scheduler * PgConnectionImpl::scheduler() const
 {
-    return pgConn_ && PQstatus(pgConn_.get()) == CONNECTION_OK;
+    return channel_->scheduler();
 }
 
-Task<PgResult> PgConnection::sendAndReceive(std::string_view sql, std::vector<PgValue> params)
+bool PgConnectionImpl::isAlive() const
+{
+    return PQstatus(pgConn_->raw) == CONNECTION_OK;
+}
+
+Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vector<PgValue> params)
 {
     if (!pgConn_)
-    {
         throw std::logic_error("PgConnection: operation on empty connection");
-    }
-    std::vector<std::string> strBufs;
+
+    std::vector<std::string> strBuffers;
     std::vector<const char *> paramValues;
     std::vector<int> paramLengths;
     std::vector<int> paramFormats;
 
-    strBufs.reserve(params.size());
+    strBuffers.reserve(params.size());
     paramValues.reserve(params.size());
     paramLengths.reserve(params.size());
     paramFormats.reserve(params.size());
@@ -96,21 +110,21 @@ Task<PgResult> PgConnection::sendAndReceive(std::string_view sql, std::vector<Pg
                 }
                 else if constexpr (std::is_same_v<T, bool>)
                 {
-                    strBufs.push_back(arg ? "t" : "f");
-                    paramValues.push_back(strBufs.back().c_str());
-                    paramLengths.push_back(static_cast<int>(strBufs.back().size()));
+                    strBuffers.push_back(arg ? "t" : "f");
+                    paramValues.push_back(strBuffers.back().c_str());
+                    paramLengths.push_back(static_cast<int>(strBuffers.back().size()));
                 }
                 else if constexpr (std::is_same_v<T, int64_t>)
                 {
-                    strBufs.push_back(std::to_string(arg));
-                    paramValues.push_back(strBufs.back().c_str());
-                    paramLengths.push_back(static_cast<int>(strBufs.back().size()));
+                    strBuffers.push_back(std::to_string(arg));
+                    paramValues.push_back(strBuffers.back().c_str());
+                    paramLengths.push_back(static_cast<int>(strBuffers.back().size()));
                 }
                 else if constexpr (std::is_same_v<T, double>)
                 {
-                    strBufs.push_back(std::to_string(arg));
-                    paramValues.push_back(strBufs.back().c_str());
-                    paramLengths.push_back(static_cast<int>(strBufs.back().size()));
+                    strBuffers.push_back(std::to_string(arg));
+                    paramValues.push_back(strBuffers.back().c_str());
+                    paramLengths.push_back(static_cast<int>(strBuffers.back().size()));
                 }
                 else if constexpr (std::is_same_v<T, std::string>)
                 {
@@ -130,7 +144,7 @@ Task<PgResult> PgConnection::sendAndReceive(std::string_view sql, std::vector<Pg
     }
 
     std::string sqlStr(sql);
-    int ok = PQsendQueryParams(pgConn_.get(),
+    int ok = PQsendQueryParams(pgConn_->raw,
                                sqlStr.c_str(),
                                static_cast<int>(params.size()),
                                nullptr,
@@ -139,12 +153,10 @@ Task<PgResult> PgConnection::sendAndReceive(std::string_view sql, std::vector<Pg
                                params.empty() ? nullptr : paramFormats.data(),
                                0);
     if (!ok)
-    {
-        throw std::runtime_error(std::string("PQsendQueryParams: ") + PQerrorMessage(pgConn_.get()));
-    }
+        throw std::runtime_error(std::string("PQsendQueryParams: ") + PQerrorMessage(pgConn_->raw));
 
     auto flushResult = co_await channel_->performWrite([this](int, IoChannel * c) -> IoChannel::IoStatus {
-        int r = PQflush(pgConn_.get());
+        int r = PQflush(pgConn_->raw);
         NITRO_TRACE("PgConnection: PQflush=%d", r);
         if (r == 0)
         {
@@ -160,36 +172,36 @@ Task<PgResult> PgConnection::sendAndReceive(std::string_view sql, std::vector<Pg
     });
     if (flushResult == IoChannel::IoResult::Error)
     {
-        throw std::runtime_error(std::string("PQflush: ") + PQerrorMessage(pgConn_.get()));
+        throw std::runtime_error(std::string("PQflush: ") + PQerrorMessage(pgConn_->raw));
     }
     if (flushResult != IoChannel::IoResult::Success)
     {
         throw std::runtime_error("PQflush: canceled");
     }
 
-    std::shared_ptr<PGresult> res;
+    std::shared_ptr<PgResultWrapper> res;
     auto readResult = co_await channel_->performRead([this, &res](int, IoChannel *) -> IoChannel::IoStatus {
-        if (!PQconsumeInput(pgConn_.get()))
+        if (!PQconsumeInput(pgConn_->raw))
             return IoChannel::IoStatus::Error;
-        NITRO_TRACE("PgConnection: PQisBusy=%d", PQisBusy(pgConn_.get()));
-        if (PQisBusy(pgConn_.get()))
+        NITRO_TRACE("PgConnection: PQisBusy=%d", PQisBusy(pgConn_->raw));
+        if (PQisBusy(pgConn_->raw))
             return IoChannel::IoStatus::NeedRead;
-        while (PGresult * r = PQgetResult(pgConn_.get()))
+        while (PGresult * r = PQgetResult(pgConn_->raw))
         {
             if (res)
             {
                 // TODO
                 NITRO_TRACE("PgConnection: dropping extra result status=%s rows=%d",
-                            PQresStatus(PQresultStatus(res.get())),
-                            PQntuples(res.get()));
+                            PQresStatus(PQresultStatus(res->raw)),
+                            PQntuples(res->raw));
             }
-            res.reset(r, PQclear);
+            res = std::make_shared<PgResultWrapper>(r);
         }
         return IoChannel::IoStatus::Success;
     });
     if (readResult == IoChannel::IoResult::Error)
     {
-        throw std::runtime_error(std::string("PQconsumeInput: ") + PQerrorMessage(pgConn_.get()));
+        throw std::runtime_error(std::string("PQconsumeInput: ") + PQerrorMessage(pgConn_->raw));
     }
     if (readResult != IoChannel::IoResult::Success)
     {
@@ -200,22 +212,22 @@ Task<PgResult> PgConnection::sendAndReceive(std::string_view sql, std::vector<Pg
     if (!res)
         throw std::runtime_error("PgConnection: no result returned");
 
-    ExecStatusType status = PQresultStatus(res.get());
+    ExecStatusType status = PQresultStatus(res->raw);
     if (status != PGRES_TUPLES_OK && status != PGRES_COMMAND_OK)
     {
-        std::string err = PQresultErrorMessage(res.get());
+        std::string err = PQresultErrorMessage(res->raw);
         throw std::runtime_error("PgConnection query error: " + err);
     }
 
     co_return PgResult(std::move(res));
 }
 
-Task<PgResult> PgConnection::query(std::string_view sql, std::vector<PgValue> params)
+Task<PgResult> PgConnectionImpl::query(std::string_view sql, std::vector<PgValue> params)
 {
     co_return co_await sendAndReceive(sql, std::move(params));
 }
 
-Task<> PgConnection::execute(std::string_view sql, std::vector<PgValue> params)
+Task<> PgConnectionImpl::execute(std::string_view sql, std::vector<PgValue> params)
 {
     co_await sendAndReceive(sql, std::move(params));
 }
