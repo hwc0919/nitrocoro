@@ -21,7 +21,7 @@ static std::string connStr()
     return env ? env : "host=localhost dbname=test user=postgres";
 }
 
-Task<PgConnection> makeConn()
+Task<std::unique_ptr<PgConnection>> makeConn()
 {
     co_return co_await PgConnection::connect(connStr());
 }
@@ -77,44 +77,9 @@ NITRO_TEST(pooled_connection_reset)
     NITRO_CHECK_EQ(pool.idleCount(), 1);
 }
 
-NITRO_TEST(pooled_connection_detach)
-{
-    PgPool pool(1, makeConn);
-    auto pooled = co_await pool.acquire();
-    NITRO_CHECK_EQ(pool.idleCount(), 0);
-
-    auto detached = pooled.detach();
-    NITRO_REQUIRE(detached);
-    NITRO_CHECK(!pooled);
-
-    auto result = co_await detached.query("SELECT 42");
-    NITRO_CHECK_EQ(std::get<int64_t>(result.get(0, 0)), 42);
-
-    co_await Scheduler::current()->sleep_for(0.1);
-    NITRO_CHECK_EQ(pool.idleCount(), 0);
-}
-
-NITRO_TEST(pooled_connection_move)
-{
-    PgPool pool(1, makeConn);
-    auto c1 = co_await pool.acquire();
-    auto result = co_await c1->query("SELECT 1");
-    NITRO_CHECK_EQ(std::get<int64_t>(result.get(0, 0)), 1);
-
-    auto c2 = std::move(c1);
-    NITRO_CHECK(!c1);
-    NITRO_CHECK(c2);
-
-    result = co_await c2->query("SELECT 2");
-    NITRO_CHECK_EQ(std::get<int64_t>(result.get(0, 0)), 2);
-}
-
 NITRO_TEST(pooled_connection_bool_operator)
 {
     PgPool pool(1, makeConn);
-    PooledConnection empty;
-    NITRO_CHECK(!empty);
-
     auto conn = co_await pool.acquire();
     NITRO_CHECK(conn);
 

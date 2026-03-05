@@ -5,6 +5,8 @@ add_library(nitrocoro-pg STATIC
     src/PgPool.cc
     src/PgResult.cc
     src/PgTransaction.cc
+    src/PooledConnection.cc
+    src/PoolState.cc
 )
 
 target_include_directories(nitrocoro-pg PUBLIC

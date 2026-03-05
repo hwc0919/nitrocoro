@@ -22,7 +22,7 @@ static std::string connStr()
     return env ? env : "host=localhost dbname=test user=postgres";
 }
 
-Task<PgConnection> makeConn()
+Task<std::unique_ptr<PgConnection>> makeConn()
 {
     co_return co_await PgConnection::connect(connStr());
 }
@@ -33,7 +33,7 @@ NITRO_TEST(transaction_raii_rollback)
     co_await (co_await pool.acquire())->execute("CREATE TEMP TABLE tx_raii_test (v INT)");
     {
         auto tx = co_await pool.newTransaction();
-        co_await tx.execute("INSERT INTO tx_raii_test VALUES (1)");
+        co_await tx->execute("INSERT INTO tx_raii_test VALUES (1)");
     }
     co_await Scheduler::current()->sleep_for(1.0);
     auto conn = co_await pool.acquire();
@@ -47,10 +47,9 @@ NITRO_TEST(transaction_commit)
     co_await (co_await pool.acquire())->execute("CREATE TEMP TABLE tx_commit_test (v INT)");
     {
         auto tx = co_await pool.newTransaction();
-        co_await tx.execute("INSERT INTO tx_commit_test VALUES (42)");
-        co_await tx.commit();
-        // Test: cannot execute after commit
-        NITRO_CHECK_THROWS_AS(co_await tx.execute("INSERT INTO tx_commit_test VALUES (99)"), std::logic_error);
+        co_await tx->execute("INSERT INTO tx_commit_test VALUES (42)");
+        co_await tx->commit();
+        NITRO_CHECK_THROWS_AS(co_await tx->execute("INSERT INTO tx_commit_test VALUES (99)"), std::logic_error);
     }
     auto conn = co_await pool.acquire();
     auto result = co_await conn->query("SELECT v FROM tx_commit_test");
@@ -63,8 +62,8 @@ NITRO_TEST(transaction_rollback)
     co_await (co_await pool.acquire())->execute("CREATE TEMP TABLE tx_rollback_test (v INT)");
     {
         auto tx = co_await pool.newTransaction();
-        co_await tx.execute("INSERT INTO tx_rollback_test VALUES (99)");
-        co_await tx.rollback();
+        co_await tx->execute("INSERT INTO tx_rollback_test VALUES (99)");
+        co_await tx->rollback();
     }
     auto conn = co_await pool.acquire();
     auto result = co_await conn->query("SELECT COUNT(*) FROM tx_rollback_test");
@@ -77,12 +76,12 @@ NITRO_TEST(transaction_query)
     co_await (co_await pool.acquire())->execute("CREATE TEMP TABLE tx_query_test (v INT)");
     {
         auto tx = co_await pool.newTransaction();
-        co_await tx.execute("INSERT INTO tx_query_test VALUES (1), (2), (3)");
-        auto result = co_await tx.query("SELECT SUM(v) FROM tx_query_test");
+        co_await tx->execute("INSERT INTO tx_query_test VALUES (1), (2), (3)");
+        auto result = co_await tx->query("SELECT SUM(v) FROM tx_query_test");
         NITRO_CHECK_EQ(result.rowCount(), 1);
         NITRO_CHECK_EQ(result.colCount(), 1);
         NITRO_CHECK_EQ(std::get<int64_t>(result.get(0, 0)), 6);
-        co_await tx.commit();
+        co_await tx->commit();
     }
 }
 
@@ -92,180 +91,64 @@ NITRO_TEST(transaction_pool_return)
     {
         auto tx = co_await pool.newTransaction();
         NITRO_CHECK_EQ(pool.idleCount(), 0);
-        co_await tx.rollback();
+        co_await tx->rollback();
     }
     co_await Scheduler::current()->sleep_for(0.5);
     NITRO_CHECK_EQ(pool.idleCount(), 1);
-}
-
-NITRO_TEST(transaction_move)
-{
-    PgPool pool(1, makeConn);
-    co_await (co_await pool.acquire())->execute("CREATE TEMP TABLE tx_move_test (v INT)");
-
-    {
-        auto tx1 = co_await pool.newTransaction();
-        NITRO_CHECK_EQ(pool.idleCount(), 0);
-        co_await tx1.execute("INSERT INTO tx_move_test VALUES (10)");
-
-        auto tx2 = std::move(tx1);
-        NITRO_CHECK_EQ(pool.idleCount(), 0);
-        co_await tx2.execute("INSERT INTO tx_move_test VALUES (20)");
-        co_await tx2.commit();
-    }
-    co_await Scheduler::current()->sleep_for(0.5);
-    NITRO_CHECK_EQ(pool.idleCount(), 1);
-
-    auto conn = co_await pool.acquire();
-    auto result = co_await conn->query("SELECT SUM(v) FROM tx_move_test");
-    NITRO_CHECK_EQ(std::get<int64_t>(result.get(0, 0)), 30);
-}
-
-NITRO_TEST(transaction_move_assignment)
-{
-    PgPool pool(2, makeConn);
-    {
-        auto setupConn = co_await pool.acquire();
-        co_await setupConn->execute("DROP TABLE IF EXISTS tx_assign_test");
-        co_await setupConn->execute("CREATE TABLE tx_assign_test (v INT)");
-    }
-    co_await Scheduler::current()->sleep_for(0.5);
-
-    {
-        // tx1 inserts value 1 (uncommitted)
-        auto tx1 = co_await pool.newTransaction();
-        co_await tx1.execute("INSERT INTO tx_assign_test VALUES (1)");
-
-        // tx2 inserts value 2 (uncommitted)
-        auto tx2 = co_await pool.newTransaction();
-        co_await tx2.execute("INSERT INTO tx_assign_test VALUES (2)");
-
-        // Move assignment: if not properly implemented, tx1's connection will be returned
-        // to pool WITHOUT rollback, leaving an uncommitted transaction that may auto-commit
-        tx1 = std::move(tx2);
-        co_await Scheduler::current()->sleep_for(0.5);
-
-        // Commit tx1 (which now holds tx2's transaction)
-        co_await tx1.commit();
-    }
-    co_await Scheduler::current()->sleep_for(0.5);
-
-    // Without proper move assignment: one connection left in uncommitted state (BUG)
-    // With proper move assignment: only value 2 is persisted (value 1 rolled back)
-    {
-        auto conn1 = co_await pool.acquire();
-        auto result1 = co_await conn1->query("SELECT v FROM tx_assign_test ORDER BY v");
-        auto conn2 = co_await pool.acquire();
-        auto result2 = co_await conn2->query("SELECT v FROM tx_assign_test ORDER BY v");
-
-        NITRO_CHECK_EQ(result1.rowCount(), 1);
-        NITRO_CHECK_EQ(result2.rowCount(), 1);
-        NITRO_CHECK_EQ(std::get<int64_t>(result1.get(0, 0)), 2);
-        NITRO_CHECK_EQ(std::get<int64_t>(result2.get(0, 0)), 2);
-    }
-
-    {
-        auto conn = co_await pool.acquire();
-        co_await conn->execute("DROP TABLE tx_assign_test");
-    }
 }
 
 NITRO_TEST(transaction_from_connection)
 {
     auto conn = co_await PgConnection::connect(connStr());
-    co_await conn.execute("DROP TABLE IF EXISTS tx_conn_test");
-    co_await conn.execute("CREATE TABLE tx_conn_test (v INT)");
+    co_await conn->execute("DROP TABLE IF EXISTS tx_conn_test");
+    co_await conn->execute("CREATE TABLE tx_conn_test (v INT)");
 
     {
         auto tx = co_await PgTransaction::begin(std::move(conn));
-        co_await tx.execute("INSERT INTO tx_conn_test VALUES (100)");
-        co_await tx.commit();
+        co_await tx->execute("INSERT INTO tx_conn_test VALUES (100)");
+        co_await tx->commit();
     }
 
     auto conn2 = co_await PgConnection::connect(connStr());
-    auto result = co_await conn2.query("SELECT v FROM tx_conn_test");
+    auto result = co_await conn2->query("SELECT v FROM tx_conn_test");
     NITRO_CHECK_EQ(result.rowCount(), 1);
     NITRO_CHECK_EQ(std::get<int64_t>(result.get(0, 0)), 100);
 
-    co_await conn2.execute("DROP TABLE tx_conn_test");
+    co_await conn2->execute("DROP TABLE tx_conn_test");
 }
 
 NITRO_TEST(transaction_release_and_reuse)
 {
     auto conn = co_await PgConnection::connect(connStr());
-    co_await conn.execute("DROP TABLE IF EXISTS tx_release_test");
-    co_await conn.execute("CREATE TABLE tx_release_test (v INT)");
+    co_await conn->execute("DROP TABLE IF EXISTS tx_release_test");
+    co_await conn->execute("CREATE TABLE tx_release_test (v INT)");
 
     {
         auto tx = co_await PgTransaction::begin(std::move(conn));
-        co_await tx.execute("INSERT INTO tx_release_test VALUES (1)");
-        co_await tx.commit();
-        conn = tx.release();
+        co_await tx->execute("INSERT INTO tx_release_test VALUES (1)");
+        co_await tx->commit();
+        conn = tx->release();
     }
 
     {
         auto tx = co_await PgTransaction::begin(std::move(conn));
-        co_await tx.execute("INSERT INTO tx_release_test VALUES (2)");
-        co_await tx.commit();
-        conn = tx.release();
+        co_await tx->execute("INSERT INTO tx_release_test VALUES (2)");
+        co_await tx->commit();
+        conn = tx->release();
     }
 
-    auto result = co_await conn.query("SELECT SUM(v) FROM tx_release_test");
+    auto result = co_await conn->query("SELECT SUM(v) FROM tx_release_test");
     NITRO_CHECK_EQ(std::get<int64_t>(result.get(0, 0)), 3);
 
-    co_await conn.execute("DROP TABLE tx_release_test");
+    co_await conn->execute("DROP TABLE tx_release_test");
 }
 
 NITRO_TEST(transaction_release_before_commit)
 {
     auto conn = co_await PgConnection::connect(connStr());
     auto tx = co_await PgTransaction::begin(std::move(conn));
-    NITRO_CHECK_THROWS_AS(tx.release(), std::logic_error);
-    co_await tx.rollback();
-}
-
-NITRO_TEST(transaction_release_pooled_connection)
-{
-    PgPool pool(1, makeConn);
-    co_await (co_await pool.acquire())->execute("DROP TABLE IF EXISTS tx_pool_release_test");
-    co_await (co_await pool.acquire())->execute("CREATE TABLE tx_pool_release_test (v INT)");
-
-    PgConnection conn;
-    {
-        auto tx = co_await pool.newTransaction();
-        co_await tx.execute("INSERT INTO tx_pool_release_test VALUES (1)");
-        co_await tx.commit();
-        conn = tx.release();
-    }
-
-    NITRO_CHECK_EQ(pool.idleCount(), 0);
-    co_await conn.execute("INSERT INTO tx_pool_release_test VALUES (2)");
-    auto result = co_await conn.query("SELECT SUM(v) FROM tx_pool_release_test");
-    NITRO_CHECK_EQ(std::get<int64_t>(result.get(0, 0)), 3);
-
-    co_await conn.execute("DROP TABLE tx_pool_release_test");
-}
-
-NITRO_TEST(transaction_release_pooled_auto_return)
-{
-    PgPool pool(1, makeConn);
-    co_await (co_await pool.acquire())->execute("DROP TABLE IF EXISTS tx_pool_auto_test");
-    co_await (co_await pool.acquire())->execute("CREATE TABLE tx_pool_auto_test (v INT)");
-
-    {
-        auto tx = co_await pool.newTransaction();
-        co_await tx.execute("INSERT INTO tx_pool_auto_test VALUES (1)");
-        co_await tx.commit();
-        auto conn = tx.releasePooled();
-        co_await conn->execute("INSERT INTO tx_pool_auto_test VALUES (2)");
-    }
-    co_await Scheduler::current()->sleep_for(0.5);
-    NITRO_CHECK_EQ(pool.idleCount(), 1);
-
-    auto conn = co_await pool.acquire();
-    auto result = co_await conn->query("SELECT SUM(v) FROM tx_pool_auto_test");
-    NITRO_CHECK_EQ(std::get<int64_t>(result.get(0, 0)), 3);
-    co_await conn->execute("DROP TABLE tx_pool_auto_test");
+    NITRO_CHECK_THROWS_AS(tx->release(), std::logic_error);
+    co_await tx->rollback();
 }
 
 int main()

@@ -11,6 +11,8 @@
 namespace nitrocoro::pg
 {
 
+using nitrocoro::io::IoChannel;
+
 PgConnection::PgConnection(std::shared_ptr<PGconn> conn, std::unique_ptr<IoChannel> channel)
     : pgConn_(std::move(conn))
     , channel_(std::move(channel))
@@ -21,7 +23,7 @@ PgConnection::~PgConnection()
 {
 }
 
-Task<PgConnection> PgConnection::connect(std::string connStr, Scheduler * scheduler)
+Task<std::unique_ptr<PgConnection>> PgConnection::connect(std::string connStr, Scheduler * scheduler)
 {
     auto pgConn = std::shared_ptr<PGconn>(PQconnectStart(connStr.c_str()), PQfinish);
     if (!pgConn)
@@ -31,7 +33,7 @@ Task<PgConnection> PgConnection::connect(std::string connStr, Scheduler * schedu
         throw std::runtime_error("PgConnection::connect: " + std::string(PQerrorMessage(pgConn.get())));
 
     co_await scheduler->switch_to();
-    auto channel = std::make_unique<IoChannel>(PQsocket(pgConn.get()), TriggerMode::LevelTriggered, scheduler);
+    auto channel = std::make_unique<io::IoChannel>(PQsocket(pgConn.get()), TriggerMode::LevelTriggered, scheduler);
     channel->setGuard(pgConn);
     channel->enableReading();
 
@@ -57,7 +59,7 @@ Task<PgConnection> PgConnection::connect(std::string connStr, Scheduler * schedu
     NITRO_TRACE("PgConnection: connected (fd=%d)", PQsocket(pgConn.get()));
     if (PQsetnonblocking(pgConn.get(), 1) != 0)
         throw std::runtime_error("PQsetnonblocking: " + std::string(PQerrorMessage(pgConn.get())));
-    co_return PgConnection(std::move(pgConn), std::move(channel));
+    co_return std::unique_ptr<PgConnection>(new PgConnection(std::move(pgConn), std::move(channel)));
 }
 
 bool PgConnection::isAlive() const
