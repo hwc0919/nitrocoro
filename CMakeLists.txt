@@ -39,7 +39,7 @@ add_library(nitrocoro STATIC
     src/Socket.cc
     src/TcpServer.cc
     src/TcpConnection.cc
-    src/IoChannel.cc
+    src/Channel.cc
     src/InetAddress.cc
     src/DnsResolver.cc
     src/Dns.cc

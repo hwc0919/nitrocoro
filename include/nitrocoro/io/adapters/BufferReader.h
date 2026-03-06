@@ -1,12 +1,12 @@
 #pragma once
 
-#include <nitrocoro/io/IoChannel.h>
+#include <nitrocoro/io/Channel.h>
 #include <unistd.h>
 
 namespace nitrocoro::io::adapters
 {
 
-using nitrocoro::io::IoChannel;
+using nitrocoro::io::Channel;
 
 // BufferReader never calls enable/disableReading, it assumes that
 // the reading event is enabled by user and won't be disabled.
@@ -16,20 +16,20 @@ struct BufferReader
         : buf_(buf), len_(len) {}
     size_t readLen() const { return readLen_; }
 
-    IoChannel::IoStatus operator()(int fd, IoChannel *)
+    Channel::IoStatus operator()(int fd, Channel *)
     {
         if (!buf_ || len_ == 0)
-            return IoChannel::IoStatus::Success;
+            return Channel::IoStatus::Success;
 
         ssize_t ret = ::read(fd, buf_, len_);
         if (ret > 0)
         {
             readLen_ = ret;
-            return IoChannel::IoStatus::Success;
+            return Channel::IoStatus::Success;
         }
         else if (ret == 0)
         {
-            return IoChannel::IoStatus::Eof;
+            return Channel::IoStatus::Eof;
         }
         else
         {
@@ -39,11 +39,11 @@ struct BufferReader
 #if EAGAIN != EWOULDBLOCK
                 case EWOULDBLOCK:
 #endif
-                    return IoChannel::IoStatus::NeedRead;
+                    return Channel::IoStatus::NeedRead;
                 case EINTR:
-                    return IoChannel::IoStatus::Retry;
+                    return Channel::IoStatus::Retry;
                 default:
-                    return IoChannel::IoStatus::Error;
+                    return Channel::IoStatus::Error;
             }
         }
     }

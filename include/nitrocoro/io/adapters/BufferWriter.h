@@ -1,12 +1,12 @@
 #pragma once
 
-#include <nitrocoro/io/IoChannel.h>
+#include <nitrocoro/io/Channel.h>
 #include <unistd.h>
 
 namespace nitrocoro::io::adapters
 {
 
-using nitrocoro::io::IoChannel;
+using nitrocoro::io::Channel;
 
 // BufferWriter calls enable/disableWriting only when needed, it assumes
 // that user don't enable/disable write event manually.
@@ -18,11 +18,11 @@ struct BufferWriter
     {
     }
 
-    IoChannel::IoStatus operator()(int fd, IoChannel * channel)
+    Channel::IoStatus operator()(int fd, Channel * channel)
     {
         if (!buf_ || len_ == 0)
         {
-            return IoChannel::IoStatus::Success;
+            return Channel::IoStatus::Success;
         }
 
         ssize_t ret = ::write(fd, static_cast<const char *>(buf_) + wroteLen_, len_ - wroteLen_);
@@ -32,11 +32,11 @@ struct BufferWriter
             if (wroteLen_ >= static_cast<ssize_t>(len_))
             {
                 channel->disableWriting();
-                return IoChannel::IoStatus::Success;
+                return Channel::IoStatus::Success;
             }
             else
             {
-                return IoChannel::IoStatus::Retry;
+                return Channel::IoStatus::Retry;
             }
         }
         else // ret <= 0
@@ -48,14 +48,14 @@ struct BufferWriter
                 case EWOULDBLOCK:
 #endif
                     channel->enableWriting();
-                    return IoChannel::IoStatus::NeedWrite;
+                    return Channel::IoStatus::NeedWrite;
                 case EINTR:
-                    return IoChannel::IoStatus::Retry;
+                    return Channel::IoStatus::Retry;
                 case EPIPE:
                 case ECONNRESET:
-                    return IoChannel::IoStatus::Eof;
+                    return Channel::IoStatus::Eof;
                 default:
-                    return IoChannel::IoStatus::Error;
+                    return Channel::IoStatus::Error;
             }
         }
     }

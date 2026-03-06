@@ -34,7 +34,7 @@ web application framework (planned)
     ↑
 nitrocoro (this repo)
 ├── core        Scheduler / Task / Future / Mutex / Generator
-├── io          IoChannel / Stream interface
+├── io          Channel / Stream interface
 ├── net         TcpServer / TcpConnection / DNS
 └── extensions/
     ├── http        HTTP/1.1 server + client          [default ON]
@@ -165,7 +165,7 @@ nitrocoro/
 ├── include/nitrocoro/
 │   ├── core/           Task, Scheduler, Future, Mutex, Generator
 │   ├── net/            TcpServer, TcpConnection, DNS
-│   ├── io/             IoChannel, Stream, adapters
+│   ├── io/             Channel, Stream, adapters
 │   └── utils/          Debug macros, buffers
 ├── src/                Core implementation
 ├── extensions/

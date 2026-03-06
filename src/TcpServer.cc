@@ -16,7 +16,7 @@
 
 namespace nitrocoro::net
 {
-using io::IoChannel;
+using io::Channel;
 using net::Socket;
 
 TcpServer::TcpServer(uint16_t port, Scheduler * scheduler)
@@ -58,14 +58,14 @@ void TcpServer::setup_socket()
 
 struct Acceptor
 {
-    IoChannel::IoStatus operator()(int fd, IoChannel *)
+    Channel::IoStatus operator()(int fd, Channel *)
     {
         socklen_t len = sizeof(clientAddr_);
         int connfd = ::accept4(fd, reinterpret_cast<struct sockaddr *>(&clientAddr_), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
         if (connfd >= 0)
         {
             socket_ = std::make_shared<Socket>(connfd);
-            return IoChannel::IoStatus::Success;
+            return Channel::IoStatus::Success;
         }
         switch (errno)
         {
@@ -73,11 +73,11 @@ struct Acceptor
 #if EAGAIN != EWOULDBLOCK
             case EWOULDBLOCK:
 #endif
-                return IoChannel::IoStatus::NeedRead;
+                return Channel::IoStatus::NeedRead;
             case EINTR:
-                return IoChannel::IoStatus::Retry;
+                return Channel::IoStatus::Retry;
             default:
-                return IoChannel::IoStatus::Error;
+                return Channel::IoStatus::Error;
         }
     }
 
@@ -112,19 +112,19 @@ Task<> TcpServer::start(ConnectionHandler handler)
     NITRO_INFO("TcpServer listening on port %hu", port_);
 
     auto handlerPtr = std::make_shared<ConnectionHandler>(std::move(handler));
-    listenChannel_ = std::make_unique<IoChannel>(listenSocketPtr_->fd(), TriggerMode::LevelTriggered, scheduler_);
+    listenChannel_ = std::make_unique<Channel>(listenSocketPtr_->fd(), TriggerMode::LevelTriggered, scheduler_);
     listenChannel_->setGuard(listenSocketPtr_);
     listenChannel_->enableReading();
     while (!stopped_.load())
     {
         Acceptor acceptor;
         auto result = co_await listenChannel_->performRead(&acceptor);
-        if (result == IoChannel::IoResult::Canceled)
+        if (result == Channel::IoResult::Canceled)
         {
             NITRO_INFO("TcpServer::close() called, break accepting loop");
             break;
         }
-        if (result != IoChannel::IoResult::Success)
+        if (result != Channel::IoResult::Success)
         {
             NITRO_ERROR("Accept error: IoResult=%d", static_cast<int>(result));
             break;
@@ -132,7 +132,7 @@ Task<> TcpServer::start(ConnectionHandler handler)
 
         NITRO_DEBUG("Accepted connection");
         auto socket = acceptor.takeSocket();
-        auto ioChannelPtr = std::make_unique<IoChannel>(socket->fd(), TriggerMode::EdgeTriggered, scheduler_);
+        auto ioChannelPtr = std::make_unique<Channel>(socket->fd(), TriggerMode::EdgeTriggered, scheduler_);
         ioChannelPtr->setGuard(socket);
         auto connPtr = std::make_shared<TcpConnection>(std::move(ioChannelPtr), socket);
         connSetPtr_->insert(connPtr);

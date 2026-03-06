@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <nitrocoro/core/Future.h>
 #include <nitrocoro/core/Scheduler.h>
-#include <nitrocoro/io/IoChannel.h>
+#include <nitrocoro/io/Channel.h>
 #include <nitrocoro/io/adapters/BufferReader.h>
 #include <nitrocoro/net/Dns.h>
 #include <nitrocoro/net/InetAddress.h>
@@ -42,12 +42,12 @@ Task<> receive_messages(const TcpConnectionPtr & connPtr)
     }
 }
 
-static std::shared_ptr<IoChannel> getStdinChannel()
+static std::shared_ptr<Channel> getStdinChannel()
 {
     static auto channel = []() {
         int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
         fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-        auto stdinChannel = std::make_shared<IoChannel>(STDIN_FILENO);
+        auto stdinChannel = std::make_shared<Channel>(STDIN_FILENO);
         stdinChannel->enableReading();
         return stdinChannel;
     }();
@@ -65,7 +65,7 @@ Task<> send_messages(const TcpConnectionPtr & connPtr)
     {
         BufferReader reader(buf, sizeof(buf) - 1);
         auto result = co_await stdinChannel->performRead(&reader);
-        if (result != IoChannel::IoResult::Success)
+        if (result != Channel::IoResult::Success)
             co_return;
         buf[reader.readLen()] = '\0';
         line += buf;

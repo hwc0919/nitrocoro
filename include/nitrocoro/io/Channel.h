@@ -1,6 +1,6 @@
 /**
- * @file IoChannel.h
- * @brief IoChannel abstraction for managing fd I/O operations
+ * @file Channel.h
+ * @brief Channel abstraction for managing fd I/O operations
  * @note Only supports one concurrent reader and one concurrent writer per fd
  *
  * THREAD SAFETY:
@@ -11,7 +11,7 @@
  * These phases never overlap, ensuring no race conditions on member variables.
  *
  * CRITICAL: Any future modifications MUST preserve this serialization guarantee.
- * Do NOT introduce concurrent access to IoChannel members from multiple threads.
+ * Do NOT introduce concurrent access to Channel members from multiple threads.
  */
 #pragma once
 
@@ -27,30 +27,30 @@ namespace nitrocoro::io
 using nitrocoro::Scheduler;
 using nitrocoro::Task;
 
-class IoChannel;
-using IoChannelPtr = std::shared_ptr<IoChannel>;
+class Channel;
+using IoChannelPtr = std::shared_ptr<Channel>;
 
-class IoChannel
+class Channel
 {
 public:
-    explicit IoChannel(int fd, TriggerMode mode = TriggerMode::EdgeTriggered, Scheduler * scheduler = Scheduler::current());
-    ~IoChannel() noexcept;
+    explicit Channel(int fd, TriggerMode mode = TriggerMode::EdgeTriggered, Scheduler * scheduler = Scheduler::current());
+    ~Channel() noexcept;
 
-    IoChannel(const IoChannel &) = delete;
-    IoChannel & operator=(const IoChannel &) = delete;
-    IoChannel(IoChannel &&) = delete;
-    IoChannel & operator=(IoChannel &&) = delete;
+    Channel(const Channel &) = delete;
+    Channel & operator=(const Channel &) = delete;
+    Channel(Channel &&) = delete;
+    Channel & operator=(Channel &&) = delete;
 
     /**
      * @brief Defer the destruction of a resource until after this channel is removed from epoll.
      *
-     * IoChannel destruction is asynchronous: the epoll removal (EPOLL_CTL_DEL) is posted to the
+     * Channel destruction is asynchronous: the epoll removal (EPOLL_CTL_DEL) is posted to the
      * scheduler queue and executes later. If the underlying fd is closed before that point, the OS
      * may reuse the fd number for a new connection, and the deferred EPOLL_CTL_DEL would then
      * silently remove the wrong fd from epoll.
      *
      * To prevent this, pass a shared_ptr to the resource that owns the fd (e.g. Socket, PgConn).
-     * IoChannel holds a copy of the shared_ptr and releases it only after removeIo() completes,
+     * Channel holds a copy of the shared_ptr and releases it only after removeIo() completes,
      * guaranteeing that the fd is not closed until epoll cleanup is done.
      *
      * The caller retains its own shared_ptr; this method does not transfer ownership.
@@ -99,7 +99,7 @@ public:
 
     // Adapter pointer overload: perform(&reader) / perform(&writer)
     template <typename Adapter>
-        requires std::invocable<Adapter, int, IoChannel *>
+        requires std::invocable<Adapter, int, Channel *>
     Task<IoResult> perform(Adapter * adapter, WaitHint hint = WaitHint::None)
     {
         co_return co_await performImpl(adapter, hint);
@@ -107,8 +107,8 @@ public:
 
     // Callable overload: perform(lambda)
     template <typename Func>
-        requires std::invocable<Func, int, IoChannel *>
-                 && std::same_as<std::invoke_result_t<Func, int, IoChannel *>, IoStatus>
+        requires std::invocable<Func, int, Channel *>
+                 && std::same_as<std::invoke_result_t<Func, int, Channel *>, IoStatus>
                  && (!std::is_pointer_v<Func>)
     Task<IoResult> perform(Func && func, WaitHint hint = WaitHint::None)
     {

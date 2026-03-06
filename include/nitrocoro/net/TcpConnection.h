@@ -6,7 +6,7 @@
 
 #include <nitrocoro/core/Mutex.h>
 #include <nitrocoro/core/Task.h>
-#include <nitrocoro/io/IoChannel.h>
+#include <nitrocoro/io/Channel.h>
 #include <nitrocoro/net/InetAddress.h>
 #include <nitrocoro/net/Socket.h>
 
@@ -15,7 +15,7 @@ namespace nitrocoro::net
 
 using nitrocoro::Mutex;
 using nitrocoro::Task;
-using nitrocoro::io::IoChannel;
+using nitrocoro::io::Channel;
 using nitrocoro::net::Socket;
 class TcpConnection;
 using TcpConnectionPtr = std::shared_ptr<TcpConnection>;
@@ -25,7 +25,7 @@ class TcpConnection
 public:
     static Task<TcpConnectionPtr> connect(const InetAddress & addr);
 
-    explicit TcpConnection(std::unique_ptr<IoChannel>, std::shared_ptr<Socket>);
+    explicit TcpConnection(std::unique_ptr<Channel>, std::shared_ptr<Socket>);
     ~TcpConnection();
 
     TcpConnection(const TcpConnection &) = delete;
@@ -52,7 +52,7 @@ public:
 
 private:
     std::shared_ptr<Socket> socket_;
-    std::unique_ptr<IoChannel> ioChannelPtr_;
+    std::unique_ptr<Channel> ioChannelPtr_;
     State state_ = State::None;
 };
 

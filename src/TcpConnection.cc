@@ -14,7 +14,7 @@ namespace nitrocoro::net
 
 using nitrocoro::Scheduler;
 using nitrocoro::Task;
-using nitrocoro::io::IoChannel;
+using nitrocoro::io::Channel;
 using nitrocoro::io::adapters::BufferReader;
 using nitrocoro::io::adapters::BufferWriter;
 using nitrocoro::net::Socket;
@@ -27,7 +27,7 @@ struct Connector
     {
     }
 
-    IoChannel::IoStatus operator()(int fd, IoChannel * channel)
+    Channel::IoStatus operator()(int fd, Channel * channel)
     {
         if (connecting_)
         {
@@ -35,20 +35,20 @@ struct Connector
             socklen_t len = sizeof(error);
             if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
             {
-                return IoChannel::IoStatus::Error;
+                return Channel::IoStatus::Error;
             }
             if (error == 0)
             {
                 channel->disableWriting();
-                return IoChannel::IoStatus::Success;
+                return Channel::IoStatus::Success;
             }
             else if (error == EINPROGRESS || error == EALREADY)
             {
-                return IoChannel::IoStatus::NeedWrite;
+                return Channel::IoStatus::NeedWrite;
             }
             else
             {
-                return IoChannel::IoStatus::Error;
+                return Channel::IoStatus::Error;
             }
         }
 
@@ -56,24 +56,24 @@ struct Connector
         if (ret == 0)
         {
             channel->disableWriting();
-            return IoChannel::IoStatus::Success;
+            return Channel::IoStatus::Success;
         }
         int lastErrno = errno;
         switch (lastErrno)
         {
             case EISCONN:
                 channel->disableWriting();
-                return IoChannel::IoStatus::Success;
+                return Channel::IoStatus::Success;
             case EINPROGRESS:
             case EALREADY:
                 connecting_ = true;
                 channel->enableWriting();
-                return IoChannel::IoStatus::NeedWrite;
+                return Channel::IoStatus::NeedWrite;
             case EINTR:
-                return IoChannel::IoStatus::Retry;
+                return Channel::IoStatus::Retry;
 
             default:
-                return IoChannel::IoStatus::Error;
+                return Channel::IoStatus::Error;
         }
     }
 
@@ -90,17 +90,17 @@ Task<TcpConnectionPtr> TcpConnection::connect(const InetAddress & addr)
     if (fd < 0)
         throw std::runtime_error("Failed to create socket");
     auto socket = std::make_shared<Socket>(fd);
-    auto channelPtr = std::make_unique<IoChannel>(fd);
+    auto channelPtr = std::make_unique<Channel>(fd);
     channelPtr->setGuard(socket);
     socklen_t addrLen = addr.isIpV6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
     Connector connector(addr.getSockAddr(), addrLen);
     auto result = co_await channelPtr->performWrite(&connector);
-    if (result != IoChannel::IoResult::Success)
+    if (result != Channel::IoResult::Success)
         throw std::runtime_error("TCP connect failed");
     co_return std::make_shared<TcpConnection>(std::move(channelPtr), std::move(socket));
 }
 
-TcpConnection::TcpConnection(std::unique_ptr<IoChannel> channelPtr, std::shared_ptr<Socket> socket)
+TcpConnection::TcpConnection(std::unique_ptr<Channel> channelPtr, std::shared_ptr<Socket> socket)
     : socket_(std::move(socket))
     , ioChannelPtr_(std::move(channelPtr))
 {
@@ -114,7 +114,7 @@ Task<size_t> TcpConnection::read(void * buf, size_t len)
 {
     BufferReader reader(buf, len);
     auto result = co_await ioChannelPtr_->performRead(&reader);
-    if (result == IoChannel::IoResult::Eof)
+    if (result == Channel::IoResult::Eof)
     {
         if (state_ == State::LocalShutdown)
             state_ = State::Closed;
@@ -122,7 +122,7 @@ Task<size_t> TcpConnection::read(void * buf, size_t len)
             state_ = State::PeerShutdown;
         co_return 0;
     }
-    if (result != IoChannel::IoResult::Success)
+    if (result != Channel::IoResult::Success)
     {
         state_ = State::Closed;
         throw std::runtime_error("TCP read error");
@@ -134,12 +134,12 @@ Task<size_t> TcpConnection::write(const void * buf, size_t len)
 {
     BufferWriter writer(buf, len);
     auto result = co_await ioChannelPtr_->performWrite(&writer);
-    if (result == IoChannel::IoResult::Eof)
+    if (result == Channel::IoResult::Eof)
     {
         state_ = State::Closed;
         co_return 0;
     }
-    if (result != IoChannel::IoResult::Success)
+    if (result != Channel::IoResult::Success)
     {
         state_ = State::Closed;
         throw std::runtime_error("TCP write error");

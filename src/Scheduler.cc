@@ -6,7 +6,7 @@
 #include <csignal>
 #include <cstring>
 #include <nitrocoro/core/Scheduler.h>
-#include <nitrocoro/io/IoChannel.h>
+#include <nitrocoro/io/Channel.h>
 #include <nitrocoro/utils/Debug.h>
 #include <stdexcept>
 #include <sys/epoll.h>
@@ -52,7 +52,7 @@ Scheduler::~Scheduler()
     if (epollFd_ >= 0)
         close(epollFd_);
 
-    wakeupChannel_.reset(); // IoChannel destructor will access readyQueue_
+    wakeupChannel_.reset(); // Channel destructor will access readyQueue_
 }
 
 Scheduler * Scheduler::current() noexcept
@@ -63,7 +63,7 @@ Scheduler * Scheduler::current() noexcept
 void Scheduler::run()
 {
     threadId_ = std::this_thread::get_id();
-    wakeupChannel_ = std::make_unique<io::IoChannel>(wakeupFd_, TriggerMode::LevelTriggered, this);
+    wakeupChannel_ = std::make_unique<io::Channel>(wakeupFd_, TriggerMode::LevelTriggered, this);
     wakeupChannel_->enableReading();
 
     running_.store(true, std::memory_order_release);

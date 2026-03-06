@@ -4,7 +4,7 @@
  */
 #pragma once
 
-#include <nitrocoro/io/IoChannel.h>
+#include <nitrocoro/io/Channel.h>
 #include <nitrocoro/pg/PgConnection.h>
 
 #include <memory>
@@ -20,7 +20,7 @@ class PgConnectionImpl : public PgConnection
     struct PgConnWrapper;
 
 public:
-    PgConnectionImpl(std::shared_ptr<PgConnWrapper> conn, std::unique_ptr<io::IoChannel> channel);
+    PgConnectionImpl(std::shared_ptr<PgConnWrapper> conn, std::unique_ptr<io::Channel> channel);
     ~PgConnectionImpl() override = default;
 
     PgConnectionImpl(const PgConnectionImpl &) = delete;
@@ -38,7 +38,7 @@ private:
     Task<PgResult> sendAndReceive(std::string_view sql, std::vector<PgValue> params);
 
     std::shared_ptr<PgConnWrapper> pgConn_;
-    std::unique_ptr<io::IoChannel> channel_;
+    std::unique_ptr<io::Channel> channel_;
 };
 
 } // namespace nitrocoro::pg

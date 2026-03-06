@@ -20,7 +20,7 @@ namespace nitrocoro::net
 
 using nitrocoro::Scheduler;
 using nitrocoro::Task;
-using nitrocoro::io::IoChannel;
+using nitrocoro::io::Channel;
 
 class TcpServer
 {
@@ -46,7 +46,7 @@ private:
     std::atomic_bool stopped_{ false };
     Promise<> stopPromise_;
     SharedFuture<> stopFuture_;
-    std::unique_ptr<IoChannel> listenChannel_;
+    std::unique_ptr<Channel> listenChannel_;
 
     using ConnectionSet = std::unordered_set<TcpConnectionPtr>;
     std::shared_ptr<ConnectionSet> connSetPtr_{ std::make_shared<ConnectionSet>() };

@@ -1,9 +1,10 @@
 /**
- * @file IoChannel.cc
- * @brief Implementation of IoChannel
+ * @file Channel.cc
+ * @brief Implementation of Channel
  */
+#include <nitrocoro/io/Channel.h>
+
 #include <nitrocoro/core/Scheduler.h>
-#include <nitrocoro/io/IoChannel.h>
 #include <nitrocoro/utils/Debug.h>
 
 #include <arpa/inet.h>
@@ -14,7 +15,7 @@
 namespace nitrocoro::io
 {
 
-IoChannel::IoChannel(int fd, TriggerMode mode, Scheduler * scheduler)
+Channel::Channel(int fd, TriggerMode mode, Scheduler * scheduler)
     : id_(Scheduler::nextIoId())
     , fd_(fd)
     , scheduler_(scheduler)
@@ -37,7 +38,7 @@ IoChannel::IoChannel(int fd, TriggerMode mode, Scheduler * scheduler)
     });
 }
 
-IoChannel::~IoChannel() noexcept
+Channel::~Channel() noexcept
 {
     scheduler_->schedule([id = id_, scheduler = scheduler_, guard = std::move(guard_)]() mutable {
         scheduler->removeIo(id);
@@ -45,7 +46,7 @@ IoChannel::~IoChannel() noexcept
     });
 }
 
-void IoChannel::handleIoEvents(Scheduler * scheduler, IoState * state, uint32_t ev)
+void Channel::handleIoEvents(Scheduler * scheduler, IoState * state, uint32_t ev)
 {
     if ((ev & EPOLLHUP) && !(ev & EPOLLIN))
     {
@@ -100,12 +101,12 @@ void IoChannel::handleIoEvents(Scheduler * scheduler, IoState * state, uint32_t 
     }
 }
 
-bool IoChannel::ReadableAwaiter::await_ready() noexcept
+bool Channel::ReadableAwaiter::await_ready() noexcept
 {
     return state_->readable;
 }
 
-bool IoChannel::ReadableAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
+bool Channel::ReadableAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
 {
     if (state_->readable)
     {
@@ -118,16 +119,16 @@ bool IoChannel::ReadableAwaiter::await_suspend(std::coroutine_handle<> h) noexce
     }
 }
 
-void IoChannel::ReadableAwaiter::await_resume() noexcept
+void Channel::ReadableAwaiter::await_resume() noexcept
 {
 }
 
-bool IoChannel::WritableAwaiter::await_ready() noexcept
+bool Channel::WritableAwaiter::await_ready() noexcept
 {
     return state_->writable;
 }
 
-bool IoChannel::WritableAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
+bool Channel::WritableAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
 {
     if (state_->writable)
     {
@@ -140,11 +141,11 @@ bool IoChannel::WritableAwaiter::await_suspend(std::coroutine_handle<> h) noexce
     }
 }
 
-void IoChannel::WritableAwaiter::await_resume() noexcept
+void Channel::WritableAwaiter::await_resume() noexcept
 {
 }
 
-void IoChannel::enableReading()
+void Channel::enableReading()
 {
     if (!(events_ & EPOLLIN))
     {
@@ -153,7 +154,7 @@ void IoChannel::enableReading()
     }
 }
 
-void IoChannel::disableReading()
+void Channel::disableReading()
 {
     if (events_ & EPOLLIN)
     {
@@ -162,7 +163,7 @@ void IoChannel::disableReading()
     }
 }
 
-void IoChannel::enableWriting()
+void Channel::enableWriting()
 {
     if (!(events_ & EPOLLOUT))
     {
@@ -171,7 +172,7 @@ void IoChannel::enableWriting()
     }
 }
 
-void IoChannel::disableWriting()
+void Channel::disableWriting()
 {
     if (events_ & EPOLLOUT)
     {
@@ -180,7 +181,7 @@ void IoChannel::disableWriting()
     }
 }
 
-void IoChannel::disableAll()
+void Channel::disableAll()
 {
     if (events_ != 0)
     {
@@ -189,7 +190,7 @@ void IoChannel::disableAll()
     }
 }
 
-void IoChannel::cancelRead()
+void Channel::cancelRead()
 {
     if (state_->readableWaiter)
     {
@@ -200,7 +201,7 @@ void IoChannel::cancelRead()
     }
 }
 
-void IoChannel::cancelWrite()
+void Channel::cancelWrite()
 {
     if (state_->writableWaiter)
     {
@@ -211,7 +212,7 @@ void IoChannel::cancelWrite()
     }
 }
 
-void IoChannel::cancelAll()
+void Channel::cancelAll()
 {
     cancelRead();
     cancelWrite();

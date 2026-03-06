@@ -22,7 +22,7 @@ namespace nitrocoro
 
 namespace io
 {
-class IoChannel;
+class Channel;
 }
 
 class Scheduler;
@@ -61,7 +61,7 @@ public:
     {
         uint64_t id;
         int fd;
-        // std::weak_ptr<io::IoChannel> weakChannel;
+        // std::weak_ptr<io::Channel> weakChannel;
         IoEventHandler handler;
         bool addedToEpoll = false;
     };
@@ -181,7 +181,7 @@ private:
     int epollFd_{ -1 };
     int wakeupFd_{ -1 };
     std::atomic<bool> running_{ false };
-    std::unique_ptr<io::IoChannel> wakeupChannel_;
+    std::unique_ptr<io::Channel> wakeupChannel_;
 
     std::unordered_map<uint64_t, IoContext> ioContexts_;
     MpscQueue<std::function<void()>> readyQueue_;

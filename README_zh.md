@@ -34,7 +34,7 @@ Web 应用框架（规划中）
     ↑
 nitrocoro（本仓库）
 ├── core        Scheduler / Task / Future / Mutex / Generator
-├── io          IoChannel / Stream 接口
+├── io          Channel / Stream 接口
 ├── net         TcpServer / TcpConnection / DNS
 └── extensions/
     ├── http        HTTP/1.1 服务器 + 客户端     [默认开启]
@@ -165,7 +165,7 @@ nitrocoro/
 ├── include/nitrocoro/
 │   ├── core/           Task, Scheduler, Future, Mutex, Generator
 │   ├── net/            TcpServer, TcpConnection, DNS
-│   ├── io/             IoChannel, Stream, adapters
+│   ├── io/             Channel, Stream, adapters
 │   └── utils/          调试宏, 缓冲区工具
 ├── src/                核心实现
 ├── extensions/
