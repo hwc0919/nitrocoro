@@ -172,6 +172,16 @@ NITRO_TEST(cancel_source_duration_ctor)
     NITRO_CHECK(token.isCancelled());
 }
 
+/** CancelToken implicit conversion from duration. */
+NITRO_TEST(cancel_token_from_duration)
+{
+    using namespace std::chrono_literals;
+    CancelToken token{ 20ms };
+    NITRO_CHECK(!token.isCancelled());
+    co_await Scheduler::current()->sleep_for(40ms);
+    NITRO_CHECK(token.isCancelled());
+}
+
 int main()
 {
     return nitrocoro::test::run_all();

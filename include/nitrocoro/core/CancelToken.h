@@ -147,6 +147,9 @@ class CancelToken
 public:
     CancelToken() = default; // None — never cancelled
 
+    // NOLINTNEXTLINE(google-explicit-constructor)
+    CancelToken(std::chrono::steady_clock::duration dur);
+
     explicit operator bool() const noexcept { return state_ != nullptr; }
 
     bool isCancelled() const noexcept
@@ -238,5 +241,10 @@ private:
     std::shared_ptr<detail::CancelState> state_;
     Scheduler * sched_;
 };
+
+inline CancelToken::CancelToken(std::chrono::steady_clock::duration dur)
+    : CancelToken(CancelSource(dur).token())
+{
+}
 
 } // namespace nitrocoro
