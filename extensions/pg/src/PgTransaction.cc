@@ -4,6 +4,7 @@
  */
 #include <nitrocoro/pg/PgTransaction.h>
 
+#include <nitrocoro/core/CancelToken.h>
 #include <nitrocoro/pg/PgException.h>
 #include <nitrocoro/utils/Debug.h>
 
@@ -52,18 +53,18 @@ bool PgTransaction::isAlive() const
     return !done_ && conn_ && conn_->isAlive();
 }
 
-Task<PgResult> PgTransaction::query(std::string_view sql, std::vector<PgValue> params)
+Task<PgResult> PgTransaction::query(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken)
 {
     if (done_)
         throw PgTransactionError("Transaction already finished");
-    co_return co_await conn_->query(sql, std::move(params));
+    co_return co_await conn_->query(sql, std::move(params), cancelToken);
 }
 
-Task<> PgTransaction::execute(std::string_view sql, std::vector<PgValue> params)
+Task<> PgTransaction::execute(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken)
 {
     if (done_)
         throw PgTransactionError("Transaction already finished");
-    co_await conn_->execute(sql, std::move(params));
+    co_await conn_->execute(sql, std::move(params), cancelToken);
 }
 
 Task<> PgTransaction::commit()

@@ -1,6 +1,7 @@
 find_package(PostgreSQL REQUIRED)
 
 add_library(nitrocoro-pg STATIC
+    src/PgConnection.cc
     src/PgConnectionImpl.cc
     src/PgPool.cc
     src/PgResult.cc

@@ -36,17 +36,13 @@ public:
     virtual Scheduler * scheduler() const = 0;
     virtual bool isAlive() const = 0;
 
-    virtual Task<PgResult> query(std::string_view sql, std::vector<PgValue> params) = 0;
-    virtual Task<> execute(std::string_view sql, std::vector<PgValue> params) = 0;
+    virtual Task<PgResult> query(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken) = 0;
+    virtual Task<> execute(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken) = 0;
 
-    Task<PgResult> query(std::string_view sql)
-    {
-        co_return co_await query(sql, {});
-    }
-    Task<> execute(std::string_view sql)
-    {
-        co_return co_await execute(sql, {});
-    }
+    Task<PgResult> query(std::string_view sql, std::vector<PgValue> params);
+    Task<PgResult> query(std::string_view sql, CancelToken cancelToken = {});
+    Task<> execute(std::string_view sql, std::vector<PgValue> params);
+    Task<> execute(std::string_view sql, CancelToken cancelToken = {});
 
 protected:
     PgConnection() = default;

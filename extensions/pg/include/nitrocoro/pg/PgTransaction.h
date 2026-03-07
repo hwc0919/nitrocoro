@@ -29,8 +29,12 @@ public:
     Scheduler * scheduler() const override;
     bool isAlive() const override;
 
-    Task<PgResult> query(std::string_view sql, std::vector<PgValue> params = {}) override;
-    Task<> execute(std::string_view sql, std::vector<PgValue> params = {}) override;
+    Task<PgResult> query(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken) override;
+    Task<> execute(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken) override;
+
+    // bypass name hiding
+    using PgConnection::execute;
+    using PgConnection::query;
 
     Task<> commit();
     Task<> rollback();

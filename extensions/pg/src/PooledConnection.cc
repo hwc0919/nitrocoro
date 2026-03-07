@@ -30,14 +30,14 @@ bool PooledConnection::isAlive() const
     return impl_->isAlive();
 }
 
-Task<PgResult> PooledConnection::query(std::string_view sql, std::vector<PgValue> params)
+Task<PgResult> PooledConnection::query(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken)
 {
-    return impl_->query(sql, std::move(params));
+    return impl_->query(sql, std::move(params), cancelToken);
 }
 
-Task<> PooledConnection::execute(std::string_view sql, std::vector<PgValue> params)
+Task<> PooledConnection::execute(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken)
 {
-    return impl_->execute(sql, std::move(params));
+    return impl_->execute(sql, std::move(params), cancelToken);
 }
 
 } // namespace nitrocoro::pg

@@ -190,16 +190,6 @@ Task<std::unique_ptr<PgConnectionImpl>> PgConnectionImpl::connect(std::string co
     co_return std::make_unique<PgConnectionImpl>(std::move(pgConn), std::move(channel));
 }
 
-Task<std::unique_ptr<PgConnection>> PgConnection::connect(const PgConnectConfig & config, Scheduler * scheduler)
-{
-    co_return co_await PgConnectionImpl::connect(config, scheduler);
-}
-
-Task<std::unique_ptr<PgConnection>> PgConnection::connect(std::string connStr, CancelToken cancelToken, Scheduler * scheduler)
-{
-    co_return co_await PgConnectionImpl::connect(std::move(connStr), cancelToken, scheduler);
-}
-
 Scheduler * PgConnectionImpl::scheduler() const
 {
     return channel_->scheduler();
@@ -210,10 +200,18 @@ bool PgConnectionImpl::isAlive() const
     return PQstatus(pgConn_->raw) == CONNECTION_OK;
 }
 
-Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vector<PgValue> params)
+Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken)
 {
     if (!pgConn_)
         throw PgConnectionError("PgConnection: operation on empty connection");
+
+    if (cancelToken.isCancelled())
+        throw PgCancelledError("PgConnection: query cancelled");
+
+    auto reg = cancelToken.onCancel([ch = channel_.get()] {
+        // TODO: need to handle cancel logic
+        ch->cancelAll();
+    });
 
     std::vector<std::string> strBuffers;
     std::vector<const char *> paramValues;
@@ -304,7 +302,7 @@ Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vecto
     }
     if (flushResult != Channel::IoResult::Success)
     {
-        throw PgConnectionError("PQflush: canceled");
+        throw PgCancelledError("PgConnection: query canceled (flush)");
     }
 
     std::shared_ptr<PgResultWrapper> res;
@@ -333,7 +331,7 @@ Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vecto
     }
     if (readResult != Channel::IoResult::Success)
     {
-        throw PgConnectionError("PgConnection: read canceled");
+        throw PgCancelledError("PgConnection: query canceled (read)");
     }
     NITRO_TRACE("PgConnection: result received, res=%p", (void *)res.get());
 
@@ -350,14 +348,14 @@ Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vecto
     co_return PgResult(std::move(res));
 }
 
-Task<PgResult> PgConnectionImpl::query(std::string_view sql, std::vector<PgValue> params)
+Task<PgResult> PgConnectionImpl::query(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken)
 {
-    co_return co_await sendAndReceive(sql, std::move(params));
+    co_return co_await sendAndReceive(sql, std::move(params), cancelToken);
 }
 
-Task<> PgConnectionImpl::execute(std::string_view sql, std::vector<PgValue> params)
+Task<> PgConnectionImpl::execute(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken)
 {
-    co_await sendAndReceive(sql, std::move(params));
+    co_await sendAndReceive(sql, std::move(params), cancelToken);
 }
 
 } // namespace nitrocoro::pg

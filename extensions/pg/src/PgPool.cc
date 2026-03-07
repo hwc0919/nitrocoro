@@ -4,7 +4,6 @@
  */
 #include <nitrocoro/pg/PgPool.h>
 
-#include "PgConnectionImpl.h"
 #include "PoolState.h"
 #include "PooledConnection.h"
 #include <nitrocoro/pg/PgException.h>

@@ -6,6 +6,7 @@
  * environment variable PG_CONN_STR, e.g.:
  *   PG_CONN_STR="host=localhost dbname=test user=postgres password=secret" ./pg_test
  */
+#include <nitrocoro/core/CancelToken.h>
 #include <nitrocoro/pg/PgConnection.h>
 #include <nitrocoro/pg/PgException.h>
 #include <nitrocoro/testing/Test.h>
@@ -186,6 +187,39 @@ NITRO_TEST(lock_timeout_triggers_error)
     co_await conn1->execute("ROLLBACK");
     co_await conn2->execute("ROLLBACK");
     co_await conn1->execute("DROP TABLE IF EXISTS lock_timeout_test");
+}
+
+NITRO_TEST(query_cancel)
+{
+    // pre-cancelled: throws immediately without sending request
+    auto conn1 = co_await PgConnection::connect(connStr());
+    CancelSource pre;
+    pre.cancel();
+    NITRO_CHECK_THROWS_AS(co_await conn1->query("SELECT 1", {}, pre.token()), PgCancelledError);
+
+    // cancelled during execution
+    auto conn2 = co_await PgConnection::connect(connStr());
+    CancelSource mid;
+    mid.cancelAfter(std::chrono::milliseconds(10));
+    NITRO_CHECK_THROWS_AS(co_await conn2->query("SELECT pg_sleep(10)", {}, mid.token()), PgCancelledError);
+}
+
+NITRO_TEST(execute_cancel)
+{
+    // pre-cancelled: throws immediately without sending request
+    auto conn1 = co_await PgConnection::connect(connStr());
+    CancelSource pre;
+    pre.cancel();
+    NITRO_CHECK_THROWS_AS(co_await conn1->execute("SELECT 1", {}, pre.token()), PgCancelledError);
+
+    // cancelled during execution
+    auto conn2 = co_await PgConnection::connect(connStr());
+    CancelSource mid;
+    mid.cancelAfter(std::chrono::milliseconds(10));
+    NITRO_CHECK_THROWS_AS(co_await conn2->execute("SELECT pg_sleep(10)", {}, mid.token()), PgCancelledError);
+
+    // TODO: mark this connection broken after cancelled
+    NITRO_CHECK_THROWS(co_await conn2->execute("SELECT 1", {}, mid.token()));
 }
 
 int main()

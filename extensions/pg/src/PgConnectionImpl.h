@@ -37,11 +37,11 @@ public:
     Scheduler * scheduler() const override;
     bool isAlive() const override;
 
-    Task<PgResult> query(std::string_view sql, std::vector<PgValue> params) override;
-    Task<> execute(std::string_view sql, std::vector<PgValue> params) override;
+    Task<PgResult> query(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken) override;
+    Task<> execute(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken) override;
 
 private:
-    Task<PgResult> sendAndReceive(std::string_view sql, std::vector<PgValue> params);
+    Task<PgResult> sendAndReceive(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken);
 
     std::shared_ptr<PgConnWrapper> pgConn_;
     std::unique_ptr<io::Channel> channel_;
