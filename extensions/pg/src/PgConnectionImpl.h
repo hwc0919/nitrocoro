@@ -45,6 +45,7 @@ private:
 
     std::shared_ptr<PgConnWrapper> pgConn_;
     std::unique_ptr<io::Channel> channel_;
+    bool broken_{ false };
 };
 
 } // namespace nitrocoro::pg

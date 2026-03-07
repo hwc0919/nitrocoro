@@ -201,7 +201,7 @@ Scheduler * PgConnectionImpl::scheduler() const
 
 bool PgConnectionImpl::isAlive() const
 {
-    return PQstatus(pgConn_->raw) == CONNECTION_OK;
+    return !broken_ && PQstatus(pgConn_->raw) == CONNECTION_OK;
 }
 
 Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken)
@@ -282,7 +282,10 @@ Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vecto
                                params.empty() ? nullptr : paramFormats.data(),
                                0);
     if (!ok)
+    {
+        broken_ = true;
         throw PgConnectionError(std::string("PQsendQueryParams: ") + PQerrorMessage(pgConn_->raw));
+    }
 
     auto flushResult = co_await channel_->performWrite([this](int, Channel * c) -> Channel::IoStatus {
         int r = PQflush(pgConn_->raw);
@@ -301,15 +304,20 @@ Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vecto
     });
     if (flushResult == Channel::IoResult::Error)
     {
+        broken_ = true;
         throw PgConnectionError(std::string("PQflush: ") + PQerrorMessage(pgConn_->raw));
     }
     if (flushResult != Channel::IoResult::Success)
     {
+        broken_ = true;
         throw PgCancelledError("PgConnection: query canceled (flush)");
     }
 
     if (cancelToken.isCancelled())
+    {
+        broken_ = true;
         throw PgCancelledError("PgConnection: query canceled (read)");
+    }
 
     std::shared_ptr<PgResultWrapper> res;
     auto readResult = co_await channel_->performRead([this, &res](int, Channel *) -> Channel::IoStatus {
@@ -333,16 +341,21 @@ Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vecto
     });
     if (readResult == Channel::IoResult::Error)
     {
+        broken_ = true;
         throw PgConnectionError(std::string("PQconsumeInput: ") + PQerrorMessage(pgConn_->raw));
     }
     if (readResult != Channel::IoResult::Success)
     {
+        broken_ = true;
         throw PgCancelledError("PgConnection: query canceled (read)");
     }
     NITRO_TRACE("PgConnection: result received, res=%p", (void *)res.get());
 
     if (!res)
+    {
+        broken_ = true;
         throw PgConnectionError("PgConnection: no result returned");
+    }
 
     ExecStatusType status = PQresultStatus(res->raw);
     if (status != PGRES_TUPLES_OK && status != PGRES_COMMAND_OK)
