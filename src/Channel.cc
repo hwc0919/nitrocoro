@@ -190,6 +190,12 @@ void Channel::disableAll()
     }
 }
 
+void Channel::invalidate()
+{
+    events_ = 0;
+    scheduler_->markIoRemoved(id_);
+}
+
 void Channel::cancelRead()
 {
     if (state_->readableWaiter)
@@ -301,6 +307,12 @@ void CallbackChannel::disableWriting()
 void CallbackChannel::disableAll()
 {
     setEvents(0);
+}
+
+void CallbackChannel::invalidate()
+{
+    events_ = 0;
+    scheduler_->markIoRemoved(id_);
 }
 
 void CallbackChannel::setReadableCallback(std::function<void()> cb)

@@ -12,11 +12,15 @@ namespace nitrocoro::pg
 PooledConnection::PooledConnection(std::unique_ptr<PgConnectionImpl> impl, std::weak_ptr<PoolState> state)
     : impl_(std::move(impl)), state_(std::move(state))
 {
+    impl_->setBrokenHandler([state = state_, detached = detached_] {
+        if (!detached->test_and_set())
+            PoolState::detachConnection(state);
+    });
 }
 
 PooledConnection::~PooledConnection()
 {
-    if (impl_)
+    if (impl_ && !detached_->test_and_set())
         PoolState::returnConnection(state_, std::move(impl_));
 }
 

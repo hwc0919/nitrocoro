@@ -139,6 +139,21 @@ NITRO_TEST(pool_acquire_default_timeout)
     NITRO_CHECK_THROWS_AS(co_await pool.acquire(), PgTimeoutError);
 }
 
+// broken connection detaches immediately without waiting for destructor
+NITRO_TEST(pool_broken_connection_detaches_immediately)
+{
+    PgPool pool(makePoolConfig(1));
+    auto conn = co_await pool.acquire();
+
+    // terminate self — server sends FATAL error and closes the connection
+    NITRO_CHECK_THROWS(co_await conn->query("SELECT pg_terminate_backend(pg_backend_pid())"));
+
+    // conn is still in scope (not destructed), but detach should have fired
+    // pool size=1: if not detached, acquire would block until timeout
+    auto conn2 = co_await pool.acquire({ std::chrono::milliseconds(500) });
+    NITRO_CHECK(conn2);
+}
+
 int main(int argc, char ** argv)
 {
     return nitrocoro::test::run_all(argc, argv);

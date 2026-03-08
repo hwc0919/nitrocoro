@@ -88,6 +88,15 @@ public:
     void setIoHandler(uint64_t id, int fd, Scheduler::IoEventHandler handler);
     void updateIo(uint64_t id, int fd, uint32_t events, TriggerMode mode);
     void removeIo(uint64_t id);
+    /**
+     * @brief Mark the IoContext for @p id as not registered in epoll,
+     *        without issuing EPOLL_CTL_DEL.
+     *
+     * Called by Channel::invalidate() when the fd is known to have been closed
+     * externally. Prevents a subsequent removeIo() from attempting epoll_ctl on
+     * a stale or reused fd.
+     */
+    void markIoRemoved(uint64_t id);
 
     TimerAwaiter sleep_for(double seconds);
     TimerAwaiter sleep_for(std::chrono::steady_clock::duration dur);

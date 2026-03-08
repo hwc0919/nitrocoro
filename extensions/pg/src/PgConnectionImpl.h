@@ -45,7 +45,7 @@ public:
     Task<> execute(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken) override;
 
     // void setNotifyHandler(std::function<void(std::string, std::string, int)> h) { ctx_->notifyHandler = std::move(h); }
-    // void setDisconnectHandler(std::function<void()> h) { ctx_->disconnectHandler = std::move(h); }
+    void setBrokenHandler(std::function<void()>);
 
 private:
     Task<PgResult> sendAndReceive(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken);

@@ -261,7 +261,7 @@ void Scheduler::updateIo(uint64_t id, int fd, uint32_t events, TriggerMode mode)
             epoll_event ev{};
             if (::epoll_ctl(epollFd_, EPOLL_CTL_DEL, fd, &ev) < 0)
             {
-                perror("epoll_ctl error");
+                NITRO_ERROR("Failed to call EPOLL_CTL_DEL on epoll %d fd %d errno %d: %s\n", epollFd_, fd, errno, strerror(errno));
                 // throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
             }
             ctx->addedToEpoll = false;
@@ -303,6 +303,16 @@ void Scheduler::removeIo(uint64_t id)
     {
         NITRO_ERROR("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epollFd_, ctx.fd, errno);
         // throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
+    }
+}
+
+void Scheduler::markIoRemoved(uint64_t id)
+{
+    nitrocoro_SCHEDULER_ASSERT_IN_OWN_THREAD();
+
+    if (auto it = ioContexts_.find(id); it != ioContexts_.end())
+    {
+        it->second.addedToEpoll = false;
     }
 }
 

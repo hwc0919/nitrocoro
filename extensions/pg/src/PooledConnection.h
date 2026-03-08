@@ -6,6 +6,7 @@
 
 #include <nitrocoro/pg/PgConnection.h>
 
+#include <atomic>
 #include <memory>
 
 namespace nitrocoro::pg
@@ -33,6 +34,7 @@ public:
 private:
     std::unique_ptr<PgConnectionImpl> impl_;
     std::weak_ptr<PoolState> state_;
+    std::shared_ptr<std::atomic_flag> detached_ = std::make_shared<std::atomic_flag>();
 };
 
 } // namespace nitrocoro::pg

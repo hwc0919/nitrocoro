@@ -26,7 +26,18 @@ struct PgConnectionImpl::ConnectionContext
     bool broken{ false };
     std::weak_ptr<ResultPromise> weakPromise;
     std::function<void(std::string, std::string, int)> notifyHandler;
-    std::function<void()> disconnectHandler;
+    std::function<void()> brokenHandler;
+
+    void handleBroken()
+    {
+        if (broken)
+            return;
+        broken = true;
+        channel->cancelAll();
+        channel->disableAll();
+        if (brokenHandler)
+            brokenHandler();
+    }
 };
 
 std::string PgConnectConfig::toConnStr() const
@@ -251,44 +262,57 @@ Task<> PgConnectionImpl::readLoop(std::shared_ptr<ConnectionContext> ctx)
                 if (++cnt > 1)
                 {
                     // TODO
+                    ExecStatusType status = PQresultStatus(res->raw);
                     NITRO_ERROR("PgConnection: drop extra result status=%s rows=%d",
-                                PQresStatus(PQresultStatus(res->raw)),
+                                PQresStatus(status),
                                 PQntuples(res->raw));
+                    if (status != PGRES_TUPLES_OK && status != PGRES_COMMAND_OK)
+                    {
+                        std::string err = PQresultErrorMessage(res->raw);
+                        const char * sqlstate = PQresultErrorField(res->raw, PG_DIAG_SQLSTATE);
+                        NITRO_TRACE("PGresult err: %s, sqlstate=%s", err.c_str(), sqlstate ? sqlstate : "N/A");
+                    }
                     continue;
                 }
                 if (auto p = ctx->weakPromise.lock())
                 {
                     p->set_value(std::move(res));
+                    ctx->weakPromise = {};
                 }
                 else
                 {
                     NITRO_ERROR("Consume ok but no promise waiting");
                 }
             }
+
+            if (PQstatus(ctx->pgConn->raw) != CONNECTION_OK)
+                return Channel::IoStatus::Error;
+
             return Channel::IoStatus::NeedRead;
         });
 
         NITRO_TRACE("read loop quit");
         if (r == Channel::IoResult::Canceled)
         {
-            ctx->broken = true;
+            ctx->handleBroken();
             if (auto p = ctx->weakPromise.lock())
             {
                 p->set_exception(std::make_exception_ptr(
                     PgCancelledError("PgConnection: query canceled (read)")));
+                ctx->weakPromise = {};
             }
             co_return;
         }
         if (r == Channel::IoResult::Error || r == Channel::IoResult::Eof)
         {
-            ctx->broken = true;
+            ctx->channel->invalidate(); // libpq may close the socket early
+            ctx->handleBroken();
             if (auto p = ctx->weakPromise.lock())
             {
                 p->set_exception(std::make_exception_ptr(
                     PgConnectionError("PQconsumeInput: " + std::string(PQerrorMessage(ctx->pgConn->raw)))));
+                ctx->weakPromise = {};
             }
-            if (ctx->disconnectHandler)
-                ctx->disconnectHandler();
             co_return;
         }
 
@@ -304,6 +328,11 @@ Scheduler * PgConnectionImpl::scheduler() const
 bool PgConnectionImpl::isAlive() const
 {
     return !ctx_->broken && PQstatus(ctx_->pgConn->raw) == CONNECTION_OK;
+}
+
+void PgConnectionImpl::setBrokenHandler(std::function<void()> handler)
+{
+    ctx_->brokenHandler = std::move(handler);
 }
 
 Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken)
@@ -388,7 +417,7 @@ Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vecto
                                0);
     if (!ok)
     {
-        ctx_->broken = true;
+        ctx_->handleBroken();
         throw PgConnectionError(std::string("PQsendQueryParams: ") + PQerrorMessage(ctx_->pgConn->raw));
     }
 
@@ -408,18 +437,18 @@ Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vecto
     });
     if (flushResult == Channel::IoResult::Error)
     {
-        ctx_->broken = true;
+        ctx_->handleBroken();
         throw PgConnectionError(std::string("PQflush: ") + PQerrorMessage(ctx_->pgConn->raw));
     }
     if (flushResult != Channel::IoResult::Success)
     {
-        ctx_->broken = true;
+        ctx_->handleBroken();
         throw PgCancelledError("PgConnection: query canceled (flush)");
     }
 
     if (cancelToken.isCancelled())
     {
-        ctx_->broken = true;
+        ctx_->handleBroken();
         throw PgCancelledError("PgConnection: query canceled (read)");
     }
 
@@ -429,7 +458,7 @@ Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vecto
 
     if (!res)
     {
-        ctx_->broken = true;
+        ctx_->handleBroken();
         throw PgConnectionError("PgConnection: no result returned");
     }
 
@@ -438,6 +467,7 @@ Task<PgResult> PgConnectionImpl::sendAndReceive(std::string_view sql, std::vecto
     {
         std::string err = PQresultErrorMessage(res->raw);
         const char * sqlstate = PQresultErrorField(res->raw, PG_DIAG_SQLSTATE);
+        NITRO_TRACE("PGresult sqlstate=%s, err: %s", sqlstate ? sqlstate : "N/A", err.c_str());
         throw PgQueryError("PgConnection query error: " + err, sqlstate ? sqlstate : "");
     }
 
