@@ -51,4 +51,8 @@ if (BUILD_TESTING)
     add_executable(pg_config_test tests/pg_config_test.cc)
     target_link_libraries(pg_config_test PRIVATE nitrocoro-pg)
     add_test(NAME pg_config_test COMMAND pg_config_test)
+
+    add_executable(pg_press_test tests/pg_press_test.cc)
+    target_link_libraries(pg_press_test PRIVATE nitrocoro-pg)
+    add_test(NAME pg_press_test COMMAND pg_press_test)
 endif ()

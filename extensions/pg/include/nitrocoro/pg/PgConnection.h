@@ -24,7 +24,7 @@ public:
     static Task<std::unique_ptr<PgConnection>> connect(const PgConnectConfig & config,
                                                        Scheduler * scheduler = Scheduler::current());
     static Task<std::unique_ptr<PgConnection>> connect(std::string connStr,
-                                                       CancelToken cancelToken = {},
+                                                       CancelToken cancelToken = CancelToken(),
                                                        Scheduler * scheduler = Scheduler::current());
 
     PgConnection(const PgConnection &) = delete;
@@ -44,9 +44,9 @@ public:
     virtual Task<> execute(std::string_view sql, std::vector<PgValue> params, CancelToken cancelToken) = 0;
 
     Task<PgResult> query(std::string_view sql, std::vector<PgValue> params);
-    Task<PgResult> query(std::string_view sql, CancelToken cancelToken = {});
+    Task<PgResult> query(std::string_view sql, CancelToken cancelToken = CancelToken());
     Task<> execute(std::string_view sql, std::vector<PgValue> params);
-    Task<> execute(std::string_view sql, CancelToken cancelToken = {});
+    Task<> execute(std::string_view sql, CancelToken cancelToken = CancelToken());
 
 protected:
     PgConnection() = default;

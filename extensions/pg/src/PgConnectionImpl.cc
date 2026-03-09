@@ -275,6 +275,18 @@ Task<> PgConnectionImpl::readLoop(std::shared_ptr<ConnectionContext> ctx)
                 }
             }
 
+            if (auto p = ctx->weakPromise.lock())
+            {
+                if (cnt == 0)
+                {
+                    // libpq ensure this won't happen, but in case
+                    NITRO_ERROR("PgConnection: no result, connection might be broken");
+                    p->set_value(nullptr);
+                    ctx->weakPromise = {};
+                    return Channel::IoStatus::Error;
+                }
+            }
+
             if (PQstatus(ctx->pgConn->raw) != CONNECTION_OK)
                 return Channel::IoStatus::Error;
 

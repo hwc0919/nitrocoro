@@ -21,22 +21,22 @@ Task<std::unique_ptr<PgConnection>> PgConnection::connect(std::string connStr, C
 
 Task<PgResult> PgConnection::query(std::string_view sql, std::vector<PgValue> params)
 {
-    co_return co_await query(sql, std::move(params), {});
+    co_return co_await query(sql, std::move(params), CancelToken());
 }
 
 Task<PgResult> PgConnection::query(std::string_view sql, CancelToken cancelToken)
 {
-    co_return co_await query(sql, {}, cancelToken);
+    co_return co_await query(sql, std::vector<PgValue>(), cancelToken);
 }
 
 Task<> PgConnection::execute(std::string_view sql, std::vector<PgValue> params)
 {
-    co_await execute(sql, std::move(params), {});
+    co_await execute(sql, std::move(params), CancelToken());
 }
 
 Task<> PgConnection::execute(std::string_view sql, CancelToken cancelToken)
 {
-    co_await execute(sql, {}, cancelToken);
+    co_await execute(sql, std::vector<PgValue>(), cancelToken);
 }
 
 } // namespace nitrocoro::pg
