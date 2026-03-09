@@ -72,7 +72,7 @@ HttpHandlerPtr HttpRouter::matchRadix(const RouteNode & node, std::string_view p
             return cur->handler;
 
         // 1. static
-        auto it = cur->children.find(std::string(seg));
+        auto it = cur->children.find(seg);
         if (it != cur->children.end())
         {
             if (auto h = matchRadix(*it->second, path.substr(pos), params))

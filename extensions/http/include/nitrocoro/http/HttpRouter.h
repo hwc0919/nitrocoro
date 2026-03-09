@@ -6,9 +6,11 @@
 
 #include <nitrocoro/http/HttpHandler.h>
 
+#include <map>
 #include <memory>
 #include <regex>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -80,8 +82,8 @@ private:
     struct RouteNode
     {
         HttpHandlerPtr handler;
-        std::unordered_map<std::string, std::unique_ptr<RouteNode>> children; // static segments
-        std::unique_ptr<RouteNode> paramChild;                                // :name
+        std::map<std::string, std::unique_ptr<RouteNode>, std::less<>> children; // static segments
+        std::unique_ptr<RouteNode> paramChild;                                   // :name
         std::string paramName;
         std::unique_ptr<RouteNode> wildcardChild; // *name
         std::string wildcardName;
