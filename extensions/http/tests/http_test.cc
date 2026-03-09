@@ -26,7 +26,7 @@ static Task<HttpServer *> start_server(HttpServer & server)
 NITRO_TEST(http_get_hello)
 {
     HttpServer server(0);
-    server.route("GET", "/hello", [](auto && req, auto && resp) -> Task<> {
+    server.route("/hello", { "GET" }, [](auto && req, auto && resp) -> Task<> {
         co_await resp.end("hello world");
     });
     co_await start_server(server);
@@ -43,7 +43,7 @@ NITRO_TEST(http_get_hello)
 NITRO_TEST(http_post_echo)
 {
     HttpServer server(0);
-    server.route("POST", "/echo", [](auto && req, auto && resp) -> Task<> {
+    server.route("/echo", { "POST" }, [](auto && req, auto && resp) -> Task<> {
         auto complete = co_await req.toCompleteRequest();
         co_await resp.end(complete.body());
     });
@@ -75,7 +75,7 @@ NITRO_TEST(http_404)
 NITRO_TEST(http_query_params)
 {
     HttpServer server(0);
-    server.route("GET", "/greet", [](auto && req, auto && resp) -> Task<> {
+    server.route("/greet", { "GET" }, [](auto && req, auto && resp) -> Task<> {
         co_await resp.end("Hello, " + req.getQuery("name") + "!");
     });
     co_await start_server(server);
@@ -93,7 +93,7 @@ NITRO_TEST(http_query_params)
 NITRO_TEST(http_headers)
 {
     HttpServer server(0);
-    server.route("GET", "/headers", [](auto && req, auto && resp) -> Task<> {
+    server.route("/headers", { "GET" }, [](auto && req, auto && resp) -> Task<> {
         auto ua = req.getHeader(HttpHeader::NameCode::UserAgent);
         resp.setHeader(HttpHeader::NameCode::ContentType, "text/plain");
         co_await resp.end(ua.empty() ? "no-ua" : "has-ua");
@@ -132,7 +132,7 @@ NITRO_TEST(http_multiple_requests)
 {
     HttpServer server(0);
     int count = 0;
-    server.route("GET", "/count", [&count](auto && req, auto && resp) -> Task<> {
+    server.route("/count", { "GET" }, [&count](auto && req, auto && resp) -> Task<> {
         co_await resp.end(std::to_string(++count));
     });
     co_await start_server(server);
@@ -153,7 +153,7 @@ NITRO_TEST(http_multiple_requests)
 NITRO_TEST(router_shared_across_servers)
 {
     auto router = std::make_shared<HttpRouter>();
-    router->addRoute("GET", "/ping", [](auto && req, auto && resp) -> Task<> {
+    router->addRoute("/ping", { "GET" }, [](auto && req, auto && resp) -> Task<> {
         co_await resp.end("pong");
     });
 
@@ -178,14 +178,14 @@ NITRO_TEST(router_shared_across_servers)
 NITRO_TEST(router_method_mismatch_404)
 {
     HttpServer server(0);
-    server.route("POST", "/data", [](auto && req, auto && resp) -> Task<> {
+    server.route("/data", { "POST" }, [](auto && req, auto && resp) -> Task<> {
         co_await resp.end("ok");
     });
     co_await start_server(server);
 
     HttpClient client;
     auto resp = co_await client.get("http://127.0.0.1:" + std::to_string(server.listeningPort()) + "/data");
-    NITRO_CHECK_EQ(resp.statusCode(), StatusCode::k404NotFound);
+    NITRO_CHECK_EQ(resp.statusCode(), StatusCode::k405MethodNotAllowed);
 
     co_await server.stop();
 }

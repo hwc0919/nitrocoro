@@ -28,11 +28,12 @@ static HttpRouter::RouteResult match(const HttpRouter & router,
 NITRO_TEST(router_exact_match)
 {
     HttpRouter router;
-    router.addRoute("GET", "/hello", dummyHandler());
+    router.addRoute("/hello", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/hello");
-    NITRO_CHECK(h != nullptr);
-    NITRO_CHECK(p.empty());
+    auto result = match(router, "GET", "/hello");
+    NITRO_CHECK(result.handler != nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK(result.params.empty());
     co_return;
 }
 
@@ -40,35 +41,88 @@ NITRO_TEST(router_exact_match)
 NITRO_TEST(router_exact_no_match)
 {
     HttpRouter router;
-    router.addRoute("GET", "/hello", dummyHandler());
+    router.addRoute("/hello", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/world");
-    NITRO_CHECK(h == nullptr);
+    auto result = match(router, "GET", "/world");
+    NITRO_CHECK(result.handler == nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::NotFound);
     co_return;
 }
 
-// GET /data → route registered as POST, method mismatch
+// GET /data → route registered as POST, method mismatch → 405
 NITRO_TEST(router_method_mismatch)
 {
     HttpRouter router;
-    router.addRoute("POST", "/data", dummyHandler());
+    router.addRoute("/data", { "POST" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/data");
-    NITRO_CHECK(h == nullptr);
+    auto result = match(router, "GET", "/data");
+    NITRO_CHECK(result.handler == nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::MethodNotAllowed);
     co_return;
 }
 
-// ── Param match ───────────────────────────────────────────────────────────────
+// GET /nothing → no route at all → 404
+NITRO_TEST(router_not_found)
+{
+    HttpRouter router;
+    router.addRoute("/data", { "GET" }, dummyHandler());
+
+    auto result = match(router, "GET", "/nothing");
+    NITRO_CHECK(result.handler == nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::NotFound);
+    co_return;
+}
+
+// multi-method: GET and POST both registered via initializer_list
+NITRO_TEST(router_multi_method)
+{
+    HttpRouter router;
+    router.addRoute("/data", { "GET", "POST" }, dummyHandler());
+
+    NITRO_CHECK(match(router, "GET", "/data").reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK(match(router, "POST", "/data").reason == HttpRouter::RouteResult::Reason::Ok);
+    auto result = match(router, "DELETE", "/data");
+    NITRO_CHECK(result.handler == nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::MethodNotAllowed);
+    co_return;
+}
+
+// param route: wrong method → 405
+NITRO_TEST(router_param_method_not_allowed)
+{
+    HttpRouter router;
+    router.addRoute("/users/:id", { "GET" }, dummyHandler());
+
+    auto result = match(router, "DELETE", "/users/42");
+    NITRO_CHECK(result.handler == nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::MethodNotAllowed);
+    co_return;
+}
+
+// regex route: wrong method → 405
+NITRO_TEST(router_regex_method_not_allowed)
+{
+    HttpRouter router;
+    router.addRouteRegex(R"(/items/(\d+))", { "GET" }, dummyHandler());
+
+    auto result = match(router, "POST", "/items/123");
+    NITRO_CHECK(result.handler == nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::MethodNotAllowed);
+    co_return;
+}
+
+// ── Param match ─────────────────────────────────────────────────────────────
 
 // GET /users/42 → /users/:id, single param
 NITRO_TEST(router_param_match)
 {
     HttpRouter router;
-    router.addRoute("GET", "/users/:id", dummyHandler());
+    router.addRoute("/users/:id", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/users/42");
-    NITRO_CHECK(h != nullptr);
-    NITRO_CHECK_EQ(p.at("id"), "42");
+    auto result = match(router, "GET", "/users/42");
+    NITRO_CHECK(result.handler != nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK_EQ(result.params.at("id"), "42");
     co_return;
 }
 
@@ -76,12 +130,13 @@ NITRO_TEST(router_param_match)
 NITRO_TEST(router_multi_param_match)
 {
     HttpRouter router;
-    router.addRoute("GET", "/users/:uid/posts/:pid", dummyHandler());
+    router.addRoute("/users/:uid/posts/:pid", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/users/1/posts/99");
-    NITRO_CHECK(h != nullptr);
-    NITRO_CHECK_EQ(p.at("uid"), "1");
-    NITRO_CHECK_EQ(p.at("pid"), "99");
+    auto result = match(router, "GET", "/users/1/posts/99");
+    NITRO_CHECK(result.handler != nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK_EQ(result.params.at("uid"), "1");
+    NITRO_CHECK_EQ(result.params.at("pid"), "99");
     co_return;
 }
 
@@ -91,11 +146,12 @@ NITRO_TEST(router_multi_param_match)
 NITRO_TEST(router_wildcard_match)
 {
     HttpRouter router;
-    router.addRoute("GET", "/files/*path", dummyHandler());
+    router.addRoute("/files/*path", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/files/a/b/c.txt");
-    NITRO_CHECK(h != nullptr);
-    NITRO_CHECK_EQ(p.at("path"), "a/b/c.txt");
+    auto result = match(router, "GET", "/files/a/b/c.txt");
+    NITRO_CHECK(result.handler != nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK_EQ(result.params.at("path"), "a/b/c.txt");
     co_return;
 }
 
@@ -103,11 +159,12 @@ NITRO_TEST(router_wildcard_match)
 NITRO_TEST(router_wildcard_single_segment)
 {
     HttpRouter router;
-    router.addRoute("GET", "/files/*path", dummyHandler());
+    router.addRoute("/files/*path", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/files/readme.txt");
-    NITRO_CHECK(h != nullptr);
-    NITRO_CHECK_EQ(p.at("path"), "readme.txt");
+    auto result = match(router, "GET", "/files/readme.txt");
+    NITRO_CHECK(result.handler != nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK_EQ(result.params.at("path"), "readme.txt");
     co_return;
 }
 
@@ -117,11 +174,12 @@ NITRO_TEST(router_wildcard_single_segment)
 NITRO_TEST(router_regex_match)
 {
     HttpRouter router;
-    router.addRouteRegex("GET", R"(/items/(\d+))", dummyHandler());
+    router.addRouteRegex(R"(/items/(\d+))", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/items/123");
-    NITRO_CHECK(h != nullptr);
-    NITRO_CHECK_EQ(p.at("$1"), "123");
+    auto result = match(router, "GET", "/items/123");
+    NITRO_CHECK(result.handler != nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK_EQ(result.params.at("$1"), "123");
     co_return;
 }
 
@@ -129,10 +187,11 @@ NITRO_TEST(router_regex_match)
 NITRO_TEST(router_regex_no_match)
 {
     HttpRouter router;
-    router.addRouteRegex("GET", R"(/items/(\d+))", dummyHandler());
+    router.addRouteRegex(R"(/items/(\d+))", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/items/abc");
-    NITRO_CHECK(h == nullptr);
+    auto result = match(router, "GET", "/items/abc");
+    NITRO_CHECK(result.handler == nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::NotFound);
     co_return;
 }
 
@@ -140,12 +199,13 @@ NITRO_TEST(router_regex_no_match)
 NITRO_TEST(router_regex_multi_capture)
 {
     HttpRouter router;
-    router.addRouteRegex("GET", R"(/(\w+)/(\d+))", dummyHandler());
+    router.addRouteRegex(R"(/(\w+)/(\d+))", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/users/42");
-    NITRO_CHECK(h != nullptr);
-    NITRO_CHECK_EQ(p.at("$1"), "users");
-    NITRO_CHECK_EQ(p.at("$2"), "42");
+    auto result = match(router, "GET", "/users/42");
+    NITRO_CHECK(result.handler != nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK_EQ(result.params.at("$1"), "users");
+    NITRO_CHECK_EQ(result.params.at("$2"), "42");
     co_return;
 }
 
@@ -155,10 +215,11 @@ NITRO_TEST(router_regex_multi_capture)
 NITRO_TEST(router_param_segment_count_mismatch)
 {
     HttpRouter router;
-    router.addRoute("GET", "/id/:id", dummyHandler());
+    router.addRoute("/id/:id", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/id/123/456");
-    NITRO_CHECK(h == nullptr);
+    auto result = match(router, "GET", "/id/123/456");
+    NITRO_CHECK(result.handler == nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::NotFound);
     co_return;
 }
 
@@ -177,11 +238,12 @@ NITRO_TEST(router_empty_no_match)
 NITRO_TEST(router_colon_not_at_segment_start)
 {
     HttpRouter router;
-    router.addRoute("GET", "/api:v1", dummyHandler());
+    router.addRoute("/api:v1", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/api:v1");
-    NITRO_CHECK(h != nullptr);
-    NITRO_CHECK(p.empty()); // exact match, no params
+    auto result = match(router, "GET", "/api:v1");
+    NITRO_CHECK(result.handler != nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK(result.params.empty());
     co_return;
 }
 
@@ -189,7 +251,7 @@ NITRO_TEST(router_colon_not_at_segment_start)
 NITRO_TEST(router_path_too_long)
 {
     HttpRouter router;
-    router.addRoute("GET", "/*path", dummyHandler());
+    router.addRoute("/*path", { "GET" }, dummyHandler());
 
     std::string longPath(2049, 'a');
     longPath[0] = '/';
@@ -198,17 +260,21 @@ NITRO_TEST(router_path_too_long)
     co_return;
 }
 
-// path with more than 32 segments → rejected, no match
+// path with more than 32 segments on a param route → recursion guard kicks in, no match
 NITRO_TEST(router_too_many_segments)
 {
     HttpRouter router;
-    router.addRoute("GET", "/*path", dummyHandler());
+    // register a param route deep enough to trigger the recursion guard
+    std::string pattern;
+    for (int i = 0; i < 33; ++i)
+        pattern += "/:seg" + std::to_string(i);
+    router.addRoute(pattern, { "GET" }, dummyHandler());
 
     std::string deepPath;
     for (int i = 0; i < 33; ++i)
         deepPath += "/a";
     auto result = router.route("GET", deepPath);
-    NITRO_CHECK(!result);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::NotFound);
     co_return;
 }
 
@@ -219,15 +285,16 @@ NITRO_TEST(router_exact_beats_param)
 {
     HttpRouter router;
     bool exactCalled = false;
-    router.addRoute("GET", "/users/me", [&exactCalled](auto req, auto resp) -> Task<> {
+    router.addRoute("/users/me", { "GET" }, [&exactCalled](auto req, auto resp) -> Task<> {
         exactCalled = true;
         co_return;
     });
-    router.addRoute("GET", "/users/:id", dummyHandler());
+    router.addRoute("/users/:id", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/users/me");
-    NITRO_CHECK(h != nullptr);
-    NITRO_CHECK(p.empty());
+    auto result = match(router, "GET", "/users/me");
+    NITRO_CHECK(result.handler != nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK(result.params.empty());
     co_return;
 }
 
@@ -235,12 +302,39 @@ NITRO_TEST(router_exact_beats_param)
 NITRO_TEST(router_param_beats_wildcard)
 {
     HttpRouter router;
-    router.addRoute("GET", "/a/:b", dummyHandler());
-    router.addRoute("GET", "/a/*rest", dummyHandler());
+    router.addRoute("/a/:b", { "GET" }, dummyHandler());
+    router.addRoute("/a/*rest", { "GET" }, dummyHandler());
 
-    auto [h, p] = match(router, "GET", "/a/hello");
-    NITRO_CHECK(h != nullptr);
-    NITRO_CHECK(p.count("b"));
+    auto result = match(router, "GET", "/a/hello");
+    NITRO_CHECK(result.handler != nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK(result.params.count("b"));
+    co_return;
+}
+
+// same path registered twice with different methods → both work, wrong method → 405
+NITRO_TEST(router_addroute_merges_methods)
+{
+    HttpRouter router;
+    router.addRoute("/data", { "GET" }, dummyHandler());
+    router.addRoute("/data", { "POST" }, dummyHandler());
+
+    NITRO_CHECK(match(router, "GET", "/data").reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK(match(router, "POST", "/data").reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK(match(router, "DELETE", "/data").reason == HttpRouter::RouteResult::Reason::MethodNotAllowed);
+    co_return;
+}
+
+// same regex pattern registered twice with different methods → both work
+NITRO_TEST(router_addregex_merges_methods)
+{
+    HttpRouter router;
+    router.addRouteRegex(R"(/items/(\d+))", { "GET" }, dummyHandler());
+    router.addRouteRegex(R"(/items/(\d+))", { "POST" }, dummyHandler());
+
+    NITRO_CHECK(match(router, "GET", "/items/1").reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK(match(router, "POST", "/items/1").reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK(match(router, "DELETE", "/items/1").reason == HttpRouter::RouteResult::Reason::MethodNotAllowed);
     co_return;
 }
 

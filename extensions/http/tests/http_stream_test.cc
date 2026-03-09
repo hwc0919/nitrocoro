@@ -14,7 +14,7 @@ Task<> echo_server(uint16_t port)
 {
     HttpServer server(port);
 
-    server.route("POST", "/stream-echo", [](auto && req, auto && resp) -> Task<> {
+    server.route("/stream-echo", { "POST" }, [](auto && req, auto && resp) -> Task<> {
         resp.setStatus(StatusCode::k200OK);
         resp.setHeader(HttpHeader::NameCode::ContentType, "text/plain");
         auto ctl = req.getHeader(HttpHeader::NameCode::ContentLength);

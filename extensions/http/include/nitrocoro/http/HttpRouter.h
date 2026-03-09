@@ -17,6 +17,18 @@
 namespace nitrocoro::http
 {
 
+struct HttpMethods
+{
+    explicit HttpMethods(std::string method)
+        : methods_{ std::move(method) } {}
+    HttpMethods(std::initializer_list<std::string> methods)
+        : methods_(methods) {}
+    HttpMethods(std::vector<std::string> methods)
+        : methods_(std::move(methods)) {}
+
+    std::vector<std::string> methods_;
+};
+
 /**
  * @brief HTTP request router with three-tier matching.
  *
@@ -25,7 +37,7 @@ namespace nitrocoro::http
  * 1. **Exact match** — registered via `addRoute()` with a static path.
  *    Matched in O(1). `params` is empty on match.
  *    @code
- *    router.addRoute("GET", "/users/me", handler);
+ *    router.addRoute("/users/me", "GET", handler);
  *    // GET /users/me  →  params: {}
  *    @endcode
  *
@@ -33,18 +45,18 @@ namespace nitrocoro::http
  *    segment matches exactly one path segment (no `/`). Captured into `params`
  *    by name. Multiple parameters per route are supported.
  *    @code
- *    router.addRoute("GET", "/users/:id", handler);
+ *    router.addRoute("/users/:id", "GET", handler);
  *    // GET /users/42          →  params: {"id": "42"}
  *    // GET /users/42/profile  →  no match (segment count mismatch)
  *
- *    router.addRoute("GET", "/users/:uid/posts/:pid", handler);
+ *    router.addRoute("/users/:uid/posts/:pid", "GET", handler);
  *    // GET /users/1/posts/99  →  params: {"uid": "1", "pid": "99"}
  *    @endcode
  *
  * 3. **Wildcard** (`*name`) — registered via `addRoute()`. Must appear at the
  *    end of the pattern. Captures all remaining segments including `/`.
  *    @code
- *    router.addRoute("GET", "/files/*path", handler);
+ *    router.addRoute("/files/*path", "GET", handler);
  *    // GET /files/a/b/c.txt  →  params: {"path": "a/b/c.txt"}
  *    @endcode
  *
@@ -52,8 +64,9 @@ namespace nitrocoro::http
  *    `std::regex_match`. Capture groups are exposed as `$1`, `$2`, etc.
  *    Evaluated last; linear scan over all registered regex routes.
  *    @code
- *    router.addRouteRegex("GET", R"(/items/(\d+))", handler);
+ *    router.addRouteRegex(R"(/items/(\d+))", "GET", handler);
  *    // GET /items/123  →  params: {"$1": "123"}
+ *    // also: router.addRouteRegex(R"(/items/(\d+))", {"GET", "HEAD"}, handler);
  *    @endcode
  *
  * When no route matches, `route()` returns a `RouteResult` with a null handler.
@@ -79,24 +92,34 @@ class HttpRouter
 public:
     struct RouteResult
     {
+        enum class Reason
+        {
+            Ok,
+            NotFound,
+            MethodNotAllowed
+        };
+
         HttpHandlerPtr handler;
         Params params;
+        Reason reason = Reason::NotFound;
 
         explicit operator bool() const { return handler != nullptr; }
     };
 
     template <typename F>
-    void addRoute(const std::string & method, const std::string & path, F && handler);
+    void addRoute(const std::string & path, HttpMethods methods, F && handler);
     template <typename F>
-    void addRouteRegex(const std::string & method, const std::string & pattern, F && handler);
+    void addRouteRegex(const std::string & pattern, HttpMethods methods, F && handler);
 
     // Returns {handler, params} for the matched route, or {nullptr, {}} if not found.
     RouteResult route(const std::string & method, const std::string & path) const;
 
 private:
+    using MethodMap = std::unordered_map<std::string, HttpHandlerPtr>;
+
     struct RouteNode
     {
-        HttpHandlerPtr handler;
+        MethodMap handlers;
         std::map<std::string, std::unique_ptr<RouteNode>, std::less<>> children; // static segments
         std::unique_ptr<RouteNode> paramChild;                                   // :name
         std::string paramName;
@@ -104,32 +127,44 @@ private:
         std::string wildcardName;
     };
 
-    struct MethodRoutes
+    struct Routes
     {
-        std::unordered_map<std::string, HttpHandlerPtr> exact;
+        std::unordered_map<std::string, MethodMap> exact;
         RouteNode radixRoot;
-        std::vector<std::pair<std::regex, HttpHandlerPtr>> regexRoutes;
+        std::vector<std::tuple<std::string, std::regex, MethodMap>> regexRoutes;
     };
 
-    void addRouteImpl(const std::string & method, const std::string & path, HttpHandlerPtr handler);
+    void addRouteImpl(const std::string & path, const HttpMethods & methods, HttpHandlerPtr handler);
 
-    static void insertRadix(RouteNode & node, std::string_view path, HttpHandlerPtr handler);
-    static HttpHandlerPtr matchRadix(const RouteNode & node, std::string_view path, Params & params, size_t depth = 0);
+    static void insertRadix(RouteNode & node, std::string_view path, const HttpMethods & methods, HttpHandlerPtr handler);
+    static const MethodMap * matchRadix(const RouteNode & node, std::string_view path, Params & params, size_t depth = 0);
 
-    std::unordered_map<std::string, MethodRoutes> routes_;
+    Routes routes_;
 };
 
 template <typename F>
-void HttpRouter::addRoute(const std::string & method, const std::string & path, F && handler)
+void HttpRouter::addRoute(const std::string & path, HttpMethods methods, F && handler)
 {
-    addRouteImpl(method, path, makeHttpHandler(std::forward<F>(handler)));
+    addRouteImpl(path, methods, makeHttpHandler(std::forward<F>(handler)));
 }
 
 template <typename F>
-void HttpRouter::addRouteRegex(const std::string & method, const std::string & pattern, F && handler)
+void HttpRouter::addRouteRegex(const std::string & pattern, HttpMethods methods, F && handler)
 {
-    routes_[method].regexRoutes.emplace_back(std::regex(pattern),
-                                             makeHttpHandler(std::forward<F>(handler)));
+    auto h = makeHttpHandler(std::forward<F>(handler));
+    for (auto & [pat, re, mm] : routes_.regexRoutes)
+    {
+        if (pat == pattern)
+        {
+            for (const auto & m : methods.methods_)
+                mm[m] = h;
+            return;
+        }
+    }
+    MethodMap mm;
+    for (const auto & m : methods.methods_)
+        mm[m] = h;
+    routes_.regexRoutes.emplace_back(pattern, std::regex(pattern), std::move(mm));
 }
 
 } // namespace nitrocoro::http

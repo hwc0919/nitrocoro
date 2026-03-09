@@ -34,15 +34,15 @@ public:
 
     // Convenience: forwards to the internal router.
     template <typename F>
-    void route(const std::string & method, const std::string & path, F && handler)
+    void route(const std::string & path, HttpMethods methods, F && handler)
     {
-        router_->addRoute(method, path, std::forward<F>(handler));
+        router_->addRoute(path, std::move(methods), std::forward<F>(handler));
     }
 
     template <typename F>
-    void routeRegex(const std::string & method, const std::string & pattern, F && handler)
+    void routeRegex(const std::string & pattern, HttpMethods methods, F && handler)
     {
-        router_->addRouteRegex(method, pattern, std::forward<F>(handler));
+        router_->addRouteRegex(pattern, std::move(methods), std::forward<F>(handler));
     }
 
     std::shared_ptr<HttpRouter> router() const { return router_; }

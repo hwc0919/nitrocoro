@@ -120,6 +120,11 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
         auto result = router_->route(request.method(), request.path());
         if (result)
             co_await result.handler->invoke(std::move(request), std::move(response), std::move(result.params));
+        else if (result.reason == HttpRouter::RouteResult::Reason::MethodNotAllowed)
+        {
+            response.setStatus(StatusCode::k405MethodNotAllowed);
+            co_await response.end("Method Not Allowed");
+        }
         else
         {
             response.setStatus(StatusCode::k404NotFound);
