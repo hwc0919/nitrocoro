@@ -62,6 +62,7 @@ public:
     Scheduler * scheduler() const { return scheduler_; }
     TriggerMode triggerMode() const { return triggerMode_; }
     uint32_t events() const { return events_; }
+    bool errored() const { return state_->errored; }
 
     // Following methods MUST be called from Scheduler's thread
     void enableReading();
@@ -154,6 +155,7 @@ private:
         int fd{ -1 };
         bool readable{ false };
         bool writable{ true };
+        bool errored{ false };
         std::coroutine_handle<> readableWaiter;
         std::coroutine_handle<> writableWaiter;
         bool readCanceled{ false };

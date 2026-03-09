@@ -8,9 +8,7 @@
 #include <nitrocoro/utils/Debug.h>
 
 #include <cassert>
-#include <cstring>
 #include <sys/epoll.h>
-#include <sys/socket.h>
 
 namespace nitrocoro::io
 {
@@ -48,37 +46,25 @@ Channel::~Channel() noexcept
 
 void Channel::handleIoEvents(Scheduler * scheduler, IoState * state, uint32_t ev)
 {
-    if ((ev & EPOLLHUP) && !(ev & EPOLLIN))
+    if (ev & EPOLLERR)
     {
-        // peer closed, and no more bytes to read
-        NITRO_TRACE("Peer closed, fd %d", state->fd);
-        // TODO: handle close
+        NITRO_TRACE("socket %d EPOLLERR", state->fd);
+        state->errored = true;
+        if (state->readableWaiter)
+        {
+            auto h = state->readableWaiter;
+            state->readableWaiter = nullptr;
+            scheduler->schedule(h);
+        }
+        if (state->writableWaiter)
+        {
+            auto h = state->writableWaiter;
+            state->writableWaiter = nullptr;
+            scheduler->schedule(h);
+        }
     }
 
-    if (ev & EPOLLERR) // (POLLNVAL | POLLERR)
-    {
-        int error = 0;
-        socklen_t len = sizeof(error);
-        if (getsockopt(state->fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
-        {
-            NITRO_ERROR("getsockopt failed on socket %d: %s", state->fd, strerror(errno));
-        }
-        else if (error == 0)
-        {
-            NITRO_ERROR("socket %d EPOLLERR but no error", state->fd);
-        }
-        else if (error == ECONNRESET || error == EPIPE)
-        {
-            NITRO_TRACE("socket %d connection closed (error=%d)", state->fd, error);
-        }
-        else
-        {
-            NITRO_ERROR("socket %d error %d: %s", state->fd, error, strerror(error));
-        }
-        // TODO: mark error
-    }
-
-    if (ev & EPOLLIN) // (POLLIN | POLLPRI | POLLRDHUP)
+    if (ev & (EPOLLIN | EPOLLHUP)) // (POLLIN | POLLPRI | POLLRDHUP)
     {
         state->readable = true;
         if (state->readableWaiter)
@@ -103,20 +89,15 @@ void Channel::handleIoEvents(Scheduler * scheduler, IoState * state, uint32_t ev
 
 bool Channel::ReadableAwaiter::await_ready() noexcept
 {
-    return state_->readable;
+    return state_->readable || state_->errored;
 }
 
 bool Channel::ReadableAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
 {
-    if (state_->readable)
-    {
+    if (state_->readable || state_->errored)
         return false;
-    }
-    else
-    {
-        state_->readableWaiter = h;
-        return true;
-    }
+    state_->readableWaiter = h;
+    return true;
 }
 
 void Channel::ReadableAwaiter::await_resume() noexcept
@@ -125,20 +106,15 @@ void Channel::ReadableAwaiter::await_resume() noexcept
 
 bool Channel::WritableAwaiter::await_ready() noexcept
 {
-    return state_->writable;
+    return state_->writable || state_->errored;
 }
 
 bool Channel::WritableAwaiter::await_suspend(std::coroutine_handle<> h) noexcept
 {
-    if (state_->writable)
-    {
+    if (state_->writable || state_->errored)
         return false;
-    }
-    else
-    {
-        state_->writableWaiter = h;
-        return true;
-    }
+    state_->writableWaiter = h;
+    return true;
 }
 
 void Channel::WritableAwaiter::await_resume() noexcept
