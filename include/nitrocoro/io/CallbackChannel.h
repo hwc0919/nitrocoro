@@ -30,8 +30,6 @@ public:
     void enableWriting();
     void disableWriting();
     void disableAll();
-    /** @see Channel::invalidate() */
-    void invalidate();
 
     void setReadableCallback(std::function<void()> cb);
     void setWritableCallback(std::function<void()> cb);

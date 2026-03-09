@@ -59,9 +59,8 @@ public:
 
     struct IoContext
     {
-        uint64_t id;
         int fd;
-        // std::weak_ptr<io::Channel> weakChannel;
+        uint64_t id;
         IoEventHandler handler;
         bool addedToEpoll = false;
     };
@@ -85,18 +84,9 @@ public:
         uint64_t id{ ++seq };
         return id;
     }
-    void setIoHandler(uint64_t id, int fd, Scheduler::IoEventHandler handler);
-    void updateIo(uint64_t id, int fd, uint32_t events, TriggerMode mode);
-    void removeIo(uint64_t id);
-    /**
-     * @brief Mark the IoContext for @p id as not registered in epoll,
-     *        without issuing EPOLL_CTL_DEL.
-     *
-     * Called by Channel::invalidate() when the fd is known to have been closed
-     * externally. Prevents a subsequent removeIo() from attempting epoll_ctl on
-     * a stale or reused fd.
-     */
-    void markIoRemoved(uint64_t id);
+    void setIoHandler(int fd, uint64_t id, Scheduler::IoEventHandler handler);
+    void updateIo(int fd, uint64_t id, uint32_t events, TriggerMode mode);
+    void removeIo(int fd, uint64_t id);
 
     TimerAwaiter sleep_for(double seconds);
     TimerAwaiter sleep_for(std::chrono::steady_clock::duration dur);
@@ -192,7 +182,7 @@ private:
     std::atomic<bool> running_{ false };
     std::unique_ptr<io::Channel> wakeupChannel_;
 
-    std::unordered_map<uint64_t, IoContext> ioContexts_;
+    std::unordered_map<int, IoContext> ioContexts_;
     MpscQueue<std::function<void()>> readyQueue_;
     MpscQueue<Timer> pendingTimers_;
     std::priority_queue<Timer, std::vector<Timer>, std::greater<>> timers_;

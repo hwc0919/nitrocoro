@@ -22,13 +22,13 @@ Channel::Channel(int fd, TriggerMode mode, Scheduler * scheduler)
 {
     assert(scheduler_ != nullptr);
 
-    scheduler->schedule([id = id_, fd, weakState = std::weak_ptr(state_), scheduler]() {
+    scheduler->dispatch([id = id_, fd, weakState = std::weak_ptr(state_), scheduler]() {
         if (auto _ = weakState.lock())
         {
-            scheduler->setIoHandler(id, fd, [scheduler, weakState](int fd, uint32_t ev) {
+            scheduler->setIoHandler(fd, id, [scheduler, weakState](int fd_, uint32_t ev) {
                 if (auto state = weakState.lock())
                 {
-                    assert(fd == state->fd);
+                    assert(fd_ == state->fd);
                     handleIoEvents(scheduler, state.get(), ev);
                 }
             });
@@ -38,9 +38,9 @@ Channel::Channel(int fd, TriggerMode mode, Scheduler * scheduler)
 
 Channel::~Channel() noexcept
 {
-    scheduler_->schedule([id = id_, scheduler = scheduler_, guard = std::move(guard_)]() mutable {
-        scheduler->removeIo(id);
-        guard.reset();
+    scheduler_->dispatch([fd = fd_, id = id_, scheduler = scheduler_, guard = std::move(guard_)]() {
+        scheduler->removeIo(fd, id);
+        // guard auto released
     });
 }
 
@@ -126,7 +126,7 @@ void Channel::enableReading()
     if (!(events_ & EPOLLIN))
     {
         events_ |= EPOLLIN;
-        scheduler_->updateIo(id_, fd_, events_, triggerMode_);
+        scheduler_->updateIo(fd_, id_, events_, triggerMode_);
     }
 }
 
@@ -135,7 +135,7 @@ void Channel::disableReading()
     if (events_ & EPOLLIN)
     {
         events_ &= ~EPOLLIN;
-        scheduler_->updateIo(id_, fd_, events_, triggerMode_);
+        scheduler_->updateIo(fd_, id_, events_, triggerMode_);
     }
 }
 
@@ -144,7 +144,7 @@ void Channel::enableWriting()
     if (!(events_ & EPOLLOUT))
     {
         events_ |= EPOLLOUT;
-        scheduler_->updateIo(id_, fd_, events_, triggerMode_);
+        scheduler_->updateIo(fd_, id_, events_, triggerMode_);
     }
 }
 
@@ -153,7 +153,7 @@ void Channel::disableWriting()
     if (events_ & EPOLLOUT)
     {
         events_ &= ~EPOLLOUT;
-        scheduler_->updateIo(id_, fd_, events_, triggerMode_);
+        scheduler_->updateIo(fd_, id_, events_, triggerMode_);
     }
 }
 
@@ -162,14 +162,8 @@ void Channel::disableAll()
     if (events_ != 0)
     {
         events_ = 0;
-        scheduler_->updateIo(id_, fd_, events_, triggerMode_);
+        scheduler_->updateIo(fd_, id_, events_, triggerMode_);
     }
-}
-
-void Channel::invalidate()
-{
-    events_ = 0;
-    scheduler_->markIoRemoved(id_);
 }
 
 void Channel::cancelRead()
@@ -225,10 +219,10 @@ CallbackChannel::CallbackChannel(int fd, Scheduler * scheduler)
     , scheduler_(scheduler)
     , state_(std::make_shared<State>())
 {
-    scheduler->schedule([id = id_, fd, weakState = std::weak_ptr(state_), scheduler]() {
+    scheduler->dispatch([fd, id = id_, weakState = std::weak_ptr(state_), scheduler]() {
         if (auto _ = weakState.lock())
         {
-            scheduler->setIoHandler(id, fd, [weakState](int, uint32_t ev) {
+            scheduler->setIoHandler(fd, id, [weakState](int, uint32_t ev) {
                 if (auto state = weakState.lock())
                     handleIoEvents(state.get(), ev);
             });
@@ -238,9 +232,9 @@ CallbackChannel::CallbackChannel(int fd, Scheduler * scheduler)
 
 CallbackChannel::~CallbackChannel() noexcept
 {
-    scheduler_->schedule([id = id_, scheduler = scheduler_, guard = std::move(guard_)]() mutable {
-        scheduler->removeIo(id);
-        guard.reset();
+    scheduler_->dispatch([fd = fd_, id = id_, scheduler = scheduler_, guard = std::move(guard_)]() {
+        scheduler->removeIo(fd, id);
+        // guard auto released
     });
 }
 
@@ -261,7 +255,7 @@ void CallbackChannel::setEvents(uint32_t newEvents)
     if (events_ == newEvents)
         return;
     events_ = newEvents;
-    scheduler_->updateIo(id_, fd_, events_, TriggerMode::LevelTriggered);
+    scheduler_->updateIo(fd_, id_, events_, TriggerMode::LevelTriggered);
 }
 
 void CallbackChannel::enableReading()
@@ -283,12 +277,6 @@ void CallbackChannel::disableWriting()
 void CallbackChannel::disableAll()
 {
     setEvents(0);
-}
-
-void CallbackChannel::invalidate()
-{
-    events_ = 0;
-    scheduler_->markIoRemoved(id_);
 }
 
 void CallbackChannel::setReadableCallback(std::function<void()> cb)

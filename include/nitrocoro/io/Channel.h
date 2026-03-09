@@ -71,23 +71,6 @@ public:
     void disableWriting();
     void disableAll();
 
-    /**
-     * @brief Handle an uncontrolled early fd close (e.g. libpq SSL teardown) by marking
-     *        this channel as removed from epoll without issuing epoll_ctl.
-     *
-     * When a third-party library closes the fd without our knowledge, calling disableAll()
-     * would issue EPOLL_CTL_DEL on an already-closed fd, which fails with EBADF and risks
-     * removing a reused fd from epoll if the OS recycles the fd number.
-     *
-     * After invalidate(), the channel's IoContext is marked as not added to epoll,
-     * so the subsequent removeIo() in the destructor will skip the epoll_ctl call.
-     *
-     * In normal teardown, call disableAll() before closing the fd. Although the
-     * kernel removes a closed fd from epoll automatically, explicitly deregistering
-     * before close() is the recommended practice for clarity and correctness.
-     */
-    void invalidate();
-
     // Returned by adapters/lambdas to drive the performImpl loop
     enum class IoStatus
     {

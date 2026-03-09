@@ -144,9 +144,9 @@ void Scheduler::process_io_events(int timeout_ms)
 
     for (int i = 0; i < n; ++i)
     {
-        uint64_t channelId = events[i].data.u64;
+        int fd = events[i].data.fd;
         uint32_t ev = events[i].events;
-        if (channelId == wakeupChannel_->id())
+        if (fd == wakeupChannel_->fd())
         {
             uint64_t dummy;
             ssize_t ret = read(wakeupFd_, &dummy, sizeof(dummy));
@@ -155,15 +155,13 @@ void Scheduler::process_io_events(int timeout_ms)
             continue;
         }
 
-        auto iter = ioContexts_.find(channelId);
+        auto iter = ioContexts_.find(fd);
         if (iter == ioContexts_.end())
         {
-            NITRO_ERROR("channel with id %ld not found!!!", channelId);
+            NITRO_ERROR("fd %d not found!!!", fd);
             continue;
         }
         auto * ctx = &iter->second;
-        int fd = ctx->fd;
-
         NITRO_TRACE("fd %d event %d: IN: %d, OUT: %d, ERR: %d",
                     fd,
                     ev,
@@ -220,38 +218,57 @@ void Scheduler::wakeup()
     }
 }
 
-void Scheduler::setIoHandler(uint64_t id, int fd, Scheduler::IoEventHandler handler)
+void Scheduler::setIoHandler(int fd, uint64_t id, Scheduler::IoEventHandler handler)
 {
     nitrocoro_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
-    auto iter = ioContexts_.find(id);
+    auto iter = ioContexts_.find(fd);
     if (iter != ioContexts_.end())
     {
+        if (iter->second.id != id)
+        {
+            if (id < iter->second.id)
+            {
+                NITRO_TRACE("fd %d reuse detected, ignoring stale operation (cur id=%lu, op id=%lu)", fd, iter->second.id, id);
+                return;
+            }
+            NITRO_TRACE("fd %d reuse detected, evicting stale IoContext (cur id=%lu, op id=%lu)", fd, iter->second.id, id);
+            iter->second = IoContext{ fd, id, std::move(handler) };
+            return;
+        }
+
         assert(iter->second.handler == nullptr);
-        // assert(!iter->second.weakChannel.lock());
-        // iter->second.weakChannel = channel;
         iter->second.handler = std::move(handler);
     }
     else
     {
-        ioContexts_.emplace(id, IoContext{ id, fd, std::move(handler) });
+        ioContexts_.emplace(fd, IoContext{ fd, id, std::move(handler) });
     }
 }
 
-void Scheduler::updateIo(uint64_t id, int fd, uint32_t events, TriggerMode mode)
+void Scheduler::updateIo(int fd, uint64_t id, uint32_t events, TriggerMode mode)
 {
     nitrocoro_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
     IoContext * ctx;
-    auto iter = ioContexts_.find(id);
+    auto iter = ioContexts_.find(fd);
     if (iter != ioContexts_.end())
     {
+        if (iter->second.id != id)
+        {
+            if (id < iter->second.id)
+            {
+                NITRO_TRACE("fd %d reuse detected, ignoring stale operation (cur id=%lu, op id=%lu)", fd, iter->second.id, id);
+                return;
+            }
+            NITRO_TRACE("fd %d reuse detected, evicting stale IoContext (cur id=%lu, op id=%lu)", fd, iter->second.id, id);
+            iter->second = IoContext{ fd, id, {} };
+        }
         ctx = &iter->second;
-        // assert(ctx->weakChannel.lock().get() == channel);
     }
     else
     {
-        ctx = &ioContexts_.emplace(id, IoContext{ id, fd, {} }).first->second;
+        ctx = &ioContexts_.emplace(fd, IoContext{ fd, id, {} }).first->second;
     }
 
     if (events == 0)
@@ -271,7 +288,7 @@ void Scheduler::updateIo(uint64_t id, int fd, uint32_t events, TriggerMode mode)
 
     epoll_event ev{};
     ev.events = events | (mode == TriggerMode::EdgeTriggered ? EPOLLET : 0);
-    ev.data.u64 = id;
+    ev.data.fd = fd;
 
     int op = ctx->addedToEpoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
     if (::epoll_ctl(epollFd_, op, fd, &ev) < 0)
@@ -284,13 +301,22 @@ void Scheduler::updateIo(uint64_t id, int fd, uint32_t events, TriggerMode mode)
     ctx->addedToEpoll = true;
 }
 
-void Scheduler::removeIo(uint64_t id)
+void Scheduler::removeIo(int fd, uint64_t id)
 {
     nitrocoro_SCHEDULER_ASSERT_IN_OWN_THREAD();
 
-    assert(ioContexts_.contains(id));
-    auto ctx = std::move(ioContexts_.at(id));
-    ioContexts_.erase(id);
+    auto iter = ioContexts_.find(fd);
+    assert(iter != ioContexts_.end());
+    if (iter->second.id != id)
+    {
+        if (id > iter->second.id)
+            NITRO_ERROR("fd %d removeIo: unexpected op id > cur id (cur id=%lu, op id=%lu)\n", fd, iter->second.id, id);
+        NITRO_TRACE("fd %d reuse detected, ignoring stale operation (cur id=%lu, op id=%lu)", fd, iter->second.id, id);
+        return;
+    }
+
+    auto ctx = std::move(iter->second);
+    ioContexts_.erase(iter);
 
     if (!ctx.addedToEpoll)
     {
@@ -298,21 +324,10 @@ void Scheduler::removeIo(uint64_t id)
     }
     epoll_event ev{};
     ev.events = 0;
-    ev.data.u64 = id;
+    ev.data.fd = fd;
     if (::epoll_ctl(epollFd_, EPOLL_CTL_DEL, ctx.fd, &ev) < 0)
     {
-        NITRO_ERROR("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epollFd_, ctx.fd, errno);
-        // throw std::runtime_error("Failed to call EPOLL_CTL_DEL on epoll");
-    }
-}
-
-void Scheduler::markIoRemoved(uint64_t id)
-{
-    nitrocoro_SCHEDULER_ASSERT_IN_OWN_THREAD();
-
-    if (auto it = ioContexts_.find(id); it != ioContexts_.end())
-    {
-        it->second.addedToEpoll = false;
+        NITRO_TRACE("Failed to call EPOLL_CTL_DEL on epoll %d fd %d, error = %d", epollFd_, ctx.fd, errno);
     }
 }
 

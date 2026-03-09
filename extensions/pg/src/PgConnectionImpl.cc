@@ -305,7 +305,6 @@ Task<> PgConnectionImpl::readLoop(std::shared_ptr<ConnectionContext> ctx)
         }
         if (r == Channel::IoResult::Error || r == Channel::IoResult::Eof)
         {
-            ctx->channel->invalidate(); // libpq may close the socket early
             ctx->handleBroken();
             if (auto p = ctx->weakPromise.lock())
             {
