@@ -141,4 +141,14 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
     }
 }
 
+SharedFuture<> HttpServer::started() const
+{
+    return server_->started();
+}
+
+SharedFuture<> HttpServer::wait() const
+{
+    return server_->wait();
+}
+
 } // namespace nitrocoro::http

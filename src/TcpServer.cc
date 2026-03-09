@@ -28,6 +28,8 @@ TcpServer::TcpServer(uint16_t port, Scheduler * scheduler)
 TcpServer::TcpServer(const InetAddress & addr, Scheduler * scheduler)
     : addr_(addr)
     , scheduler_(scheduler)
+    , startPromise_(scheduler)
+    , startFuture_(startPromise_.get_future().share())
     , stopPromise_(scheduler)
     , stopFuture_(stopPromise_.get_future().share())
 {
@@ -130,6 +132,8 @@ Task<> TcpServer::start(ConnectionHandler handler)
     listenChannel_ = std::make_unique<Channel>(listenSocketPtr_->fd(), TriggerMode::LevelTriggered, scheduler_);
     listenChannel_->setGuard(listenSocketPtr_);
     listenChannel_->enableReading();
+
+    startPromise_.set_value();
     while (!stopped_.load())
     {
         Acceptor acceptor;
@@ -197,9 +201,14 @@ Task<> TcpServer::stop()
     co_await stopFuture_.get();
 }
 
-Task<> TcpServer::wait() const
+SharedFuture<> TcpServer::started() const
 {
-    co_await stopFuture_.get();
+    return startFuture_;
+}
+
+SharedFuture<> TcpServer::wait() const
+{
+    return stopFuture_;
 }
 
 } // namespace nitrocoro::net

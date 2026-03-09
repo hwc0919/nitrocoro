@@ -13,11 +13,10 @@ using namespace std::chrono_literals;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-static Task<HttpServer *> start_server(HttpServer & server)
+static SharedFuture<> start_server(HttpServer & server)
 {
     Scheduler::current()->spawn([&server]() -> Task<> { co_await server.start(); });
-    co_await sleep(50ms);
-    co_return &server;
+    return server.started();
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -120,9 +119,9 @@ NITRO_TEST(http_server_stop)
         stopped = true;
     });
 
-    co_await sleep(50ms);
+    co_await server.started();
     co_await server.stop();
-    co_await sleep(50ms);
+    co_await sleep(10ms);
 
     NITRO_CHECK(stopped);
 }

@@ -49,7 +49,8 @@ public:
      */
     Task<> start(ConnectionHandler handler);
     Task<> stop();
-    Task<> wait() const;
+    SharedFuture<> started() const;
+    SharedFuture<> wait() const;
 
     uint16_t port() const { return addr_.toPort(); }
 
@@ -61,6 +62,8 @@ private:
     std::shared_ptr<net::Socket> listenSocketPtr_;
     std::atomic_bool started_{ false };
     std::atomic_bool stopped_{ false };
+    Promise<> startPromise_;
+    SharedFuture<> startFuture_;
     Promise<> stopPromise_;
     SharedFuture<> stopFuture_;
     std::unique_ptr<Channel> listenChannel_;

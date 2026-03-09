@@ -49,6 +49,9 @@ public:
     Task<> start();
     Task<> stop();
 
+    SharedFuture<> started() const;
+    SharedFuture<> wait() const;
+
 private:
     Task<> handleConnection(net::TcpConnectionPtr conn);
 

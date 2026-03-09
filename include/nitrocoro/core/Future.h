@@ -152,6 +152,9 @@ public:
             throw std::future_error(std::future_errc::no_state);
         return Awaiter{ state_ };
     }
+
+    Awaiter operator co_await() const { return get(); }
+
     bool valid() const noexcept { return state_ != nullptr; }
 
 private:
@@ -200,6 +203,9 @@ public:
             throw std::future_error(std::future_errc::no_state);
         return Awaiter{ state_ };
     }
+
+    Awaiter operator co_await() const { return get(); }
+
     bool valid() const noexcept { return state_ != nullptr; }
 
 private:

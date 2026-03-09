@@ -27,7 +27,7 @@ NITRO_TEST(tcp_echo)
         });
     });
 
-    co_await Scheduler::current()->sleep_for(0.01);
+    co_await server.started();
 
     auto conn = co_await TcpConnection::connect({ "127.0.0.1", port });
     co_await conn->write("hello", 5);
@@ -88,7 +88,7 @@ NITRO_TEST(tcp_multiple_clients)
         ++(*somePtr); // might crash
     });
 
-    co_await Scheduler::current()->sleep_for(0.01);
+    co_await server.started();
 
     constexpr int kClients = 5;
     int received = 0;
@@ -134,7 +134,7 @@ NITRO_TEST(tcp_connection_addrs)
         });
     });
 
-    co_await Scheduler::current()->sleep_for(0.01);
+    co_await server.started();
 
     auto conn = co_await TcpConnection::connect({ "127.0.0.1", port });
     co_await conn->write("x", 1);
@@ -166,7 +166,7 @@ NITRO_TEST(tcp_ipv6_listen)
         });
     });
 
-    co_await Scheduler::current()->sleep_for(0.01);
+    co_await server.started();
 
     auto conn = co_await TcpConnection::connect({ "::1", port, true });
     co_await conn->write("hello6", 6);
@@ -194,7 +194,7 @@ NITRO_TEST(tcp_ipv4_loopback_listen)
         });
     });
 
-    co_await Scheduler::current()->sleep_for(0.01);
+    co_await server.started();
 
     auto conn = co_await TcpConnection::connect({ "127.0.0.1", port });
     co_await conn->write("x", 1);
