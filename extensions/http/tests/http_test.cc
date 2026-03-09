@@ -153,7 +153,7 @@ NITRO_TEST(http_multiple_requests)
 NITRO_TEST(router_shared_across_servers)
 {
     auto router = std::make_shared<HttpRouter>();
-    router->route("GET", "/ping", [](auto && req, auto && resp) -> Task<> {
+    router->addRoute("GET", "/ping", [](auto && req, auto && resp) -> Task<> {
         co_await resp.end("pong");
     });
 

@@ -19,7 +19,6 @@ namespace nitrocoro::http
 class HttpServer
 {
 public:
-    using Handler = HttpRouter::Handler;
     using StreamUpgrader = std::function<Task<io::StreamPtr>(net::TcpConnectionPtr)>;
     // RequestUpgrader: called when request has "Connection: Upgrade".
     // Receives the request and the raw stream; returns true if the connection was taken over.
@@ -32,8 +31,19 @@ public:
 
     void setStreamUpgrader(StreamUpgrader upgrader);
     void setRequestUpgrader(RequestUpgrader upgrader);
+
     // Convenience: forwards to the internal router.
-    void route(const std::string & method, const std::string & path, Handler handler);
+    template <typename F>
+    void route(const std::string & method, const std::string & path, F && handler)
+    {
+        router_->addRoute(method, path, std::forward<F>(handler));
+    }
+
+    template <typename F>
+    void routeRegex(const std::string & method, const std::string & pattern, F && handler)
+    {
+        router_->addRouteRegex(method, pattern, std::forward<F>(handler));
+    }
 
     std::shared_ptr<HttpRouter> router() const { return router_; }
     Task<> start();

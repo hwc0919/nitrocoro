@@ -40,11 +40,6 @@ void HttpServer::setRequestUpgrader(RequestUpgrader upgrader)
     requestUpgrader_ = std::move(upgrader);
 }
 
-void HttpServer::route(const std::string & method, const std::string & path, Handler handler)
-{
-    router_->route(method, path, std::move(handler));
-}
-
 Task<> HttpServer::start()
 {
     NITRO_INFO("HTTP server listening on port %hu", port_);
@@ -122,7 +117,14 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
                 co_return;
         }
 
-        co_await router_->dispatch(std::move(request), std::move(response));
+        auto result = router_->route(request.method(), request.path());
+        if (result)
+            co_await result.handler->invoke(std::move(request), std::move(response), std::move(result.params));
+        else
+        {
+            response.setStatus(StatusCode::k404NotFound);
+            co_await response.end("Not Found");
+        }
 
         if (!bodyReader->isComplete())
             co_await bodyReader->drain();
