@@ -27,8 +27,8 @@ Task<> run(uint16_t port)
         printf("client connected\n");
         while (auto msg = co_await conn.receive())
         {
-            printf("recv: %.*s\n", (int)msg->text().size(), msg->text().data());
-            co_await conn.sendText(msg->text());
+            printf("recv: %.*s\n", (int)msg->payload.size(), msg->payload.data());
+            co_await conn.send(msg->payload, msg->type);
         }
         printf("client disconnected\n");
     });
