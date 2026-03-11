@@ -1,5 +1,6 @@
 #include <nitrocoro/utils/Base64.h>
 
+#include <cstdint>
 #include <stdexcept>
 
 namespace nitrocoro::utils

@@ -1,6 +1,7 @@
 #include <nitrocoro/utils/Md5.h>
 
 #include <bit>
+#include <cstdint>
 #include <cstring>
 
 namespace nitrocoro::utils
