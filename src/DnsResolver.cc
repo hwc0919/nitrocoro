@@ -2,7 +2,7 @@
  * @file DnsResolver.cc
  * @brief Asynchronous DNS resolver implementation
  */
-#include <nitrocoro/net/DnsException.h>
+#include <nitrocoro/core/Future.h>
 #include <nitrocoro/net/DnsResolver.h>
 
 #ifdef _WIN32
@@ -40,13 +40,47 @@ struct DnsResolver::State
     std::unordered_map<std::string, CacheEntry> cache;
     std::unordered_map<std::string, std::vector<Promise<Addresses>>> pending;
     std::priority_queue<ExpiryEntry, std::vector<ExpiryEntry>, std::greater<>> expiryQueue;
+
+    static std::string cacheKey(const std::string & hostname, const std::string & service, int family)
+    {
+        return hostname + "|" + service + "|" + std::to_string(family);
+    }
+
+    static Task<DnsResolver::AddressVector> resolveImpl(std::weak_ptr<State> weakState,
+                                                        std::shared_ptr<TaskQueue> taskQueue,
+                                                        std::string hostname,
+                                                        std::string service,
+                                                        int family);
+    static void doResolve(const std::weak_ptr<DnsResolver::State> & weakState,
+                          const std::string & key,
+                          const std::string & hostname,
+                          const std::string & service,
+                          int family);
 };
 
-static void doResolve(const std::weak_ptr<DnsResolver::State> & weakState,
-                      const std::string & key,
-                      const std::string & hostname,
-                      const std::string & service,
-                      int family)
+DnsResolver::DnsResolver(std::chrono::seconds ttl, const TaskQueueProvider & taskQueueProvider)
+    : taskQueue_(taskQueueProvider()), state_(std::make_shared<State>())
+{
+    state_->ttl = ttl;
+}
+
+DnsResolver::~DnsResolver() = default;
+
+Task<DnsResolver::AddressVector> DnsResolver::resolve(std::string hostname, std::string service)
+{
+    co_return co_await State::resolveImpl(state_, taskQueue_, std::move(hostname), std::move(service), AF_UNSPEC);
+}
+
+Task<DnsResolver::AddressVector> DnsResolver::resolve(std::string hostname, int family)
+{
+    co_return co_await State::resolveImpl(state_, taskQueue_, std::move(hostname), {}, family);
+}
+
+void DnsResolver::State::doResolve(const std::weak_ptr<DnsResolver::State> & weakState,
+                                   const std::string & key,
+                                   const std::string & hostname,
+                                   const std::string & service,
+                                   int family)
 {
     std::exception_ptr ex;
     std::vector<Promise<Addresses>> waiters;
@@ -114,6 +148,7 @@ static void doResolve(const std::weak_ptr<DnsResolver::State> & weakState,
                 state->pending.erase(pendingIt);
             }
         }
+        // expire old entries every 16 writes to avoid doing it on every write
         if ((state->writeCount.fetch_add(1, std::memory_order_relaxed) & 15) == 0)
         {
             std::lock_guard lock(state->mutex);
@@ -128,6 +163,8 @@ static void doResolve(const std::weak_ptr<DnsResolver::State> & weakState,
         }
         for (auto & p : waiters)
             p.set_value(addresses);
+
+        return;
     } while (0);
 
     if (ex)
@@ -146,72 +183,50 @@ static void doResolve(const std::weak_ptr<DnsResolver::State> & weakState,
     }
 }
 
-DnsResolver::DnsResolver(std::chrono::seconds ttl, TaskQueueProvider newTaskQueue)
-    : taskQueue_(newTaskQueue()), state_(std::make_shared<State>())
+Task<DnsResolver::AddressVector> DnsResolver::State::resolveImpl(std::weak_ptr<State> weakState,
+                                                                 std::shared_ptr<TaskQueue> taskQueue,
+                                                                 std::string hostname,
+                                                                 std::string service,
+                                                                 int family)
 {
-    state_->ttl = ttl;
-}
+    auto state = weakState.lock();
+    if (!state)
+        co_return {};
 
-DnsResolver::~DnsResolver() = default;
-
-std::string DnsResolver::cacheKey(const std::string & hostname, const std::string & service, int family)
-{
-    return hostname + "|" + service + "|" + std::to_string(family);
-}
-
-Task<DnsResolver::Addresses> DnsResolver::resolveImpl(const std::string & hostname,
-                                                      const std::string & service,
-                                                      int family,
-                                                      Scheduler * scheduler)
-{
     const std::string key = cacheKey(hostname, service, family);
 
-    Promise<Addresses> promise(scheduler);
+    Promise<Addresses> promise;
     auto future = promise.get_future();
-    bool shouldDispatch = false;
+    bool newTask = false;
     auto now = std::chrono::steady_clock::now();
 
     {
-        std::lock_guard lock(state_->mutex);
+        std::lock_guard lock(state->mutex);
 
-        auto cacheIt = state_->cache.find(key);
-        if (cacheIt != state_->cache.end() && now < cacheIt->second.expiry)
+        auto cacheIt = state->cache.find(key);
+        if (cacheIt != state->cache.end() && now < cacheIt->second.expiry)
         {
             promise.set_value(cacheIt->second.addresses);
         }
-        else if (auto pendingIt = state_->pending.find(key); pendingIt != state_->pending.end())
+        else if (auto pendingIt = state->pending.find(key); pendingIt != state->pending.end())
         {
             pendingIt->second.push_back(std::move(promise));
         }
         else
         {
-            state_->pending[key].push_back(std::move(promise));
-            shouldDispatch = true;
+            state->pending[key].push_back(std::move(promise));
+            newTask = true;
         }
     }
 
-    if (shouldDispatch)
+    if (newTask)
     {
-        taskQueue_->post([weakState = std::weak_ptr(state_), key, hostname, service, family] {
+        taskQueue->post([weakState, key, hostname, service, family] {
             doResolve(weakState, key, hostname, service, family);
         });
     }
 
     co_return co_await future.get();
-}
-
-Task<DnsResolver::Addresses> DnsResolver::resolve(const std::string & hostname,
-                                                  const std::string & service,
-                                                  Scheduler * scheduler)
-{
-    co_return co_await resolveImpl(hostname, service, AF_UNSPEC, scheduler);
-}
-
-Task<DnsResolver::Addresses> DnsResolver::resolve(const std::string & hostname,
-                                                  int family,
-                                                  Scheduler * scheduler)
-{
-    co_return co_await resolveImpl(hostname, "", family, scheduler);
 }
 
 } // namespace nitrocoro::net

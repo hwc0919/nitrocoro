@@ -2,9 +2,9 @@
  * @file dns_test.cc
  * @brief Tests for DnsResolver. Requires network access.
  */
-#include <nitrocoro/net/DnsException.h>
 #include <nitrocoro/net/DnsResolver.h>
 #include <nitrocoro/testing/Test.h>
+#include <nitrocoro/utils/TaskQueue.h>
 
 #include <netdb.h>
 #include <set>
@@ -38,6 +38,21 @@ static std::set<std::string> resolveSync(const std::string & host)
     ::freeaddrinfo(res);
     return result;
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+struct CountingTaskQueue : TaskQueue
+{
+    std::atomic<int> count{ 0 };
+    ThreadPool pool{ 2 };
+    void post(std::function<void()> fn) override
+    {
+        ++count;
+        pool.post(std::move(fn));
+    }
+};
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
 
 /** Resolving "localhost" returns at least one loopback address. */
 NITRO_TEST(dns_localhost)
@@ -97,6 +112,40 @@ NITRO_TEST(dns_matches_system_resolver)
                 intersects = true;
         NITRO_CHECK(intersects);
     }
+}
+
+/** Second resolve of the same host hits the cache — no extra post(). */
+NITRO_TEST(dns_cache_hit)
+{
+    auto queue = std::make_shared<CountingTaskQueue>();
+    DnsResolver resolver(std::chrono::seconds(60), [queue] { return queue; });
+
+    for (int i = 0; i < 3; ++i)
+    {
+        co_await resolver.resolve("localhost");
+        NITRO_CHECK_EQ(queue->count.load(), 1);
+    }
+}
+
+/** Concurrent resolves for the same host trigger only one post(). */
+NITRO_TEST(dns_concurrent_dedup)
+{
+    auto queue = std::make_shared<CountingTaskQueue>();
+    DnsResolver resolver(std::chrono::seconds(60), [queue] { return queue; });
+
+    int cnt{ 0 };
+    Promise<> allDone;
+    auto allDoneFuture = allDone.get_future().share();
+
+    for (int i = 0; i < 3; ++i)
+        Scheduler::current()->spawn([&]() -> Task<> {
+            co_await resolver.resolve("localhost");
+            if (++cnt == 3)
+                allDone.set_value();
+        });
+
+    co_await allDoneFuture;
+    NITRO_CHECK_EQ(queue->count.load(), 1);
 }
 
 int main(int argc, char ** argv)

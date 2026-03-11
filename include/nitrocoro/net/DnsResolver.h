@@ -4,8 +4,6 @@
  */
 #pragma once
 
-#include <nitrocoro/core/Future.h>
-#include <nitrocoro/core/Scheduler.h>
 #include <nitrocoro/core/Task.h>
 #include <nitrocoro/net/InetAddress.h>
 #include <nitrocoro/utils/TaskQueue.h>
@@ -17,34 +15,39 @@
 namespace nitrocoro::net
 {
 
+class DnsException : public std::exception
+{
+public:
+    DnsException(const char * message, int error_code)
+        : message_(message), error_code_(error_code)
+    {
+    }
+
+    const char * what() const noexcept override { return message_.c_str(); }
+    int errorCode() const noexcept { return error_code_; }
+
+private:
+    std::string message_;
+    int error_code_;
+};
+
 class DnsResolver
 {
 public:
-    explicit DnsResolver(std::chrono::seconds ttl = std::chrono::seconds(60),
-                         TaskQueueProvider newTaskQueue = defaultTaskQueueProvider());
+    struct State;
+    using AddressVector = std::vector<InetAddress>;
+
+    explicit DnsResolver(std::chrono::seconds ttl = std::chrono::seconds(300),
+                         const TaskQueueProvider & taskQueueProvider = defaultTaskQueueProvider());
     ~DnsResolver();
 
     DnsResolver(const DnsResolver &) = delete;
     DnsResolver & operator=(const DnsResolver &) = delete;
 
-    Task<std::vector<InetAddress>> resolve(const std::string & hostname,
-                                           const std::string & service = "",
-                                           Scheduler * scheduler = Scheduler::current());
-    Task<std::vector<InetAddress>> resolve(const std::string & hostname,
-                                           int family,
-                                           Scheduler * scheduler = Scheduler::current());
-
-    struct State;
+    Task<AddressVector> resolve(std::string hostname, std::string service = "");
+    Task<AddressVector> resolve(std::string hostname, int family);
 
 private:
-    using Addresses = std::vector<InetAddress>;
-
-    static std::string cacheKey(const std::string & hostname, const std::string & service, int family);
-    Task<Addresses> resolveImpl(const std::string & hostname,
-                                const std::string & service,
-                                int family,
-                                Scheduler * scheduler);
-
     std::shared_ptr<TaskQueue> taskQueue_;
     std::shared_ptr<State> state_;
 };
