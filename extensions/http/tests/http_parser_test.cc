@@ -354,6 +354,110 @@ NITRO_TEST(http_parser_request_duplicate_content_length_conflict)
     co_return;
 }
 
+NITRO_TEST(http_parser_request_cookie)
+{
+    HttpParser<HttpRequest> parser;
+
+    parser.parseLine("GET /hello HTTP/1.1");
+    parser.parseLine("Host: example.com");
+    parser.parseLine("Cookie: session=abc123; user=john");
+    parser.parseLine("");
+
+    auto result = parser.extractResult();
+    NITRO_CHECK(!result.error());
+    NITRO_CHECK_EQ(result.message.cookies.at("session"), "abc123");
+    NITRO_CHECK_EQ(result.message.cookies.at("user"), "john");
+    co_return;
+}
+
+NITRO_TEST(http_parser_response_set_cookie)
+{
+    HttpParser<HttpResponse> parser;
+
+    parser.parseLine("HTTP/1.1 200 OK");
+    parser.parseLine("Set-Cookie: session=abc123; Path=/; HttpOnly");
+    parser.parseLine("");
+
+    auto result = parser.extractResult();
+    NITRO_CHECK(!result.error());
+    NITRO_CHECK_EQ(result.message.cookies.at("session"), "abc123");
+    co_return;
+}
+
+NITRO_TEST(http_parser_request_encoded_path)
+{
+    HttpParser<HttpRequest> parser;
+
+    parser.parseLine("GET /user/john%20doe HTTP/1.1");
+    parser.parseLine("Host: example.com");
+    parser.parseLine("");
+
+    auto result = parser.extractResult();
+    NITRO_CHECK(!result.error());
+    NITRO_CHECK_EQ(result.message.rawPath, "/user/john%20doe");
+    NITRO_CHECK_EQ(result.message.path, "/user/john doe");
+    co_return;
+}
+
+NITRO_TEST(http_parser_request_keep_alive_http10_explicit)
+{
+    HttpParser<HttpRequest> parser;
+
+    parser.parseLine("GET /hello HTTP/1.0");
+    parser.parseLine("Host: example.com");
+    parser.parseLine("Connection: keep-alive");
+    parser.parseLine("");
+
+    auto result = parser.extractResult();
+    NITRO_CHECK(!result.error());
+    NITRO_CHECK(result.message.keepAlive);
+    co_return;
+}
+
+NITRO_TEST(http_parser_response_keep_alive_http10_explicit)
+{
+    HttpParser<HttpResponse> parser;
+
+    parser.parseLine("HTTP/1.0 200 OK");
+    parser.parseLine("Connection: keep-alive");
+    parser.parseLine("");
+
+    auto result = parser.extractResult();
+    NITRO_CHECK(!result.error());
+    NITRO_CHECK(!result.message.shouldClose);
+    co_return;
+}
+
+NITRO_TEST(http_parser_transfer_encoding_overrides_content_length)
+{
+    HttpParser<HttpRequest> parser;
+
+    parser.parseLine("POST /data HTTP/1.1");
+    parser.parseLine("Host: example.com");
+    parser.parseLine("Content-Length: 100");
+    parser.parseLine("Transfer-Encoding: chunked");
+    parser.parseLine("");
+
+    auto result = parser.extractResult();
+    NITRO_CHECK(!result.error());
+    NITRO_CHECK_EQ(result.message.transferMode, TransferMode::Chunked);
+    co_return;
+}
+
+NITRO_TEST(http_parser_invalid_header_no_colon)
+{
+    HttpParser<HttpRequest> parser;
+
+    parser.parseLine("GET /hello HTTP/1.1");
+    parser.parseLine("Host: example.com");
+    parser.parseLine("InvalidHeaderWithoutColon");
+    parser.parseLine("");
+
+    auto result = parser.extractResult();
+    NITRO_CHECK(!result.error()); // silently ignored
+    co_return;
+}
+
 int main(int argc, char ** argv)
 {
     return nitrocoro::test::run_all(argc, argv);
