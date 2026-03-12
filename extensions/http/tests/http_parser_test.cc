@@ -322,6 +322,37 @@ NITRO_TEST(http_parser_identity_encoding)
     NITRO_CHECK_EQ(result.message.contentLength, 10);
     co_return;
 }
+NITRO_TEST(http_parser_request_duplicate_content_length_same)
+{
+    HttpParser<HttpRequest> parser;
+
+    parser.parseLine("POST /data HTTP/1.1");
+    parser.parseLine("Host: example.com");
+    parser.parseLine("Content-Length: 42");
+    parser.parseLine("Content-Length: 42");
+    parser.parseLine("");
+
+    auto result = parser.extractResult();
+    NITRO_CHECK(!result.error());
+    NITRO_CHECK_EQ(result.message.contentLength, 42);
+    co_return;
+}
+
+NITRO_TEST(http_parser_request_duplicate_content_length_conflict)
+{
+    HttpParser<HttpRequest> parser;
+
+    parser.parseLine("POST /data HTTP/1.1");
+    parser.parseLine("Host: example.com");
+    parser.parseLine("Content-Length: 42");
+    parser.parseLine("Content-Length: 99");
+    parser.parseLine("");
+
+    auto result = parser.extractResult();
+    NITRO_CHECK(result.error());
+    NITRO_CHECK_EQ(result.errorCode, HttpParseError::AmbiguousContentLength);
+    co_return;
+}
 
 int main(int argc, char ** argv)
 {

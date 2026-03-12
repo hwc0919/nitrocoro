@@ -7,8 +7,6 @@
 #include <nitrocoro/http/HttpHeader.h>
 #include <nitrocoro/utils/UrlEncode.h>
 
-#include <optional>
-
 namespace nitrocoro::http
 {
 
@@ -33,11 +31,17 @@ static StatusCode parseStatusCode(int code)
     return static_cast<StatusCode>(code);
 }
 
-static std::optional<HttpHeader> parseHeaderLine(std::string_view line)
+struct HeaderLine
+{
+    std::string_view name;
+    std::string_view value;
+};
+
+static HeaderLine parseHeaderLine(std::string_view line)
 {
     size_t colonPos = line.find(':');
     if (colonPos == std::string_view::npos)
-        return std::nullopt;
+        return {};
 
     size_t nameStart = line.find_first_not_of(' ', 0);
     size_t nameEnd = line.find_last_not_of(' ', colonPos - 1);
@@ -45,11 +49,14 @@ static std::optional<HttpHeader> parseHeaderLine(std::string_view line)
     size_t valueEnd = line.find_last_not_of(' ');
 
     if (nameStart == std::string_view::npos)
-        return std::nullopt;
+        return {};
 
-    std::string name(line.substr(nameStart, nameEnd - nameStart + 1));
-    std::string value(valueStart == std::string_view::npos ? "" : line.substr(valueStart, valueEnd - valueStart + 1));
-    return HttpHeader(std::move(name), std::move(value));
+    return {
+        line.substr(nameStart, nameEnd - nameStart + 1),
+        valueStart == std::string_view::npos
+            ? ""
+            : line.substr(valueStart, valueEnd - valueStart + 1)
+    };
 }
 
 // ============================================================================
@@ -182,17 +189,23 @@ bool HttpParser<HttpRequest>::parseRequestLine(std::string_view line)
 
 void HttpParser<HttpRequest>::parseHeader(std::string_view line)
 {
-    auto header = parseHeaderLine(line);
-    if (!header)
+    auto [name, value] = parseHeaderLine(line);
+    if (name.empty())
         return;
 
-    if (header->nameCode() == HttpHeader::NameCode::Cookie)
+    HttpHeader header(name, std::string(value));
+    auto nameCode = header.nameCode();
+    if (nameCode == HttpHeader::NameCode::Cookie)
     {
-        parseCookies(header->value());
+        parseCookies(std::string(value));
     }
     else
     {
-        data_.headers.emplace(header->name(), std::move(*header));
+        auto [it, inserted] = data_.headers.emplace(header.name(), std::move(header));
+        if (!inserted && nameCode == HttpHeader::NameCode::ContentLength && value != it->second.value())
+        {
+            setError(HttpParseError::AmbiguousContentLength, "Multiple Content-Length headers");
+        }
     }
 }
 
@@ -347,17 +360,18 @@ bool HttpParser<HttpResponse>::parseStatusLine(std::string_view line)
 
 void HttpParser<HttpResponse>::parseHeader(std::string_view line)
 {
-    auto header = parseHeaderLine(line);
-    if (!header)
+    auto [name, value] = parseHeaderLine(line);
+    if (name.empty())
         return;
 
-    if (header->nameCode() == HttpHeader::NameCode::SetCookie)
+    HttpHeader h(name, std::string(value));
+    if (h.nameCode() == HttpHeader::NameCode::SetCookie)
     {
-        parseCookies(header->value());
+        parseCookies(std::string(value));
     }
     else
     {
-        data_.headers.emplace(header->name(), std::move(*header));
+        data_.headers.emplace(h.name(), std::move(h));
     }
 }
 

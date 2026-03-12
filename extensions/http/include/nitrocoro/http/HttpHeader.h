@@ -185,7 +185,6 @@ public:
 
     bool nameEquals(std::string_view name) const;
     bool nameEqualsLower(std::string_view lowerName) const { return name_ == lowerName; }
-    bool nameCodeEquals(NameCode code) const { return nameCode_ == code; }
 
     static const std::pair<std::string_view, std::string_view> & codeToNames(NameCode code);
     static std::string_view codeToName(NameCode code);

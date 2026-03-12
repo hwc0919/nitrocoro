@@ -16,7 +16,6 @@ enum class HttpParseError
     None,
     ConnectionClosed,
     MalformedRequestLine,
-    MissingHostHeader,
     AmbiguousContentLength,
     UnsupportedTransferEncoding
 };
