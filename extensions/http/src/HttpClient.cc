@@ -54,15 +54,15 @@ void HttpClient::setStreamUpgrader(StreamUpgrader upgrader)
 
 Task<HttpCompleteResponse> HttpClient::get(const std::string & url)
 {
-    co_return co_await request("GET", url);
+    co_return co_await request(methods::Get, url);
 }
 
 Task<HttpCompleteResponse> HttpClient::post(const std::string & url, const std::string & body)
 {
-    co_return co_await request("POST", url, body);
+    co_return co_await request(methods::Post, url, body);
 }
 
-Task<HttpCompleteResponse> HttpClient::request(const std::string & method, const std::string & url, const std::string & body)
+Task<HttpCompleteResponse> HttpClient::request(const HttpMethod & method, const std::string & url, const std::string & body)
 {
     net::Url parsedUrl(url);
     if (!parsedUrl.isValid())
@@ -70,7 +70,7 @@ Task<HttpCompleteResponse> HttpClient::request(const std::string & method, const
     co_return co_await sendRequest(method, parsedUrl, body);
 }
 
-Task<HttpCompleteResponse> HttpClient::sendRequest(const std::string & method, const net::Url & url, const std::string & body)
+Task<HttpCompleteResponse> HttpClient::sendRequest(const HttpMethod & method, const net::Url & url, const std::string & body)
 {
     // Resolve hostname
     auto addresses = co_await net::resolve(url.host());
@@ -96,11 +96,11 @@ Task<HttpCompleteResponse> HttpClient::sendRequest(const std::string & method, c
 
     // Build request
     std::string request;
-    request.reserve(method.size() + url.path().size() + url.host().size() + body.size() + 64);
+    request.reserve(method.toString().size() + url.path().size() + url.host().size() + body.size() + 64);
     std::string requestTarget = url.path();
     if (!url.query().empty())
         requestTarget.append("?").append(url.query());
-    request.append(method).append(" ").append(requestTarget).append(" HTTP/1.1\r\n");
+    request.append(method.toString()).append(" ").append(requestTarget).append(" HTTP/1.1\r\n");
     request.append("Host: ").append(url.host()).append("\r\n");
     request.append("Connection: close\r\n");
 
@@ -117,7 +117,7 @@ Task<HttpCompleteResponse> HttpClient::sendRequest(const std::string & method, c
     }
     co_await stream->write(request.c_str(), request.size());
 
-    co_return co_await readResponse(stream, method == "HEAD");
+    co_return co_await readResponse(stream, method == methods::Head);
 }
 
 Task<HttpCompleteResponse> HttpClient::readResponse(io::StreamPtr stream, bool ignoreContentLength)
@@ -134,7 +134,7 @@ Task<HttpCompleteResponse> HttpClient::readResponse(io::StreamPtr stream, bool i
     co_return co_await incomingStream.toCompleteResponse();
 }
 
-Task<HttpClientSession> HttpClient::stream(const std::string & method, const std::string & url)
+Task<HttpClientSession> HttpClient::stream(const HttpMethod & method, const std::string & url)
 {
     net::Url parsedUrl(url);
     if (!parsedUrl.isValid())

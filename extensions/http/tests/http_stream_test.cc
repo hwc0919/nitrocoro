@@ -42,7 +42,7 @@ Task<> run_stream_test(uint16_t port, bool useChunk, nitrocoro::test::TestCtxPtr
     co_await sleep(10ms);
 
     HttpClient client;
-    auto [req, respFuture] = co_await client.stream("POST", "http://127.0.0.1:" + std::to_string(port) + "/stream-echo");
+    auto [req, respFuture] = co_await client.stream(methods::Post, "http://127.0.0.1:" + std::to_string(port) + "/stream-echo");
 
     std::vector<std::string> reqChunks, respChunks;
 

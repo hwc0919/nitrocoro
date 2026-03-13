@@ -41,7 +41,7 @@ void HttpRouter::addMethodToEntry(RouteEntry & entry, HttpMethod method, const H
     }
 }
 
-void HttpRouter::insertRadix(RouteNode & node, std::string_view path, const HttpMethods & methods, const HttpHandlerPtr & handler)
+void HttpRouter::insertRadix(RouteNode & node, std::string_view path, const MethodList & methods, const HttpHandlerPtr & handler)
 {
     size_t pos = 0;
     RouteNode * cur = &node;
@@ -134,14 +134,14 @@ const HttpRouter::RouteEntry * HttpRouter::matchRadix(const RouteNode & node, st
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-void HttpRouter::checkInvalidMethods(const HttpMethods & methods)
+void HttpRouter::checkInvalidMethods(const MethodList & methods)
 {
     for (const auto & m : methods.methods_)
         if (m == methods::_Invalid)
             throw std::invalid_argument("HttpRouter: invalid HTTP method");
 }
 
-void HttpRouter::addRouteImpl(const std::string & path, const HttpMethods & methods, HttpHandlerPtr handler)
+void HttpRouter::addRouteImpl(const std::string & path, const MethodList & methods, HttpHandlerPtr handler)
 {
     auto isParamOrWild = [](std::string_view p, char c) {
         if (!p.empty() && p[0] == c)

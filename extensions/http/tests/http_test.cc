@@ -261,7 +261,7 @@ NITRO_TEST(http_head)
     NITRO_CHECK_EQ(getResp.statusCode(), StatusCode::k200OK);
     auto expectedLen = getResp.getHeader(HttpHeader::NameCode::ContentLength);
 
-    auto headResp = co_await client.request("HEAD", url);
+    auto headResp = co_await client.request(methods::Head, url);
     NITRO_CHECK_EQ(headResp.statusCode(), StatusCode::k200OK);
     NITRO_CHECK(headResp.body().empty());
     NITRO_CHECK_EQ(headResp.getHeader(HttpHeader::NameCode::ContentLength), expectedLen);

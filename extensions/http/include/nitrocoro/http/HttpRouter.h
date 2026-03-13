@@ -18,23 +18,28 @@
 namespace nitrocoro::http
 {
 
-struct HttpMethods
+namespace detail
 {
-    explicit HttpMethods(std::string_view method)
+
+struct MethodList
+{
+    explicit MethodList(std::string_view method)
         : methods_{ HttpMethod::fromString(method) } {}
-    HttpMethods(HttpMethod method)
+    MethodList(HttpMethod method)
         : methods_{ method } {}
-    HttpMethods(std::initializer_list<std::string_view> methods)
+    MethodList(std::initializer_list<std::string_view> methods)
     {
         methods_.reserve(methods.size());
         for (auto s : methods)
             methods_.push_back(HttpMethod::fromString(s));
     }
-    HttpMethods(std::initializer_list<HttpMethod> methods)
+    MethodList(std::initializer_list<HttpMethod> methods)
         : methods_(methods) {}
 
     std::vector<HttpMethod> methods_;
 };
+
+} // namespace detail
 
 /**
  * @brief HTTP request router with three-tier matching.
@@ -98,6 +103,8 @@ struct HttpMethods
 class HttpRouter
 {
 public:
+    using MethodList = detail::MethodList;
+
     struct RouteResult
     {
         enum class Reason
@@ -116,9 +123,9 @@ public:
     };
 
     template <typename F>
-    void addRoute(const std::string & path, HttpMethods methods, F && handler);
+    void addRoute(const std::string & path, MethodList methods, F && handler);
     template <typename F>
-    void addRouteRegex(const std::string & pattern, const HttpMethods & methods, F && handler);
+    void addRouteRegex(const std::string & pattern, const MethodList & methods, F && handler);
 
     // Returns {handler, params} for the matched route, or {nullptr, {}} if not found.
     RouteResult route(HttpMethod method, const std::string & path) const;
@@ -149,25 +156,25 @@ private:
         std::vector<std::tuple<std::string, std::regex, RouteEntry>> regexRoutes;
     };
 
-    void addRouteImpl(const std::string & path, const HttpMethods & methods, HttpHandlerPtr handler);
+    void addRouteImpl(const std::string & path, const MethodList & methods, HttpHandlerPtr handler);
 
-    static void checkInvalidMethods(const HttpMethods & methods);
+    static void checkInvalidMethods(const MethodList & methods);
     static void addMethodToEntry(RouteEntry & entry, HttpMethod method, const HttpHandlerPtr & handler);
-    static void insertRadix(RouteNode & node, std::string_view path, const HttpMethods & methods, const HttpHandlerPtr & handler);
+    static void insertRadix(RouteNode & node, std::string_view path, const MethodList & methods, const HttpHandlerPtr & handler);
     static const RouteEntry * matchRadix(const RouteNode & node, std::string_view path, Params & params, size_t depth = 0);
 
     Routes routes_;
 };
 
 template <typename F>
-void HttpRouter::addRoute(const std::string & path, HttpMethods methods, F && handler)
+void HttpRouter::addRoute(const std::string & path, MethodList methods, F && handler)
 {
     checkInvalidMethods(methods);
     addRouteImpl(path, methods, makeHttpHandler(std::forward<F>(handler)));
 }
 
 template <typename F>
-void HttpRouter::addRouteRegex(const std::string & pattern, const HttpMethods & methods, F && handler)
+void HttpRouter::addRouteRegex(const std::string & pattern, const MethodList & methods, F && handler)
 {
     checkInvalidMethods(methods);
     auto handlerPtr = makeHttpHandler(std::forward<F>(handler));

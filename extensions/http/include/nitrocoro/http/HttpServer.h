@@ -34,13 +34,13 @@ public:
 
     // Convenience: forwards to the internal router.
     template <typename F>
-    void route(const std::string & path, HttpMethods methods, F && handler)
+    void route(const std::string & path, detail::MethodList methods, F && handler)
     {
         router_->addRoute(path, std::move(methods), std::forward<F>(handler));
     }
 
     template <typename F>
-    void routeRegex(const std::string & pattern, HttpMethods methods, F && handler)
+    void routeRegex(const std::string & pattern, detail::MethodList methods, F && handler)
     {
         router_->addRouteRegex(pattern, std::move(methods), std::forward<F>(handler));
     }
