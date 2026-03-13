@@ -189,15 +189,22 @@ bool HttpParser<HttpRequest>::parseRequestLine(std::string_view line)
     }
 
     std::string_view fullPath = line.substr(pos1 + 1, pos2 - pos1 - 1);
-    size_t qpos = fullPath.find('?');
-    std::string_view rawPath = fullPath.substr(0, qpos);
+    size_t qPos = fullPath.find('?');
+    std::string_view rawPath = fullPath.substr(0, qPos);
 
     data_.rawPath = rawPath;
-    data_.path = utils::urlDecode(rawPath);
-
-    if (qpos != std::string_view::npos)
+    if (rawPath.empty())
     {
-        data_.query = fullPath.substr(qpos + 1);
+        data_.path = "/"; // tolerance
+    }
+    else
+    {
+        data_.path = utils::urlDecode(rawPath);
+    }
+
+    if (qPos != std::string_view::npos)
+    {
+        data_.query = fullPath.substr(qPos + 1);
         parseQueryString(data_.query);
     }
     else
