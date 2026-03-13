@@ -48,7 +48,7 @@ public:
     Task<> end(std::string_view data);
 
 protected:
-    static const char * getDefaultReason(StatusCode code);
+    static const char * getDefaultReason(uint16_t code);
     Task<> writeHeaders();
     void buildHeaders(std::string & buf);
     void decideTransferMode(std::optional<size_t> lengthHint = std::nullopt);
@@ -118,6 +118,7 @@ public:
     {
     }
 
+    void setStatus(int code, const std::string & reason = "");
     void setStatus(StatusCode code, const std::string & reason = "");
     void setVersion(Version version) { data_.version = version; }
     void setCloseConnection(bool shouldClose) { data_.shouldClose = shouldClose; }

@@ -12,7 +12,7 @@
 namespace nitrocoro::http
 {
 
-enum class StatusCode
+enum class StatusCode : uint16_t
 {
     kUnknown = 0,
     k100Continue = 100,
@@ -146,6 +146,16 @@ inline constexpr HttpMethod _Invalid{ HttpMethod::_Invalid };
 } // namespace methods
 
 } // namespace nitrocoro::http
+
+inline bool operator==(nitrocoro::http::StatusCode code, int i)
+{
+    return static_cast<int>(code) == i;
+}
+
+inline bool operator==(int i, nitrocoro::http::StatusCode code)
+{
+    return static_cast<int>(code) == i;
+}
 
 template <>
 struct std::hash<nitrocoro::http::HttpMethod>

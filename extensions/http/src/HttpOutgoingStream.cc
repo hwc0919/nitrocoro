@@ -132,7 +132,7 @@ void HttpOutgoingStreamBase<DataType>::buildHeaders(std::string & buf)
     {
         buf.append(toVersionString(data_.version))
             .append(" ")
-            .append(std::to_string(static_cast<int>(data_.statusCode)))
+            .append(std::to_string(data_.statusCode))
             .append(" ")
             .append(data_.statusReason.empty() ? getDefaultReason(data_.statusCode) : data_.statusReason)
             .append("\r\n");
@@ -266,9 +266,9 @@ Task<> HttpOutgoingStreamBase<DataType>::writeHeaders()
 
 // TODO: move to http helpers
 template <typename DataType>
-const char * HttpOutgoingStreamBase<DataType>::getDefaultReason(StatusCode code)
+const char * HttpOutgoingStreamBase<DataType>::getDefaultReason(uint16_t code)
 {
-    switch (code)
+    switch (static_cast<StatusCode>(code))
     {
         case StatusCode::k100Continue:
             return "Continue";
@@ -416,10 +416,15 @@ namespace nitrocoro::http
 // HttpOutgoingStream<HttpResponse> Implementation
 // ============================================================================
 
-void HttpOutgoingStream<HttpResponse>::setStatus(StatusCode code, const std::string & reason)
+void HttpOutgoingStream<HttpResponse>::setStatus(int code, const std::string & reason)
 {
     data_.statusCode = code;
     data_.statusReason = reason.empty() ? detail::HttpOutgoingStreamBase<HttpResponse>::getDefaultReason(code) : reason;
+}
+
+void HttpOutgoingStream<HttpResponse>::setStatus(StatusCode code, const std::string & reason)
+{
+    setStatus(static_cast<uint16_t>(code), reason);
 }
 
 } // namespace nitrocoro::http

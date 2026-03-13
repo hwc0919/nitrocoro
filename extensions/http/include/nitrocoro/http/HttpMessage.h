@@ -37,7 +37,7 @@ struct HttpRequest
 struct HttpResponse
 {
     Version version = Version::kHttp11;
-    StatusCode statusCode = StatusCode::k200OK;
+    uint16_t statusCode{ static_cast<uint16_t>(StatusCode::k200OK) };
     std::string statusReason;
     HttpHeaderMap headers;
     HttpCookieMap cookies;

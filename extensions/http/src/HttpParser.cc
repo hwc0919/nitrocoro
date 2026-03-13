@@ -26,11 +26,6 @@ static Version parseHttpVersion(std::string_view versionStr)
     return Version::kUnknown;
 }
 
-static StatusCode parseStatusCode(int code)
-{
-    return static_cast<StatusCode>(code);
-}
-
 struct HeaderLine
 {
     std::string_view name;
@@ -350,11 +345,48 @@ bool HttpParser<HttpResponse>::processConnectionClose()
 bool HttpParser<HttpResponse>::parseStatusLine(std::string_view line)
 {
     size_t sp1 = line.find(' ');
-    size_t sp2 = line.find(' ', sp1 + 1);
-
+    if (sp1 == std::string_view::npos)
+    {
+        setError(HttpParseError::MalformedRequestLine, "Invalid status line");
+        return false;
+    }
     data_.version = parseHttpVersion(line.substr(0, sp1));
-    data_.statusCode = parseStatusCode(std::stoi(std::string(line.substr(sp1 + 1, sp2 - sp1 - 1))));
-    data_.statusReason = line.substr(sp2 + 1);
+    if (data_.version == Version::kUnknown)
+    {
+        setError(HttpParseError::MalformedRequestLine, "Invalid HTTP version");
+        return false;
+    }
+
+    size_t sp2 = line.find(' ', sp1 + 1);
+    std::string_view codeStr;
+    std::string_view reason;
+    if (sp2 == std::string_view::npos)
+    {
+        codeStr = line.substr(sp1 + 1);
+        reason = {};
+    }
+    else
+    {
+        codeStr = line.substr(sp1 + 1, sp2 - sp1 - 1);
+        reason = line.substr(sp2 + 1);
+    }
+
+    try
+    {
+        data_.statusCode = static_cast<uint16_t>(std::stoi(std::string(codeStr)));
+    }
+    catch (const std::exception &)
+    {
+        setError(HttpParseError::MalformedRequestLine, "Invalid status code");
+        return false;
+    }
+
+    if (data_.statusCode < 100 || data_.statusCode > 999) // loose
+    {
+        setError(HttpParseError::MalformedRequestLine, "Invalid status code");
+        return false;
+    }
+    data_.statusReason = std::string(reason);
     return true;
 }
 

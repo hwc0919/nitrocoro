@@ -55,7 +55,7 @@ public:
     using HttpMessageAccessor::HttpMessageAccessor;
 
     Version version() const { return message_.version; }
-    StatusCode statusCode() const { return message_.statusCode; }
+    uint16_t statusCode() const { return message_.statusCode; }
     const std::string & statusReason() const { return message_.statusReason; }
 };
 

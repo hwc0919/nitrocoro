@@ -272,7 +272,84 @@ NITRO_TEST(http_parser_response_unsupported_encoding)
     co_return;
 }
 
-// ── Edge Cases ────────────────────────────────────────────────────────────────
+NITRO_TEST(http_parser_response_status_code)
+{
+    // normal: with reason phrase
+    {
+        HttpParser<HttpResponse> parser;
+        parser.parseLine("HTTP/1.1 200 OK");
+        parser.parseLine("");
+        auto result = parser.extractResult();
+        NITRO_CHECK(!result.error());
+        NITRO_CHECK_EQ(result.message.statusCode, StatusCode::k200OK);
+        NITRO_CHECK_EQ(result.message.statusReason, "OK");
+    }
+    // normal: without reason phrase
+    {
+        HttpParser<HttpResponse> parser;
+        parser.parseLine("HTTP/1.1 204 ");
+        parser.parseLine("");
+        auto result = parser.extractResult();
+        NITRO_CHECK(!result.error());
+        NITRO_CHECK_EQ(result.message.statusCode, StatusCode::k204NoContent);
+        NITRO_CHECK(result.message.statusReason.empty());
+    }
+    // normal: without reason phrase and trailing space
+    {
+        HttpParser<HttpResponse> parser;
+        parser.parseLine("HTTP/1.1 204");
+        parser.parseLine("");
+        auto result = parser.extractResult();
+        NITRO_CHECK(!result.error());
+        NITRO_CHECK_EQ(result.message.statusCode, StatusCode::k204NoContent);
+        NITRO_CHECK(result.message.statusReason.empty());
+    }
+    // non-standard code
+    {
+        HttpParser<HttpResponse> parser;
+        parser.parseLine("HTTP/1.1 999 Custom");
+        parser.parseLine("");
+        auto result = parser.extractResult();
+        NITRO_CHECK(!result.error());
+        NITRO_CHECK_EQ(result.message.statusCode, 999);
+    }
+    // invalid version
+    {
+        HttpParser<HttpResponse> parser;
+        auto state = parser.parseLine("HTTP/2.0 200 OK");
+        NITRO_CHECK_EQ(state, HttpParserState::Error);
+        NITRO_CHECK(parser.extractResult().error());
+    }
+    // missing first space
+    {
+        HttpParser<HttpResponse> parser;
+        auto state = parser.parseLine("HTTP/1.1");
+        NITRO_CHECK_EQ(state, HttpParserState::Error);
+        NITRO_CHECK(parser.extractResult().error());
+    }
+    // non-numeric status code
+    {
+        HttpParser<HttpResponse> parser;
+        auto state = parser.parseLine("HTTP/1.1 abc OK");
+        NITRO_CHECK_EQ(state, HttpParserState::Error);
+        NITRO_CHECK_EQ(parser.extractResult().errorCode, HttpParseError::MalformedRequestLine);
+    }
+    // status code too short (2 digits)
+    {
+        HttpParser<HttpResponse> parser;
+        auto state = parser.parseLine("HTTP/1.1 99 OK");
+        NITRO_CHECK_EQ(state, HttpParserState::Error);
+        NITRO_CHECK_EQ(parser.extractResult().errorCode, HttpParseError::MalformedRequestLine);
+    }
+    // status code too long (4 digits) but in range
+    {
+        HttpParser<HttpResponse> parser;
+        auto state = parser.parseLine("HTTP/1.1 1000 OK");
+        NITRO_CHECK_EQ(state, HttpParserState::Error);
+        NITRO_CHECK_EQ(parser.extractResult().errorCode, HttpParseError::MalformedRequestLine);
+    }
+    co_return;
+}
 
 NITRO_TEST(http_parser_empty_header_value)
 {
