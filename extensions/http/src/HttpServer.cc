@@ -195,12 +195,21 @@ Task<> HttpServer::handleConnection(net::TcpConnectionPtr conn)
         auto result = router_->route(method, request.path());
         if (result.reason != HttpRouter::RouteResult::Reason::Ok || !result.handler)
         {
-            // TODO: custom handler
+            // TODO: custom handler? 404 could use * route?
             if (result.reason == HttpRouter::RouteResult::Reason::MethodNotAllowed)
             {
-                response.setStatus(StatusCode::k405MethodNotAllowed);
-                response.setHeader(HttpHeader::NameCode::Allow, result.allowedMethods);
-                co_await response.end("Method Not Allowed");
+                if (method == methods::Options)
+                {
+                    response.setStatus(StatusCode::k200OK);
+                    response.setHeader(HttpHeader::NameCode::Allow, result.allowedMethods);
+                    co_await response.end();
+                }
+                else
+                {
+                    response.setStatus(StatusCode::k405MethodNotAllowed);
+                    response.setHeader(HttpHeader::NameCode::Allow, result.allowedMethods);
+                    co_await response.end("Method Not Allowed");
+                }
             }
             else
             {

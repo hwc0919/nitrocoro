@@ -269,6 +269,41 @@ NITRO_TEST(http_head)
     co_await server.stop();
 }
 
+/** OPTIONS on a registered path returns 200 with Allow header. */
+NITRO_TEST(http_options_registered_path)
+{
+    HttpServer server(0);
+    server.route("/data", { "GET", "POST" }, [](auto && req, auto && resp) -> Task<> {
+        co_await resp.end("ok");
+    });
+    co_await start_server(server);
+
+    std::string url = "http://127.0.0.1:" + std::to_string(server.listeningPort()) + "/data";
+    HttpClient client;
+    auto resp = co_await client.request(methods::Options, url);
+    NITRO_CHECK_EQ(resp.statusCode(), StatusCode::k200OK);
+    NITRO_CHECK(resp.body().empty());
+    auto allow = resp.getHeader(HttpHeader::NameCode::Allow);
+    NITRO_CHECK(allow.find("GET") != std::string::npos);
+    NITRO_CHECK(allow.find("POST") != std::string::npos);
+
+    co_await server.stop();
+}
+
+/** OPTIONS on an unregistered path returns 404. */
+NITRO_TEST(http_options_not_found)
+{
+    HttpServer server(0);
+    co_await start_server(server);
+
+    HttpClient client;
+    auto resp = co_await client.request(
+        methods::Options, "http://127.0.0.1:" + std::to_string(server.listeningPort()) + "/missing");
+    NITRO_CHECK_EQ(resp.statusCode(), StatusCode::k404NotFound);
+
+    co_await server.stop();
+}
+
 /** Handler throws: connection is closed, server continues accepting new connections. */
 NITRO_TEST(http_handler_throws)
 {
