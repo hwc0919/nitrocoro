@@ -22,7 +22,7 @@ static std::string_view nextSegment(std::string_view path, size_t & pos)
     return path.substr(start, pos - start);
 }
 
-void HttpRouter::addMethodToEntry(RouteEntry & entry, HttpMethod method, const HttpHandlerPtr & handler)
+void HttpRouter::addMethodToEntry(Entry & entry, HttpMethod method, const HttpHandlerPtr & handler)
 {
     entry.handlers[method] = handler;
     if (method == methods::Get && !entry.handlers.contains(methods::Head))
@@ -41,10 +41,10 @@ void HttpRouter::addMethodToEntry(RouteEntry & entry, HttpMethod method, const H
     }
 }
 
-void HttpRouter::insertRadix(RouteNode & node, std::string_view path, const MethodList & methods, const HttpHandlerPtr & handler)
+void HttpRouter::insertRadix(RadixNode & node, std::string_view path, const MethodList & methods, const HttpHandlerPtr & handler)
 {
     size_t pos = 0;
-    RouteNode * cur = &node;
+    RadixNode * cur = &node;
 
     while (true)
     {
@@ -63,7 +63,7 @@ void HttpRouter::insertRadix(RouteNode & node, std::string_view path, const Meth
             std::string name(seg.substr(1));
             auto & child = cur->paramChildren[name];
             if (!child)
-                child = std::make_unique<RouteNode>();
+                child = std::make_unique<RadixNode>();
             cur = child.get();
         }
         else if (seg[0] == '*')
@@ -71,7 +71,7 @@ void HttpRouter::insertRadix(RouteNode & node, std::string_view path, const Meth
             std::string name(seg.substr(1));
             auto & child = cur->wildcardChildren[name];
             if (!child)
-                child = std::make_unique<RouteNode>();
+                child = std::make_unique<RadixNode>();
             for (const auto & m : methods.methods_)
                 addMethodToEntry(child->entry, m, handler);
             return;
@@ -80,7 +80,7 @@ void HttpRouter::insertRadix(RouteNode & node, std::string_view path, const Meth
         {
             auto & child = cur->children[std::string(seg)];
             if (!child)
-                child = std::make_unique<RouteNode>();
+                child = std::make_unique<RadixNode>();
             cur = child.get();
         }
     }
@@ -89,12 +89,12 @@ void HttpRouter::insertRadix(RouteNode & node, std::string_view path, const Meth
 static constexpr size_t kMaxPathLength = 2048;
 static constexpr size_t kMaxPathSegments = 32;
 
-const HttpRouter::RouteEntry * HttpRouter::matchRadix(const RouteNode & node, std::string_view path, Params & params, size_t depth)
+const HttpRouter::Entry * HttpRouter::matchRadix(const RadixNode & node, std::string_view path, Params & params, size_t depth)
 {
     if (depth > kMaxPathSegments)
         return nullptr;
     size_t pos = 0;
-    const RouteNode * cur = &node;
+    const RadixNode * cur = &node;
 
     std::string_view seg = nextSegment(path, pos);
     if (seg.empty())
@@ -157,13 +157,11 @@ void HttpRouter::addRouteImpl(const std::string & path, const MethodList & metho
     if (!hasParam && !hasWild)
     {
         for (const auto & m : methods.methods_)
-        {
-            addMethodToEntry(routes_.exact[path], m, handler);
-        }
+            addMethodToEntry(exactRoutes_[path], m, handler);
     }
     else
     {
-        insertRadix(routes_.radixRoot, path, methods, handler);
+        insertRadix(radixRoot_, path, methods, handler);
     }
 }
 
@@ -172,7 +170,7 @@ HttpRouter::RouteResult HttpRouter::route(HttpMethod method, const std::string &
     if (path.size() > kMaxPathLength)
         return {};
 
-    auto lookupMethod = [&](const RouteEntry & entry) -> RouteResult {
+    auto lookupMethod = [&](const Entry & entry) -> RouteResult {
         auto it = entry.handlers.find(method);
         if (it != entry.handlers.end())
             return { it->second, {}, RouteResult::Reason::Ok, {} };
@@ -180,15 +178,15 @@ HttpRouter::RouteResult HttpRouter::route(HttpMethod method, const std::string &
     };
 
     // 1. exact
-    auto exactIt = routes_.exact.find(path);
-    if (exactIt != routes_.exact.end())
+    auto exactIt = exactRoutes_.find(path);
+    if (exactIt != exactRoutes_.end())
     {
         return lookupMethod(exactIt->second);
     }
 
     // 2. radix (param / wildcard)
     Params params;
-    if (const RouteEntry * entry = matchRadix(routes_.radixRoot, path, params))
+    if (const Entry * entry = matchRadix(radixRoot_, path, params))
     {
         auto r = lookupMethod(*entry);
         r.params = std::move(params);
@@ -196,17 +194,17 @@ HttpRouter::RouteResult HttpRouter::route(HttpMethod method, const std::string &
     }
 
     // 3. regex
-    for (const auto & [pat, re, entry] : routes_.regexRoutes)
+    for (const auto & r : regexRoutes_)
     {
         std::smatch m;
-        if (std::regex_match(path, m, re))
+        if (std::regex_match(path, m, r.regex))
         {
             Params regexParams;
             for (size_t i = 1; i < m.size(); ++i)
                 regexParams["$" + std::to_string(i)] = m[i].str();
-            auto r = lookupMethod(entry);
-            r.params = std::move(regexParams);
-            return r;
+            auto result = lookupMethod(r.entry);
+            result.params = std::move(regexParams);
+            return result;
         }
     }
 
