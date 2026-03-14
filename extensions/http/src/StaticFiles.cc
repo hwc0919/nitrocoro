@@ -4,8 +4,7 @@
  */
 #include <nitrocoro/http/StaticFiles.h>
 
-#include <nitrocoro/http/stream/HttpIncomingStream.h>
-#include <nitrocoro/http/stream/HttpOutgoingStream.h>
+#include <nitrocoro/http/HttpStream.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -14,18 +13,14 @@
 #include <filesystem>
 #include <string_view>
 #include <sys/stat.h>
+#include <unordered_map>
 
 namespace nitrocoro::http
 {
 
-namespace
+std::unordered_map<std::string, std::string> StaticFilesOptions::defaultMimeTypes()
 {
-
-static constexpr size_t kChunkSize = 65536;
-
-std::string_view mimeType(const std::string & ext)
-{
-    static constexpr std::pair<std::string_view, std::string_view> kTable[] = {
+    return {
         { ".html", "text/html; charset=utf-8" },
         { ".htm", "text/html; charset=utf-8" },
         { ".css", "text/css; charset=utf-8" },
@@ -49,13 +44,48 @@ std::string_view mimeType(const std::string & ext)
         { ".pdf", "application/pdf" },
         { ".wasm", "application/wasm" },
     };
-    for (auto & [e, m] : kTable)
-        if (e == ext)
-            return m;
-    return "application/octet-stream";
 }
 
-std::string makeETag(time_t mtime, off_t size)
+std::unordered_map<std::string, std::string> StaticFilesOptions::defaultAcceptEncodings()
+{
+    return { { "br", "br" }, { "gzip", "gz" } };
+}
+
+namespace
+{
+
+static constexpr size_t kChunkSize = 65536;
+
+static std::string_view mimeType(const std::string & ext,
+                                 const std::unordered_map<std::string, std::string> & mime_types)
+{
+    auto it = mime_types.find(ext);
+    return it != mime_types.end() ? std::string_view(it->second) : "application/octet-stream";
+}
+
+static std::vector<std::string_view> splitTokens(std::string_view sv)
+{
+    std::vector<std::string_view> tokens;
+    while (!sv.empty())
+    {
+        auto comma = sv.find(',');
+        std::string_view token = sv.substr(0, comma);
+        while (!token.empty() && token.front() == ' ')
+            token.remove_prefix(1);
+        auto semi = token.find(';');
+        token = token.substr(0, semi);
+        while (!token.empty() && token.back() == ' ')
+            token.remove_suffix(1);
+        if (!token.empty())
+            tokens.push_back(token);
+        if (comma == std::string_view::npos)
+            break;
+        sv.remove_prefix(comma + 1);
+    }
+    return tokens;
+}
+
+static std::string makeETag(time_t mtime, off_t size)
 {
     char buf[32];
     std::snprintf(buf, sizeof(buf), "\"%lx-%lx\"",
@@ -146,27 +176,31 @@ HttpHandlerPtr staticFiles(std::string_view root, StaticFilesOptions opts)
                 resp.setHeader("ETag", etag);
             }
 
-            // Pre-compressed static file (br > gzip)
+            // Pre-compressed static file: iterate Accept-Encoding in order
             fs::path actualPath = filePath;
             const auto & ae = req.getHeader(HttpHeader::NameCode::AcceptEncoding);
-            for (auto [ext, enc] : { std::pair{ "br", "br" }, std::pair{ "gz", "gzip" } })
+            if (!ae.empty() && !opts.accept_encodings.empty())
             {
-                if (ae.find(enc) == std::string::npos)
-                    continue;
-                fs::path candidate(filePath.string() + "." + ext);
-                struct stat cst{};
-                if (::stat(candidate.c_str(), &cst) == 0 && S_ISREG(cst.st_mode))
+                for (auto token : splitTokens(ae))
                 {
-                    actualPath = candidate;
-                    st = cst;
-                    resp.setHeader(HttpHeader::NameCode::ContentEncoding, enc);
-                    break;
+                    auto encIt = opts.accept_encodings.find(std::string(token));
+                    if (encIt == opts.accept_encodings.end())
+                        continue;
+                    fs::path candidate(filePath.string() + "." + encIt->second);
+                    struct stat cst{};
+                    if (::stat(candidate.c_str(), &cst) == 0 && S_ISREG(cst.st_mode))
+                    {
+                        actualPath = candidate;
+                        st = cst;
+                        resp.setHeader(HttpHeader::NameCode::ContentEncoding, std::string(token));
+                        break;
+                    }
                 }
             }
 
             // Headers
             resp.setStatus(200);
-            resp.setHeader(HttpHeader::NameCode::ContentType, std::string(mimeType(filePath.extension().string())));
+            resp.setHeader(HttpHeader::NameCode::ContentType, std::string(mimeType(filePath.extension().string(), opts.mime_types)));
             resp.setHeader(HttpHeader::NameCode::ContentLength, std::to_string(st.st_size));
 
             std::string cacheControlValue;

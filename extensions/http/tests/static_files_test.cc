@@ -276,11 +276,10 @@ NITRO_TEST(static_files_precompressed_gzip)
     co_await start_server(server);
 
     uint16_t port = server.listeningPort();
-    std::string req =
-        "GET /app.js HTTP/1.1\r\n"
-        "Host: 127.0.0.1\r\n"
-        "Accept-Encoding: gzip\r\n"
-        "Connection: close\r\n\r\n";
+    std::string req = "GET /app.js HTTP/1.1\r\n"
+                      "Host: 127.0.0.1\r\n"
+                      "Accept-Encoding: gzip\r\n"
+                      "Connection: close\r\n\r\n";
     auto resp = co_await rawHttp(port, req);
     NITRO_CHECK_EQ(statusCode(resp), 200);
     NITRO_CHECK_EQ(getHeader(resp, "Content-Encoding"), "gzip");
@@ -290,8 +289,8 @@ NITRO_TEST(static_files_precompressed_gzip)
     co_await server.stop();
 }
 
-/** Accept-Encoding: br preferred over gzip when both exist. */
-NITRO_TEST(static_files_precompressed_br_preferred)
+/** Accept-Encoding order is respected: br listed first → serves .br. */
+NITRO_TEST(static_files_precompressed_accept_order)
 {
     TempDir dir;
     dir.write("app.js", "console.log('hello')");
@@ -311,15 +310,132 @@ NITRO_TEST(static_files_precompressed_br_preferred)
     co_await start_server(server);
 
     uint16_t port = server.listeningPort();
-    std::string req =
-        "GET /app.js HTTP/1.1\r\n"
-        "Host: 127.0.0.1\r\n"
-        "Accept-Encoding: gzip, br\r\n"
-        "Connection: close\r\n\r\n";
+    std::string req = "GET /app.js HTTP/1.1\r\n"
+                      "Host: 127.0.0.1\r\n"
+                      "Accept-Encoding: br, gzip\r\n"
+                      "Connection: close\r\n\r\n";
     auto resp = co_await rawHttp(port, req);
     NITRO_CHECK_EQ(statusCode(resp), 200);
     NITRO_CHECK_EQ(getHeader(resp, "Content-Encoding"), "br");
     NITRO_CHECK_EQ(getHeader(resp, "Content-Length"), std::to_string(sizeof(kBr)));
+
+    co_await server.stop();
+}
+
+/** Unknown extension → Content-Type: application/octet-stream. */
+NITRO_TEST(static_files_unknown_mime_type)
+{
+    TempDir dir;
+    dir.write("data.xyz", "hello");
+
+    HttpServer server(0);
+    server.route("/*path", { "GET" }, staticFiles(dir.path.string()));
+    co_await start_server(server);
+
+    HttpClient client;
+    auto resp = co_await client.get(
+        "http://127.0.0.1:" + std::to_string(server.listeningPort()) + "/data.xyz");
+    NITRO_CHECK_EQ(resp.statusCode(), StatusCode::k200OK);
+    NITRO_CHECK_EQ(resp.getHeader("content-type"), "application/octet-stream");
+
+    co_await server.stop();
+}
+
+/** Custom mime type is used for registered extension. */
+NITRO_TEST(static_files_custom_mime_type)
+{
+    TempDir dir;
+    dir.write("data.custom", "hello");
+
+    auto opts = StaticFilesOptions{};
+    opts.mime_types[".custom"] = "application/x-custom";
+
+    HttpServer server(0);
+    server.route("/*path", { "GET" }, staticFiles(dir.path.string(), std::move(opts)));
+    co_await start_server(server);
+
+    HttpClient client;
+    auto resp = co_await client.get(
+        "http://127.0.0.1:" + std::to_string(server.listeningPort()) + "/data.custom");
+    NITRO_CHECK_EQ(resp.statusCode(), StatusCode::k200OK);
+    NITRO_CHECK_EQ(resp.getHeader("content-type"), "application/x-custom");
+
+    co_await server.stop();
+}
+
+/** Unknown Accept-Encoding → serves original file, no Content-Encoding. */
+NITRO_TEST(static_files_unknown_accept_encoding)
+{
+    TempDir dir;
+    dir.write("app.js", "console.log('hello')");
+
+    HttpServer server(0);
+    server.route("/*path", { "GET" }, staticFiles(dir.path.string()));
+    co_await start_server(server);
+
+    uint16_t port = server.listeningPort();
+    std::string req = "GET /app.js HTTP/1.1\r\n"
+                      "Host: 127.0.0.1\r\n"
+                      "Accept-Encoding: zstd\r\n"
+                      "Connection: close\r\n\r\n";
+    auto resp = co_await rawHttp(port, req);
+    NITRO_CHECK_EQ(statusCode(resp), 200);
+    NITRO_CHECK(getHeader(resp, "Content-Encoding").empty());
+
+    co_await server.stop();
+}
+
+/** Custom Accept-Encoding: registered zstd → serves .zst file. */
+NITRO_TEST(static_files_custom_accept_encoding)
+{
+    TempDir dir;
+    dir.write("app.js", "console.log('hello')");
+    static constexpr unsigned char kZst[] = { 0x28, 0xb5, 0x2f, 0xfd };
+    dir.write("app.js.zst", std::string_view(reinterpret_cast<const char *>(kZst), sizeof(kZst)));
+
+    auto opts = StaticFilesOptions{};
+    opts.accept_encodings["zstd"] = "zst";
+
+    HttpServer server(0);
+    server.route("/*path", { "GET" }, staticFiles(dir.path.string(), std::move(opts)));
+    co_await start_server(server);
+
+    uint16_t port = server.listeningPort();
+    std::string req = "GET /app.js HTTP/1.1\r\n"
+                      "Host: 127.0.0.1\r\n"
+                      "Accept-Encoding: zstd\r\n"
+                      "Connection: close\r\n\r\n";
+    auto resp = co_await rawHttp(port, req);
+    NITRO_CHECK_EQ(statusCode(resp), 200);
+    NITRO_CHECK_EQ(getHeader(resp, "Content-Encoding"), "zstd");
+    NITRO_CHECK_EQ(getHeader(resp, "Content-Length"), std::to_string(sizeof(kZst)));
+
+    co_await server.stop();
+}
+
+/** Disabled encoding in accept_encodings is not served even if file exists. */
+NITRO_TEST(static_files_custom_accept_encodings)
+{
+    TempDir dir;
+    dir.write("app.js", "console.log('hello')");
+    static constexpr unsigned char kBr[] = { 0x3b };
+    dir.write("app.js.br", std::string_view(reinterpret_cast<const char *>(kBr), sizeof(kBr)));
+
+    auto opts = StaticFilesOptions{};
+    opts.accept_encodings = { { "gzip", "gz" } }; // br disabled
+
+    HttpServer server(0);
+    server.route("/*path", { "GET" }, staticFiles(dir.path.string(), std::move(opts)));
+    co_await start_server(server);
+
+    uint16_t port = server.listeningPort();
+    std::string req = "GET /app.js HTTP/1.1\r\n"
+                      "Host: 127.0.0.1\r\n"
+                      "Accept-Encoding: gzip, br\r\n"
+                      "Connection: close\r\n\r\n";
+    auto resp = co_await rawHttp(port, req);
+    NITRO_CHECK_EQ(statusCode(resp), 200);
+    NITRO_CHECK(getHeader(resp, "Content-Encoding") != "br");
 
     co_await server.stop();
 }

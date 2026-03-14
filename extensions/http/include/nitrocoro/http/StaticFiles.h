@@ -7,15 +7,22 @@
 #include <nitrocoro/http/HttpHandler.h>
 
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace nitrocoro::http
 {
 
 struct StaticFilesOptions
 {
-    std::string index_file = "index.html"; // served when path resolves to a directory
-    bool enable_etag = true;               // ETag based on file mtime + size
-    int max_age = 3600;                    // Cache-Control max-age in seconds, 0 = no-cache
+    static std::unordered_map<std::string, std::string> defaultMimeTypes();
+    static std::unordered_map<std::string, std::string> defaultAcceptEncodings();
+
+    std::string index_file = "index.html";
+    bool enable_etag = true;
+    int max_age = 3600;
+    std::unordered_map<std::string, std::string> mime_types = defaultMimeTypes();
+    std::unordered_map<std::string, std::string> accept_encodings = defaultAcceptEncodings();
 };
 
 /**
