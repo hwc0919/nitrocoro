@@ -9,6 +9,7 @@ add_library(nitrocoro-http STATIC
     src/HttpOutgoingStream.cc
     src/HttpServer.cc
     src/HttpParser.cc
+    src/StaticFiles.cc
     src/body_reader/ContentLengthReader.cc
     src/body_reader/ChunkedReader.cc
     src/body_reader/UntilCloseReader.cc
@@ -63,4 +64,8 @@ if (BUILD_TESTING)
     add_executable(http_pipeline_test tests/http_pipeline_test.cc)
     target_link_libraries(http_pipeline_test PRIVATE nitrocoro-http)
     add_test(NAME http_pipeline_test COMMAND http_pipeline_test)
+
+    add_executable(static_files_test tests/static_files_test.cc)
+    target_link_libraries(static_files_test PRIVATE nitrocoro-http)
+    add_test(NAME static_files_test COMMAND static_files_test)
 endif ()

@@ -170,7 +170,10 @@ template <typename F>
 void HttpRouter::addRoute(const std::string & path, MethodList methods, F && handler)
 {
     checkInvalidMethods(methods);
-    addRouteImpl(path, methods, makeHttpHandler(std::forward<F>(handler)));
+    if constexpr (std::is_same_v<std::decay_t<F>, HttpHandlerPtr>)
+        addRouteImpl(path, methods, std::forward<F>(handler));
+    else
+        addRouteImpl(path, methods, makeHttpHandler(std::forward<F>(handler)));
 }
 
 template <typename F>
