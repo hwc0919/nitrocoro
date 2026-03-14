@@ -146,6 +146,24 @@ HttpHandlerPtr staticFiles(std::string_view root, StaticFilesOptions opts)
                 resp.setHeader("ETag", etag);
             }
 
+            // Pre-compressed static file (br > gzip)
+            fs::path actualPath = filePath;
+            const auto & ae = req.getHeader(HttpHeader::NameCode::AcceptEncoding);
+            for (auto [ext, enc] : { std::pair{ "br", "br" }, std::pair{ "gz", "gzip" } })
+            {
+                if (ae.find(enc) == std::string::npos)
+                    continue;
+                fs::path candidate(filePath.string() + "." + ext);
+                struct stat cst{};
+                if (::stat(candidate.c_str(), &cst) == 0 && S_ISREG(cst.st_mode))
+                {
+                    actualPath = candidate;
+                    st = cst;
+                    resp.setHeader(HttpHeader::NameCode::ContentEncoding, enc);
+                    break;
+                }
+            }
+
             // Headers
             resp.setStatus(200);
             resp.setHeader(HttpHeader::NameCode::ContentType, std::string(mimeType(filePath.extension().string())));
@@ -171,7 +189,7 @@ HttpHandlerPtr staticFiles(std::string_view root, StaticFilesOptions opts)
 
             // Stream file body
             std::unique_ptr<FILE, decltype(&std::fclose)> fp(
-                std::fopen(filePath.c_str(), "rb"), &std::fclose);
+                std::fopen(actualPath.c_str(), "rb"), &std::fclose);
             if (!fp)
             {
                 resp.setStatus(500);

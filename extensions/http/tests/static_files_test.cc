@@ -257,6 +257,73 @@ NITRO_TEST(static_files_cache_control_max_age)
     co_await server.stop();
 }
 
+/** GET with Accept-Encoding: gzip → serves .gz, Content-Encoding: gzip. */
+NITRO_TEST(static_files_precompressed_gzip)
+{
+    TempDir dir;
+    dir.write("app.js", "console.log('hello')");
+    // minimal valid gzip bytes
+    static constexpr unsigned char kGzip[] = {
+        0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
+        0x4b, 0xce, 0xcf, 0x2b, 0xce, 0xcf, 0x49, 0xd5, 0x51, 0x48,
+        0x54, 0xc8, 0x48, 0xcd, 0xc9, 0xc9, 0x57, 0x27, 0x00, 0x00,
+        0x00, 0xff, 0xff, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+    dir.write("app.js.gz", std::string_view(reinterpret_cast<const char *>(kGzip), sizeof(kGzip)));
+
+    HttpServer server(0);
+    server.route("/*path", { "GET" }, staticFiles(dir.path.string()));
+    co_await start_server(server);
+
+    uint16_t port = server.listeningPort();
+    std::string req =
+        "GET /app.js HTTP/1.1\r\n"
+        "Host: 127.0.0.1\r\n"
+        "Accept-Encoding: gzip\r\n"
+        "Connection: close\r\n\r\n";
+    auto resp = co_await rawHttp(port, req);
+    NITRO_CHECK_EQ(statusCode(resp), 200);
+    NITRO_CHECK_EQ(getHeader(resp, "Content-Encoding"), "gzip");
+    NITRO_CHECK_EQ(getHeader(resp, "Content-Type"), "text/javascript; charset=utf-8");
+    NITRO_CHECK_EQ(getHeader(resp, "Content-Length"), std::to_string(sizeof(kGzip)));
+
+    co_await server.stop();
+}
+
+/** Accept-Encoding: br preferred over gzip when both exist. */
+NITRO_TEST(static_files_precompressed_br_preferred)
+{
+    TempDir dir;
+    dir.write("app.js", "console.log('hello')");
+    static constexpr unsigned char kGzip[] = {
+        0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
+        0x4b, 0xce, 0xcf, 0x2b, 0xce, 0xcf, 0x49, 0xd5, 0x51, 0x48,
+        0x54, 0xc8, 0x48, 0xcd, 0xc9, 0xc9, 0x57, 0x27, 0x00, 0x00,
+        0x00, 0xff, 0xff, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+    // minimal brotli: single empty meta-block
+    static constexpr unsigned char kBr[] = { 0x3b };
+    dir.write("app.js.gz", std::string_view(reinterpret_cast<const char *>(kGzip), sizeof(kGzip)));
+    dir.write("app.js.br", std::string_view(reinterpret_cast<const char *>(kBr), sizeof(kBr)));
+
+    HttpServer server(0);
+    server.route("/*path", { "GET" }, staticFiles(dir.path.string()));
+    co_await start_server(server);
+
+    uint16_t port = server.listeningPort();
+    std::string req =
+        "GET /app.js HTTP/1.1\r\n"
+        "Host: 127.0.0.1\r\n"
+        "Accept-Encoding: gzip, br\r\n"
+        "Connection: close\r\n\r\n";
+    auto resp = co_await rawHttp(port, req);
+    NITRO_CHECK_EQ(statusCode(resp), 200);
+    NITRO_CHECK_EQ(getHeader(resp, "Content-Encoding"), "br");
+    NITRO_CHECK_EQ(getHeader(resp, "Content-Length"), std::to_string(sizeof(kBr)));
+
+    co_await server.stop();
+}
+
 int main(int argc, char ** argv)
 {
     return nitrocoro::test::run_all(argc, argv);
