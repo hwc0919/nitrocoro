@@ -9,6 +9,7 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 namespace nitrocoro::http
 {
@@ -16,6 +17,7 @@ namespace nitrocoro::http
 using HttpHeaderMap = std::map<std::string, HttpHeader, std::less<>>;
 using HttpCookieMap = std::map<std::string, std::string, std::less<>>;
 using HttpQueryMap = std::map<std::string, std::string, std::less<>>;
+using HttpMultiQueryMap = std::map<std::string, std::vector<std::string>, std::less<>>;
 
 struct HttpRequest
 {

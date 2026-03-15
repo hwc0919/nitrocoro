@@ -6,6 +6,7 @@
 #include <nitrocoro/http/HttpHeader.h>
 #include <nitrocoro/http/HttpMessage.h>
 #include <nitrocoro/http/HttpTypes.h>
+#include <nitrocoro/utils/UrlEncode.h>
 
 #include <algorithm>
 #include <map>
@@ -39,6 +40,7 @@ public:
     Version version() const { return message_.version; }
     HttpMethod method() const { return message_.method; }
     const std::string & path() const { return message_.path; }
+    const std::string & queryString() const { return message_.query; }
     const HttpQueryMap & queries() const { return message_.queries; }
 
     const std::string & getQuery(std::string_view name) const
@@ -46,6 +48,36 @@ public:
         static const std::string emptyValue{};
         auto it = message_.queries.find(name);
         return it != message_.queries.end() ? it->second : emptyValue;
+    }
+
+    // Returns all query parameters, with multiple values per key.
+    // NOTE: will parse the raw query string on every call.
+    HttpMultiQueryMap multiQueries() const
+    {
+        HttpMultiQueryMap result;
+        std::string_view raw = message_.query;
+        size_t start = 0;
+        while (start < raw.size())
+        {
+            size_t ampPos = raw.find('&', start);
+            size_t end = (ampPos == std::string_view::npos) ? raw.size() : ampPos;
+            std::string_view pair = raw.substr(start, end - start);
+            size_t eqPos = pair.find('=');
+            if (eqPos != std::string_view::npos)
+            {
+                auto key = utils::urlDecodeComponent(pair.substr(0, eqPos));
+                auto value = utils::urlDecodeComponent(pair.substr(eqPos + 1));
+                result[key].push_back(std::move(value));
+            }
+            else if (!pair.empty())
+            {
+                result[utils::urlDecodeComponent(pair)];
+            }
+            if (ampPos == std::string_view::npos)
+                break;
+            start = ampPos + 1;
+        }
+        return result;
     }
 };
 
