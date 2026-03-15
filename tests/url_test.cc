@@ -90,45 +90,6 @@ NITRO_TEST(url_encode_component_roundtrip)
     co_return;
 }
 
-// ── formEncode ────────────────────────────────────────────────────────────────
-
-NITRO_TEST(form_encode_basic)
-{
-    NITRO_CHECK_EQ(formEncode("hello world"), "hello+world"); // space -> +
-    NITRO_CHECK_EQ(formEncode("foo/bar"), "foo%2Fbar");       // / encoded
-    NITRO_CHECK_EQ(formEncode("a+b"), "a%2Bb");               // + -> %2B
-    NITRO_CHECK_EQ(formEncode("foo=bar&baz"), "foo%3Dbar%26baz");
-    NITRO_CHECK_EQ(formEncode("abc-_.~"), "abc-_.~");
-    NITRO_CHECK_EQ(formEncode(""), "");
-    co_return;
-}
-
-NITRO_TEST(form_encode_roundtrip)
-{
-    std::string input = "hello world/foo+bar=baz";
-    NITRO_CHECK_EQ(formDecode(formEncode(input)), input);
-    co_return;
-}
-
-// ── formDecode ────────────────────────────────────────────────────────────────
-
-NITRO_TEST(form_decode_basic)
-{
-    NITRO_CHECK_EQ(formDecode("hello+world"), "hello world");
-    NITRO_CHECK_EQ(formDecode("hello%20world"), "hello world");
-    NITRO_CHECK_EQ(formDecode("a%2Bb"), "a+b");
-    NITRO_CHECK_EQ(formDecode("foo%2Fbar"), "foo/bar");
-    NITRO_CHECK_EQ(formDecode(""), "");
-    co_return;
-}
-
-NITRO_TEST(form_decode_invalid)
-{
-    NITRO_CHECK_EQ(formDecode("foo%2"), "foo%2");
-    NITRO_CHECK_EQ(formDecode("foo%GG"), "foo%GG");
-    co_return;
-}
-
 int main(int argc, char ** argv)
 {
     return nitrocoro::test::run_all(argc, argv);

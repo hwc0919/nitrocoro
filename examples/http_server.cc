@@ -4,6 +4,7 @@
  */
 #include <getopt.h>
 #include <nitrocoro/core/Scheduler.h>
+#include <nitrocoro/http/Form.h>
 #include <nitrocoro/http/HttpServer.h>
 #include <nitrocoro/utils/Debug.h>
 #include <thread>
@@ -16,21 +17,21 @@ Task<> server_main(uint16_t port)
 {
     HttpServer server(port);
 
-    server.route("/", {"GET"}, [](auto && req, auto && resp) -> Task<> {
+    server.route("/", { "GET" }, [](auto && req, auto && resp) -> Task<> {
         resp.setStatus(StatusCode::k200OK);
         resp.setHeader("Content-Type", "text/html; charset=utf-8");
         co_await resp.end("<h1>Hello, World!</h1>");
     });
 
-    server.route("/large", {"GET"}, [](HttpIncomingStream<HttpRequest> && req, HttpOutgoingStream<HttpResponse> && resp) -> Task<> {
+    server.route("/large", { "GET" }, [](HttpIncomingStream<HttpRequest> && req, HttpOutgoingStream<HttpResponse> && resp) -> Task<> {
         resp.setStatus(StatusCode::k200OK);
         resp.setHeader("Content-Type", "text/html; charset=utf-8");
         std::string largeBody(1024 * 1024, 'a');
         co_await resp.end(largeBody);
     });
 
-    server.route("/hello", {"GET"}, [](HttpIncomingStream<HttpRequest> && req, HttpOutgoingStream<HttpResponse> && resp) -> Task<> {
-        auto name = req.getQuery("name");
+    server.route("/hello", { "GET" }, [](HttpIncomingStream<HttpRequest> && req, HttpOutgoingStream<HttpResponse> && resp) -> Task<> {
+        auto & name = req.getQuery("name");
         std::string body = "Hello, ";
         body += name.empty() ? "Guest" : name;
         body += "!";
@@ -40,7 +41,7 @@ Task<> server_main(uint16_t port)
         co_await resp.end(body);
     });
 
-    server.route("/sleep", {"GET"}, [](HttpIncomingStream<HttpRequest> && req, HttpOutgoingStream<HttpResponse> && resp) -> Task<> {
+    server.route("/sleep", { "GET" }, [](HttpIncomingStream<HttpRequest> && req, HttpOutgoingStream<HttpResponse> && resp) -> Task<> {
         utils::StringBuffer bodyBuf;
         co_await req.readToEnd(bodyBuf);
         co_await sleep(std::chrono::seconds(3));
@@ -49,12 +50,30 @@ Task<> server_main(uint16_t port)
         co_await resp.end("wakeup after 3 seconds");
     });
 
-    server.route("/echo", {"POST"}, [](HttpIncomingStream<HttpRequest> && req, HttpOutgoingStream<HttpResponse> && resp) -> Task<> {
+    server.route("/echo", { "POST" }, [](HttpIncomingStream<HttpRequest> && req, HttpOutgoingStream<HttpResponse> && resp) -> Task<> {
         utils::StringBuffer bodyBuf;
         co_await req.readToEnd(bodyBuf);
         resp.setStatus(StatusCode::k200OK);
         resp.setHeader("Content-Type", "text/plain");
         co_await resp.end(bodyBuf.view());
+    });
+
+    server.route("/form", { "POST" }, [](HttpIncomingStream<HttpRequest> && req, HttpOutgoingStream<HttpResponse> && resp) -> Task<> {
+        utils::StringBuffer bodyBuf;
+        co_await req.readToEnd(bodyBuf);
+
+        // Parse form data
+        auto formData = http::parseFormData(bodyBuf.view());
+
+        std::string response = "Form data received:\n";
+        for (const auto & [key, value] : formData)
+        {
+            response += (key + " = " + value + "\n");
+        }
+
+        resp.setStatus(StatusCode::k200OK);
+        resp.setHeader("Content-Type", "text/plain");
+        co_await resp.end(response);
     });
 
     co_await server.start();
@@ -97,8 +116,9 @@ int main(int argc, char * argv[])
            "Try:\n"
            "  curl http://localhost:%hu/\n"
            "  curl http://localhost:%hu/hello?name=Alice\n"
-           "  curl -X POST -d 'test data' http://localhost:%hu/echo\n",
-           threadCount, port, port, port);
+           "  curl -X POST -d 'test data' http://localhost:%hu/echo\n"
+           "  curl -X POST -d 'name=Alice&age=25' http://localhost:%hu/form\n",
+           threadCount, port, port, port, port);
     for (auto & t : threads)
         t.join();
 

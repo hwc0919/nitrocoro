@@ -1,6 +1,7 @@
 add_library(nitrocoro-http STATIC
     src/BodyReader.cc
     src/BodyWriter.cc
+    src/Form.cc
     src/HttpClient.cc
     src/HttpMethod.cc
     src/HttpRouter.cc
@@ -68,4 +69,8 @@ if (BUILD_TESTING)
     add_executable(static_files_test tests/static_files_test.cc)
     target_link_libraries(static_files_test PRIVATE nitrocoro-http)
     add_test(NAME static_files_test COMMAND static_files_test)
+
+    add_executable(form_test tests/form_test.cc)
+    target_link_libraries(form_test PRIVATE nitrocoro-http)
+    add_test(NAME form_test COMMAND form_test)
 endif ()

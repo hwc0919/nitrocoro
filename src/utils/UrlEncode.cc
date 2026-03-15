@@ -112,22 +112,4 @@ std::string urlEncodeComponent(std::string_view input)
     return result;
 }
 
-std::string formEncode(std::string_view input)
-{
-    std::string result;
-    result.reserve(input.size());
-    for (char c : input)
-    {
-        if (isUnreserved(c))
-            result += c;
-        else if (c == ' ')
-            result += '+';
-        else if (c == '+')
-            result += "%2B";
-        else
-            percentEncode(result, c);
-    }
-    return result;
-}
-
 } // namespace nitrocoro::utils

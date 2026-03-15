@@ -26,14 +26,4 @@ std::string urlEncode(std::string_view input);
 // Space -> '%20', '/' -> '%2F', '+' -> '%2B'.
 std::string urlEncodeComponent(std::string_view input);
 
-// Encode a single form (application/x-www-form-urlencoded) key/value component.
-// Space -> '+', '/' -> '%2F', '+' -> '%2B'.
-std::string formEncode(std::string_view input);
-
-// Decode a single form key/value component. Forwards to urlDecodeComponent.
-inline std::string formDecode(std::string_view input)
-{
-    return urlDecodeComponent(input);
-}
-
 } // namespace nitrocoro::utils
