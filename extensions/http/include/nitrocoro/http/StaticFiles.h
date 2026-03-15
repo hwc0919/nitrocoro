@@ -38,9 +38,10 @@ struct StaticFilesOptions
  * Intended for use with a wildcard route:
  * @code
  * server.route("/static/*path", {"GET", "HEAD"}, staticFiles("./public"));
+ * server.route("/static/*",     {"GET", "HEAD"}, staticFiles("./public"));
  * @endcode
  *
- * The captured `path` param is resolved relative to @p root.
+ * The wildcard param (any name) is resolved relative to @p root.
  * Path traversal attempts (e.g. `../../etc/passwd`) are rejected with 403.
  * Unknown file extensions are served as `application/octet-stream`.
  */

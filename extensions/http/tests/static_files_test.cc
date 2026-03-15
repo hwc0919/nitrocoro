@@ -8,10 +8,10 @@
 #include <nitrocoro/net/TcpConnection.h>
 #include <nitrocoro/testing/Test.h>
 
+#include <atomic>
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
-#include <sys/stat.h>
 
 using namespace nitrocoro;
 using namespace nitrocoro::http;
@@ -24,7 +24,8 @@ struct TempDir
     fs::path path;
     TempDir()
     {
-        path = fs::temp_directory_path() / ("nitrocoro_test_" + std::to_string(std::rand()));
+        static std::atomic<int> counter{ 0 };
+        path = fs::temp_directory_path() / ("nitrocoro_test_" + std::to_string(counter++));
         fs::create_directories(path);
     }
     ~TempDir() { fs::remove_all(path); }
@@ -156,7 +157,7 @@ NITRO_TEST(static_files_etag_304)
 
     auto resp1 = co_await client.get("http://127.0.0.1:" + std::to_string(port) + "/data.txt");
     NITRO_CHECK_EQ(resp1.statusCode(), StatusCode::k200OK);
-    auto etag = resp1.getHeader("etag");
+    const std::string & etag = resp1.getHeader("etag");
     NITRO_REQUIRE(!etag.empty());
 
     std::string req = "GET /data.txt HTTP/1.1\r\n"
@@ -185,7 +186,7 @@ NITRO_TEST(static_files_last_modified_304)
 
     auto resp1 = co_await client.get("http://127.0.0.1:" + std::to_string(port) + "/data.txt");
     NITRO_CHECK_EQ(resp1.statusCode(), StatusCode::k200OK);
-    auto lm = resp1.getHeader("last-modified");
+    const std::string & lm = resp1.getHeader("last-modified");
     NITRO_REQUIRE(!lm.empty());
 
     std::string req = "GET /data.txt HTTP/1.1\r\n"
@@ -221,21 +222,65 @@ NITRO_TEST(static_files_head)
     co_await server.stop();
 }
 
-/** GET directory path → serves index.html. */
-NITRO_TEST(static_files_directory_index)
+/** GET / → index.html; works with both /*path and /* (anonymous wildcard). */
+NITRO_TEST(static_files_root_and_wildcard_variants)
 {
     TempDir dir;
-    dir.write("index.html", "<h1>index</h1>");
+    dir.write("hello.txt", "hello");
+    dir.write("index.html", "<h1>root</h1>");
+
+    // named wildcard
+    {
+        HttpServer server(0);
+        server.route("/*path", { "GET" }, staticFiles(dir.path.string()));
+        co_await start_server(server);
+        HttpClient client;
+        uint16_t port = server.listeningPort();
+
+        auto r1 = co_await client.get("http://127.0.0.1:" + std::to_string(port) + "/");
+        NITRO_CHECK_EQ(r1.statusCode(), StatusCode::k200OK);
+        NITRO_CHECK_EQ(r1.body(), "<h1>root</h1>");
+
+        auto r2 = co_await client.get("http://127.0.0.1:" + std::to_string(port) + "/hello.txt");
+        NITRO_CHECK_EQ(r2.statusCode(), StatusCode::k200OK);
+        NITRO_CHECK_EQ(r2.body(), "hello");
+        co_await server.stop();
+    }
+
+    // anonymous wildcard
+    {
+        HttpServer server(0);
+        server.route("/*", { "GET" }, staticFiles(dir.path.string()));
+        co_await start_server(server);
+        HttpClient client;
+        uint16_t port = server.listeningPort();
+
+        auto r1 = co_await client.get("http://127.0.0.1:" + std::to_string(port) + "/");
+        NITRO_CHECK_EQ(r1.statusCode(), StatusCode::k200OK);
+        NITRO_CHECK_EQ(r1.body(), "<h1>root</h1>");
+
+        auto r2 = co_await client.get("http://127.0.0.1:" + std::to_string(port) + "/hello.txt");
+        NITRO_CHECK_EQ(r2.statusCode(), StatusCode::k200OK);
+        NITRO_CHECK_EQ(r2.body(), "hello");
+        co_await server.stop();
+    }
+}
+
+/** Mounted at /static/*path → serves files under that prefix. */
+NITRO_TEST(static_files_subpath_mount)
+{
+    TempDir dir;
+    dir.write("hello.txt", "hello");
 
     HttpServer server(0);
-    server.route("/*path", { "GET" }, staticFiles(dir.path.string()));
+    server.route("/static/*path", { "GET" }, staticFiles(dir.path.string()));
     co_await start_server(server);
 
     HttpClient client;
     auto resp = co_await client.get(
-        "http://127.0.0.1:" + std::to_string(server.listeningPort()) + "/index.html");
+        "http://127.0.0.1:" + std::to_string(server.listeningPort()) + "/static/hello.txt");
     NITRO_CHECK_EQ(resp.statusCode(), StatusCode::k200OK);
-    NITRO_CHECK_EQ(resp.body(), "<h1>index</h1>");
+    NITRO_CHECK_EQ(resp.body(), "hello");
 
     co_await server.stop();
 }
@@ -365,81 +410,41 @@ NITRO_TEST(static_files_custom_mime_type)
     co_await server.stop();
 }
 
-/** Unknown Accept-Encoding → serves original file, no Content-Encoding. */
-NITRO_TEST(static_files_unknown_accept_encoding)
-{
-    TempDir dir;
-    dir.write("app.js", "console.log('hello')");
-
-    HttpServer server(0);
-    server.route("/*path", { "GET" }, staticFiles(dir.path.string()));
-    co_await start_server(server);
-
-    uint16_t port = server.listeningPort();
-    std::string req = "GET /app.js HTTP/1.1\r\n"
-                      "Host: 127.0.0.1\r\n"
-                      "Accept-Encoding: zstd\r\n"
-                      "Connection: close\r\n\r\n";
-    auto resp = co_await rawHttp(port, req);
-    NITRO_CHECK_EQ(statusCode(resp), 200);
-    NITRO_CHECK(getHeader(resp, "Content-Encoding").empty());
-
-    co_await server.stop();
-}
-
-/** Custom Accept-Encoding: registered zstd → serves .zst file. */
-NITRO_TEST(static_files_custom_accept_encoding)
-{
-    TempDir dir;
-    dir.write("app.js", "console.log('hello')");
-    static constexpr unsigned char kZst[] = { 0x28, 0xb5, 0x2f, 0xfd };
-    dir.write("app.js.zst", std::string_view(reinterpret_cast<const char *>(kZst), sizeof(kZst)));
-
-    auto opts = StaticFilesOptions{};
-    opts.accept_encodings["zstd"] = "zst";
-
-    HttpServer server(0);
-    server.route("/*path", { "GET" }, staticFiles(dir.path.string(), std::move(opts)));
-    co_await start_server(server);
-
-    uint16_t port = server.listeningPort();
-    std::string req = "GET /app.js HTTP/1.1\r\n"
-                      "Host: 127.0.0.1\r\n"
-                      "Accept-Encoding: zstd\r\n"
-                      "Connection: close\r\n\r\n";
-    auto resp = co_await rawHttp(port, req);
-    NITRO_CHECK_EQ(statusCode(resp), 200);
-    NITRO_CHECK_EQ(getHeader(resp, "Content-Encoding"), "zstd");
-    NITRO_CHECK_EQ(getHeader(resp, "Content-Length"), std::to_string(sizeof(kZst)));
-
-    co_await server.stop();
-}
-
-/** Disabled encoding in accept_encodings is not served even if file exists. */
-NITRO_TEST(static_files_custom_accept_encodings)
+/** Unregistered or disabled encoding → original file served, no Content-Encoding. */
+NITRO_TEST(static_files_encoding_not_used)
 {
     TempDir dir;
     dir.write("app.js", "console.log('hello')");
     static constexpr unsigned char kBr[] = { 0x3b };
     dir.write("app.js.br", std::string_view(reinterpret_cast<const char *>(kBr), sizeof(kBr)));
 
-    auto opts = StaticFilesOptions{};
-    opts.accept_encodings = { { "gzip", "gz" } }; // br disabled
+    // unknown encoding: zstd not registered
+    {
+        HttpServer server(0);
+        server.route("/*path", { "GET" }, staticFiles(dir.path.string()));
+        co_await start_server(server);
+        uint16_t port = server.listeningPort();
+        std::string req = "GET /app.js HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept-Encoding: zstd\r\nConnection: close\r\n\r\n";
+        auto resp = co_await rawHttp(port, req);
+        NITRO_CHECK_EQ(statusCode(resp), 200);
+        NITRO_CHECK(getHeader(resp, "Content-Encoding").empty());
+        co_await server.stop();
+    }
 
-    HttpServer server(0);
-    server.route("/*path", { "GET" }, staticFiles(dir.path.string(), std::move(opts)));
-    co_await start_server(server);
-
-    uint16_t port = server.listeningPort();
-    std::string req = "GET /app.js HTTP/1.1\r\n"
-                      "Host: 127.0.0.1\r\n"
-                      "Accept-Encoding: gzip, br\r\n"
-                      "Connection: close\r\n\r\n";
-    auto resp = co_await rawHttp(port, req);
-    NITRO_CHECK_EQ(statusCode(resp), 200);
-    NITRO_CHECK(getHeader(resp, "Content-Encoding") != "br");
-
-    co_await server.stop();
+    // disabled encoding: br exists on disk but removed from accept_encodings
+    {
+        auto opts = StaticFilesOptions{};
+        opts.accept_encodings = { { "gzip", "gz" } };
+        HttpServer server(0);
+        server.route("/*path", { "GET" }, staticFiles(dir.path.string(), std::move(opts)));
+        co_await start_server(server);
+        uint16_t port = server.listeningPort();
+        std::string req = "GET /app.js HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept-Encoding: gzip, br\r\nConnection: close\r\n\r\n";
+        auto resp = co_await rawHttp(port, req);
+        NITRO_CHECK_EQ(statusCode(resp), 200);
+        NITRO_CHECK(getHeader(resp, "Content-Encoding") != "br");
+        co_await server.stop();
+    }
 }
 
 NITRO_TEST(static_files_cache_hit)

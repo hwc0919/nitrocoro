@@ -20,10 +20,10 @@
 #include <unordered_map>
 
 #ifdef _WIN32
-#  include <io.h>
-#  ifndef S_ISREG
-#    define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
-#  endif
+#include <io.h>
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#endif
 #endif
 
 namespace nitrocoro::http
@@ -236,15 +236,12 @@ HttpHandlerPtr staticFiles(std::string_view root, StaticFilesOptions opts)
             const std::string & cacheControlValue = preCalc.cacheControlValue;
             FileCache * cache = caches->getCurrent();
 
-            // Resolve path
-            auto pathIt = params.find("path");
-            std::string relPath = (pathIt != params.end()) ? pathIt->second : "";
-
-            // Strip leading slash if present
+            // Resolve path: take the first (and only) wildcard param
+            std::string relPath;
+            if (!params.empty())
+                relPath = params.begin()->second;
             if (!relPath.empty() && relPath.front() == '/')
-            {
-                relPath = relPath.substr(1);
-            }
+                relPath.erase(0, 1);
 
             fs::path filePath = fs::weakly_canonical(root / relPath);
 

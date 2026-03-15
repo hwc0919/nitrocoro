@@ -168,6 +168,33 @@ NITRO_TEST(router_wildcard_single_segment)
     co_return;
 }
 
+// GET /files/ → /files/*path, wildcard captures empty string (root of mount)
+NITRO_TEST(router_wildcard_empty_path)
+{
+    HttpRouter router;
+    router.addRoute("/files/*path", { "GET" }, dummyHandler());
+
+    auto result = match(router, methods::Get, "/files/");
+    NITRO_CHECK(result.handler != nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK_EQ(result.params.at("path"), "");
+    co_return;
+}
+
+// GET /files/a/b → /* (anonymous wildcard), handler matches
+NITRO_TEST(router_anonymous_wildcard)
+{
+    HttpRouter router;
+    router.addRoute("/*", { "GET" }, dummyHandler());
+
+    auto result = match(router, methods::Get, "/files/a/b");
+    NITRO_CHECK(result.handler != nullptr);
+    NITRO_CHECK(result.reason == HttpRouter::RouteResult::Reason::Ok);
+    NITRO_CHECK(result.params.contains(""));
+    NITRO_CHECK(result.params.at("") == "files/a/b");
+    co_return;
+}
+
 // ── Regex match ───────────────────────────────────────────────────────────────
 
 // GET /items/123 → regex /items/(\d+), capture group $1

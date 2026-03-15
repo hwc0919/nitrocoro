@@ -99,6 +99,15 @@ const HttpRouter::Entry * HttpRouter::matchRadix(const RadixNode & node, std::st
     std::string_view seg = nextSegment(path, pos);
     if (seg.empty())
     {
+        // Empty remaining path can still match a wildcard (e.g. /static/ → *path = "")
+        for (const auto & [wname, wnode] : cur->wildcardChildren)
+        {
+            if (!wnode->entry.handlers.empty())
+            {
+                params[wname] = "";
+                return &wnode->entry;
+            }
+        }
         return cur->entry.handlers.empty() ? nullptr : &cur->entry;
     }
 
